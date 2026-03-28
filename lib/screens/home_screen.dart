@@ -23,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _updateParallax(double x, double y) {
     final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastParallaxUpdate > 500) {
+    if (now - _lastParallaxUpdate > 100) {
       _lastParallaxUpdate = now;
       setState(() {
         _mouseX = x;
