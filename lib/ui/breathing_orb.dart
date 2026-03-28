@@ -25,20 +25,31 @@ class _BreathingOrbState extends State<BreathingOrb>
     with TickerProviderStateMixin {
   late AnimationController _springController;
   late Animation<double> _springAnimation;
+  late AnimationController _timeController;
   final _spring = SpringDescription(mass: 1, stiffness: 500, damping: 15);
   Offset _dragOffset = Offset.zero;
   bool _isDragging = false;
+  double _time = 0;
 
   @override
   void initState() {
     super.initState();
     _springController = AnimationController.unbounded(vsync: this);
     _springAnimation = _springController;
+    _timeController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 10))
+          ..addListener(() {
+            setState(() {
+              _time = _timeController.value * 10;
+            });
+          });
+    _timeController.repeat();
   }
 
   @override
   void dispose() {
     _springController.dispose();
+    _timeController.dispose();
     super.dispose();
   }
 
@@ -89,6 +100,7 @@ class _BreathingOrbState extends State<BreathingOrb>
               springScale: _springAnimation.value,
               dragOffset: _dragOffset,
               isDragging: _isDragging,
+              time: _time,
             ),
           );
         },
@@ -104,6 +116,7 @@ class BreathingOrbPainter extends CustomPainter {
   final double springScale;
   final Offset dragOffset;
   final bool isDragging;
+  final double time;
 
   BreathingOrbPainter({
     required this.progress,
@@ -112,7 +125,18 @@ class BreathingOrbPainter extends CustomPainter {
     required this.springScale,
     required this.dragOffset,
     required this.isDragging,
+    required this.time,
   });
+
+  @override
+  bool shouldRepaint(covariant BreathingOrbPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.phase != phase ||
+        oldDelegate.isPaused != isPaused ||
+        oldDelegate.springScale != springScale ||
+        oldDelegate.dragOffset != dragOffset ||
+        oldDelegate.time != time;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -157,27 +181,24 @@ class BreathingOrbPainter extends CustomPainter {
           );
 
     final shadowPaint = Paint()
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 30 * glowIntensity)
-      ..color = ZenTheme.nebulaCyan.withValues(alpha: 0.5 * glowIntensity);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20)
+      ..color = ZenTheme.nebulaCyan.withValues(alpha: 0.3);
     canvas.drawCircle(center, radius * 0.8 * springScale, shadowPaint);
 
     canvas.drawCircle(center, radius * springScale, orbPaint);
 
-    _drawParticles(canvas, center, radius, glowIntensity);
-
-    if (phase == '呼气' && progress < 0.3) {
-      _drawSingularity(canvas, center, radius, progress);
-    }
+    _drawParticles(canvas, center, radius, progress, time);
   }
 
   void _drawParticles(
     Canvas canvas,
     Offset center,
     double radius,
-    double intensity,
+    double progress,
+    double time,
   ) {
     final random = math.Random(42);
-    final particleCount = phase == '吸气' ? 20 : 12;
+    final particleCount = phase == '吸气' ? 20 : (phase == '屏息' ? 16 : 12);
     final expansion = phase == '吸气' ? progress : (1 - progress);
 
     for (int i = 0; i < particleCount; i++) {
@@ -191,7 +212,15 @@ class BreathingOrbPainter extends CustomPainter {
         center.dy + math.sin(angle) * distance,
       );
       final particleRadius = 2 + random.nextDouble() * 3;
-      final opacity = (0.8 - expansion * 0.6) * intensity;
+
+      // Twinkle effect during hold phase
+      double twinkle = 1.0;
+      if (phase == '屏息') {
+        twinkle = 0.5 + 0.5 * math.sin(time * 3.0 + i * 0.8);
+      }
+
+      final baseOpacity = (0.8 - expansion * 0.6) * progress;
+      final opacity = baseOpacity * twinkle;
 
       final particlePaint = Paint()
         ..color = ZenTheme.starWhite.withValues(alpha: opacity)
@@ -202,35 +231,5 @@ class BreathingOrbPainter extends CustomPainter {
         particlePaint,
       );
     }
-  }
-
-  void _drawSingularity(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    double progress,
-  ) {
-    final singularityRadius = radius * progress * 0.3;
-    final paint = Paint()
-      ..shader =
-          RadialGradient(
-            colors: [
-              ZenTheme.starWhite,
-              ZenTheme.singularity,
-              Colors.transparent,
-            ],
-          ).createShader(
-            Rect.fromCircle(center: center, radius: singularityRadius),
-          );
-    canvas.drawCircle(center, singularityRadius, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant BreathingOrbPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.phase != phase ||
-        oldDelegate.isPaused != isPaused ||
-        oldDelegate.springScale != springScale ||
-        oldDelegate.dragOffset != dragOffset;
   }
 }
