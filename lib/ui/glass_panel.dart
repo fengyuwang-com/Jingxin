@@ -4,47 +4,51 @@ import '../core/theme.dart';
 
 class GlassPanel extends StatelessWidget {
   final Widget child;
-  final double blur;
   final double opacity;
   final EdgeInsets? padding;
   final BorderRadius? borderRadius;
+  final bool isDarkMode;
+  final Color? tint;
 
   const GlassPanel({
     super.key,
     required this.child,
-    this.blur = 20,
-    this.opacity = 0.1,
+    this.opacity = 0.08,
     this.padding,
     this.borderRadius,
+    this.isDarkMode = true,
+    this.tint,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: borderRadius ?? BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: ZenTheme.deepSpace.withValues(alpha: opacity),
-            borderRadius: borderRadius ?? BorderRadius.circular(24),
-            border: Border.all(
-              color: ZenTheme.starWhite.withValues(alpha: 0.1),
-              width: 1,
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                ZenTheme.starWhite.withValues(alpha: 0.05),
-                Colors.transparent,
-              ],
-            ),
+    final surfaceColor = isDarkMode ? ZenTheme.surface : Colors.white;
+    final borderColor = isDarkMode
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.05);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: (tint ?? surfaceColor).withValues(alpha: opacity),
+        borderRadius: borderRadius ?? BorderRadius.circular(20),
+        border: Border.all(color: borderColor, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDarkMode ? 0.4 : 0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: -2,
           ),
-          child: child,
-        ),
+          BoxShadow(
+            color: (tint ?? ZenTheme.nebulaCyan).withValues(alpha: 0.08),
+            blurRadius: 30,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      child: child,
     );
   }
 }

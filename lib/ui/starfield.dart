@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
@@ -5,26 +6,36 @@ import '../core/theme.dart';
 class Starfield extends StatefulWidget {
   final double mouseX;
   final double mouseY;
+  final Color? primaryColor;
+  final bool isDarkMode;
 
-  const Starfield({super.key, this.mouseX = 0, this.mouseY = 0});
+  const Starfield({
+    super.key,
+    this.mouseX = 0,
+    this.mouseY = 0,
+    this.primaryColor,
+    this.isDarkMode = true,
+  });
 
   @override
   State<Starfield> createState() => _StarfieldState();
 }
 
-class _StarfieldState extends State<Starfield>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+class _StarfieldState extends State<Starfield> {
+  late Timer _timer;
   late List<Star> _stars;
   final _random = math.Random();
+  double _time = 0;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 30),
-      vsync: this,
-    )..repeat();
+    // 2fps - enough for natural twinkle, low GPU load
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (mounted) {
+        setState(() => _time = (_time + 0.016) % 1.0);
+      }
+    });
 
     _stars = List.generate(
       80,
@@ -35,37 +46,37 @@ class _StarfieldState extends State<Starfield>
         brightness: _random.nextDouble() * 0.5 + 0.3,
         twinkleOffset: _random.nextDouble() * math.pi * 2,
         twinkleSpeed: _random.nextDouble() * 2 + 1,
+        hueOffset: _random.nextDouble() * 60 - 30,
       ),
     );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _timer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: Size.infinite,
-          painter: StarfieldPainter(
-            stars: _stars,
-            time: _controller.value,
-            mouseX: widget.mouseX,
-            mouseY: widget.mouseY,
-          ),
-        );
-      },
+    final primaryColor = widget.primaryColor ?? ZenTheme.nebulaCyan;
+
+    return CustomPaint(
+      size: Size.infinite,
+      painter: StarfieldPainter(
+        stars: _stars,
+        time: _time,
+        mouseX: widget.mouseX,
+        mouseY: widget.mouseY,
+        primaryColor: primaryColor,
+        isDarkMode: widget.isDarkMode,
+      ),
     );
   }
 }
 
 class Star {
-  double x, y, size, brightness, twinkleOffset, twinkleSpeed;
+  double x, y, size, brightness, twinkleOffset, twinkleSpeed, hueOffset;
   Star({
     required this.x,
     required this.y,
@@ -73,6 +84,7 @@ class Star {
     required this.brightness,
     required this.twinkleOffset,
     required this.twinkleSpeed,
+    required this.hueOffset,
   });
 }
 
@@ -81,28 +93,51 @@ class StarfieldPainter extends CustomPainter {
   final double time;
   final double mouseX;
   final double mouseY;
+  final Color primaryColor;
+  final bool isDarkMode;
 
   StarfieldPainter({
     required this.stars,
     required this.time,
     required this.mouseX,
     required this.mouseY,
+    required this.primaryColor,
+    required this.isDarkMode,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = ZenTheme.voidBlack;
+    final bgColor = isDarkMode
+        ? ZenTheme.voidBlack
+        : HSLColor.fromColor(primaryColor).withLightness(0.95).toColor();
+    final bgPaint = Paint()..color = bgColor;
     canvas.drawRect(Offset.zero & size, bgPaint);
 
-    final gradient = RadialGradient(
-      center: Alignment((mouseX - 0.5) * 0.2, (mouseY - 0.5) * 0.2),
-      radius: 1.5,
-      colors: [ZenTheme.deepSpace.withValues(alpha: 0.8), ZenTheme.voidBlack],
-    );
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..shader = gradient.createShader(Offset.zero & size),
-    );
+    if (!isDarkMode) {
+      final dayGradient = RadialGradient(
+        center: Alignment((mouseX - 0.5) * 0.2, (mouseY - 0.5) * 0.2),
+        radius: 1.5,
+        colors: [primaryColor.withValues(alpha: 0.15), bgColor],
+      );
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..shader = dayGradient.createShader(Offset.zero & size),
+      );
+    } else {
+      final gradient = RadialGradient(
+        center: Alignment((mouseX - 0.5) * 0.2, (mouseY - 0.5) * 0.2),
+        radius: 1.5,
+        colors: [ZenTheme.deepSpace.withValues(alpha: 0.8), ZenTheme.voidBlack],
+      );
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..shader = gradient.createShader(Offset.zero & size),
+      );
+    }
+
+    final baseHue = HSLColor.fromColor(primaryColor).hue;
+    final baseSat = isDarkMode ? 0.3 : 0.5;
+    final baseLight = isDarkMode ? 0.9 : 0.7;
 
     for (final star in stars) {
       final parallaxX = (star.x + mouseX * 0.02) % 1.0;
@@ -116,8 +151,15 @@ class StarfieldPainter extends CustomPainter {
           2;
       final opacity = star.brightness * (0.5 + twinkle * 0.5);
 
+      final starColor = HSLColor.fromAHSL(
+        opacity,
+        (baseHue + star.hueOffset) % 360,
+        baseSat,
+        baseLight,
+      ).toColor();
+
       final starPaint = Paint()
-        ..color = ZenTheme.starWhite.withValues(alpha: opacity)
+        ..color = starColor
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, star.size * 0.5);
 
       canvas.drawCircle(
@@ -127,8 +169,9 @@ class StarfieldPainter extends CustomPainter {
       );
 
       if (star.size > 1.5) {
+        final glowColor = primaryColor.withValues(alpha: opacity * 0.3);
         final glowPaint = Paint()
-          ..color = ZenTheme.nebulaCyan.withValues(alpha: opacity * 0.3)
+          ..color = glowColor
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, star.size * 2);
         canvas.drawCircle(
           Offset(parallaxX * size.width, parallaxY * size.height),
@@ -143,6 +186,8 @@ class StarfieldPainter extends CustomPainter {
   bool shouldRepaint(covariant StarfieldPainter oldDelegate) {
     return oldDelegate.time != time ||
         oldDelegate.mouseX != mouseX ||
-        oldDelegate.mouseY != mouseY;
+        oldDelegate.mouseY != mouseY ||
+        oldDelegate.primaryColor != primaryColor ||
+        oldDelegate.isDarkMode != isDarkMode;
   }
 }
