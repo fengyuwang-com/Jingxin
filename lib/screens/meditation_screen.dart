@@ -1,20 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/meditation_session.dart';
-import '../providers/meditation_provider.dart';
-import '../theme/app_theme.dart';
-import '../widgets/breathing_circle.dart';
+import '../core/theme.dart';
+import '../ui/breathing_orb.dart';
+import '../ui/glass_panel.dart';
+import '../ui/starfield.dart';
 
 class MeditationScreen extends StatefulWidget {
   final int durationMinutes;
-  final MeditationMode mode;
 
-  const MeditationScreen({
-    super.key,
-    required this.durationMinutes,
-    required this.mode,
-  });
+  const MeditationScreen({super.key, required this.durationMinutes});
 
   @override
   State<MeditationScreen> createState() => _MeditationScreenState();
@@ -27,50 +21,59 @@ class _MeditationScreenState extends State<MeditationScreen>
   bool _isPaused = false;
   bool _isCountingDown = true;
   int _countdown = 3;
-  late AnimationController _fadeController;
-  late Animation<double> _fadeAnimation;
-  late Stopwatch _stopwatch;
-  DateTime? _pausedAt;
+
+  late AnimationController _breathController;
+  String _phase = '吸气';
+  double _breathProgress = 0.0;
+
+  final int _inhaleSeconds = 4;
+  final int _holdSeconds = 7;
+  final int _exhaleSeconds = 8;
+
+  double _mouseX = 0.5;
+  double _mouseY = 0.5;
+
+  final _breathDuration = 19;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _remainingSeconds = widget.durationMinutes * 60;
-    _fadeController = AnimationController(
+
+    _breathController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _fadeAnimation = Tween<double>(
-      begin: 0,
-      end: 1,
-    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
-    _fadeController.forward();
+      duration: Duration(seconds: _breathDuration),
+    )..addListener(_updateBreathPhase);
+
     _startCountdown();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused && !_isPaused && !_isCountingDown) {
-      _pausedAt = DateTime.now();
-      _stopwatch.stop();
-    } else if (state == AppLifecycleState.resumed && _pausedAt != null) {
-      final elapsed = DateTime.now().difference(_pausedAt!).inSeconds;
-      _remainingSeconds = (_remainingSeconds - elapsed).clamp(
-        0,
-        _remainingSeconds,
-      );
-      _stopwatch.start();
-      _pausedAt = null;
-    }
-  }
+  void _updateBreathPhase() {
+    final progress = _breathController.value;
+    final inhaleEnd = _inhaleSeconds / _breathDuration;
+    final holdEnd = (_inhaleSeconds + _holdSeconds) / _breathDuration;
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _timer.cancel();
-    _fadeController.dispose();
-    super.dispose();
+    String newPhase;
+    double newProgress;
+
+    if (progress < inhaleEnd) {
+      newPhase = '吸气';
+      newProgress = progress / inhaleEnd;
+    } else if (progress < holdEnd) {
+      newPhase = '屏息';
+      newProgress = 1.0;
+    } else {
+      newPhase = '呼气';
+      newProgress = 1.0 - ((progress - holdEnd) / (1 - holdEnd));
+    }
+
+    if (newPhase != _phase || (newProgress - _breathProgress).abs() > 0.01) {
+      setState(() {
+        _phase = newPhase;
+        _breathProgress = newProgress;
+      });
+    }
   }
 
   void _startCountdown() {
@@ -79,14 +82,11 @@ class _MeditationScreenState extends State<MeditationScreen>
         timer.cancel();
         return;
       }
-      setState(() {
-        _countdown--;
-      });
+      setState(() => _countdown--);
       if (_countdown <= 0) {
         timer.cancel();
-        setState(() {
-          _isCountingDown = false;
-        });
+        setState(() => _isCountingDown = false);
+        _breathController.repeat();
         _startMeditation();
       }
     });
@@ -99,121 +99,63 @@ class _MeditationScreenState extends State<MeditationScreen>
         return;
       }
       if (!_isPaused) {
-        setState(() {
-          _remainingSeconds--;
-        });
+        setState(() => _remainingSeconds--);
         if (_remainingSeconds <= 0) {
           timer.cancel();
-          _completeSession();
+          _breathController.stop();
         }
       }
     });
   }
 
-  void _completeSession() async {
-    final session = MeditationSession(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      startTime: DateTime.now().subtract(
-        Duration(minutes: widget.durationMinutes),
-      ),
-      durationSeconds: widget.durationMinutes * 60,
-      mode: widget.mode,
-      completed: true,
-    );
-    await context.read<MeditationProvider>().addSession(session);
-
-    if (!mounted) return;
-    _showCompletionDialog();
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused && !_isPaused && !_isCountingDown) {
+      _breathController.stop();
+    } else if (state == AppLifecycleState.resumed && !_isCountingDown) {
+      _breathController.repeat();
+    }
   }
 
-  void _showCompletionDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.secondaryBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle, color: AppColors.accent, size: 32),
-            SizedBox(width: 12),
-            Text('冥想完成', style: TextStyle(color: AppColors.textPrimary)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${widget.durationMinutes}分钟',
-              style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.mode.displayName,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('完成', style: TextStyle(color: AppColors.accent)),
-          ),
-        ],
-      ),
-    );
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer.cancel();
+    _breathController.dispose();
+    super.dispose();
   }
 
-  void _showExitConfirmation() {
+  void _togglePause() {
+    setState(() => _isPaused = !_isPaused);
+    if (_isPaused) {
+      _breathController.stop();
+    } else {
+      _breathController.repeat();
+    }
+  }
+
+  void _exit() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.secondaryBackground,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ZenTheme.deepSpace.withValues(alpha: 0.9),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          '结束冥想?',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
+        title: const Text('结束冥想?', style: TextStyle(color: ZenTheme.starWhite)),
         content: const Text(
-          '确定要提前结束这次冥想吗?',
-          style: TextStyle(color: AppColors.textSecondary),
+          '确定要退出吗?',
+          style: TextStyle(color: ZenTheme.textMuted),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('取消'),
           ),
           TextButton(
-            onPressed: () async {
-              final elapsedSeconds =
-                  (widget.durationMinutes * 60) - _remainingSeconds;
-              if (elapsedSeconds > 60) {
-                final session = MeditationSession(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  startTime: DateTime.now().subtract(
-                    Duration(seconds: elapsedSeconds),
-                  ),
-                  durationSeconds: elapsedSeconds,
-                  mode: widget.mode,
-                  completed: false,
-                );
-                await context.read<MeditationProvider>().addSession(session);
-              }
-              if (!mounted) return;
-              Navigator.pop(context);
+            onPressed: () {
+              Navigator.pop(ctx);
               Navigator.pop(context);
             },
-            child: const Text('结束', style: TextStyle(color: Colors.redAccent)),
+            child: const Text('退出', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -223,400 +165,212 @@ class _MeditationScreenState extends State<MeditationScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primaryBackground,
-      body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: _isCountingDown
-              ? _buildCountdown()
-              : _buildMeditationContent(),
+      body: MouseRegion(
+        onHover: (event) {
+          setState(() {
+            _mouseX = event.position.dx / MediaQuery.of(context).size.width;
+            _mouseY = event.position.dy / MediaQuery.of(context).size.height;
+          });
+        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isLandscape = constraints.maxWidth > constraints.maxHeight;
+            return AnimatedSwitcher(
+              duration: const Duration(milliseconds: 500),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: isLandscape
+                  ? _buildLandscapeLayout(constraints)
+                  : _buildPortraitLayout(constraints),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildCountdown() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text(
-            '准备好开始了吗',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
-          const SizedBox(height: 40),
-          Text(
-            '$_countdown',
-            style: const TextStyle(
-              color: AppColors.accent,
-              fontSize: 120,
-              fontWeight: FontWeight.w100,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMeditationContent() {
-    final progress = 1 - (_remainingSeconds / (widget.durationMinutes * 60));
-
+  Widget _buildPortraitLayout(BoxConstraints constraints) {
     return Stack(
       children: [
-        Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    onPressed: _showExitConfirmation,
-                    icon: const Icon(
-                      Icons.close,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  Text(
-                    widget.mode.displayName,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
-              ),
+        Starfield(mouseX: _mouseX, mouseY: _mouseY),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              children: [
+                _buildHeader(),
+                const Spacer(),
+                _buildOrbSection(),
+                const Spacer(),
+                _buildControls(),
+              ],
             ),
-            Expanded(child: _buildModeContent()),
-            _buildBottomControls(progress),
-          ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildModeContent() {
-    switch (widget.mode) {
-      case MeditationMode.breathing:
-        return const BreathingCircle(
-          breatheInSeconds: 4,
-          holdSeconds: 7,
-          breatheOutSeconds: 8,
-          instruction: '4-7-8 呼吸法：吸气4秒，屏息7秒，呼气8秒',
-        );
-      case MeditationMode.mindfulness:
-        return _MindfulnessContent(
-          elapsedRatio: 1 - (_remainingSeconds / (widget.durationMinutes * 60)),
-        );
-      case MeditationMode.guided:
-        return _GuidedContent(
-          remainingSeconds: _remainingSeconds,
-          totalSeconds: widget.durationMinutes * 60,
-        );
-      case MeditationMode.relaxation:
-        return _RelaxationContent(
-          remainingSeconds: _remainingSeconds,
-          totalSeconds: widget.durationMinutes * 60,
-        );
-    }
+  Widget _buildLandscapeLayout(BoxConstraints constraints) {
+    return Stack(
+      children: [
+        Starfield(mouseX: _mouseX, mouseY: _mouseY),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                Expanded(child: _buildOrbSection()),
+                const SizedBox(width: 24),
+                Expanded(child: _buildControls()),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _buildBottomControls(double progress) {
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          onPressed: _exit,
+          icon: const Icon(Icons.close, color: ZenTheme.textMuted),
+        ),
+        Text(
+          _isCountingDown ? '准备' : _phase,
+          style: const TextStyle(
+            color: ZenTheme.starWhite,
+            fontSize: 20,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 4,
+          ),
+        ),
+        const SizedBox(width: 48),
+      ],
+    );
+  }
+
+  Widget _buildOrbSection() {
+    if (_isCountingDown) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '准备好',
+              style: TextStyle(color: ZenTheme.textMuted, fontSize: 24),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '$_countdown',
+              style: const TextStyle(
+                color: ZenTheme.nebulaCyan,
+                fontSize: 120,
+                fontWeight: FontWeight.w100,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 280,
+          height: 280,
+          child: BreathingOrb(
+            breatheProgress: _breathProgress,
+            phase: _phase,
+            isPaused: _isPaused,
+            onTap: _togglePause,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          _phase,
+          style: const TextStyle(
+            color: ZenTheme.starWhite,
+            fontSize: 28,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildControls() {
     final minutes = _remainingSeconds ~/ 60;
     final seconds = _remainingSeconds % 60;
+    final progress = 1 - (_remainingSeconds / (widget.durationMinutes * 60));
 
-    return Container(
-      padding: const EdgeInsets.all(24),
+    return GlassPanel(
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 80,
-                height: 80,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 4,
-                  backgroundColor: AppColors.secondaryBackground,
-                  valueColor: const AlwaysStoppedAnimation(AppColors.accent),
-                ),
-              ),
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _isPaused = !_isPaused;
-                  });
-                },
-                icon: Icon(
-                  _isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                  size: 40,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           Text(
             '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
             style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w300,
+              color: ZenTheme.starWhite,
+              fontSize: 48,
+              fontWeight: FontWeight.w100,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            _isPaused ? '已暂停' : '冥想中',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MindfulnessContent extends StatelessWidget {
-  final double elapsedRatio;
-
-  const _MindfulnessContent({required this.elapsedRatio});
-
-  List<String> get _bodyParts => [
-    '脚趾',
-    '双脚',
-    '腿部',
-    '腹部',
-    '胸部',
-    '手臂',
-    '双手',
-    '肩膀',
-    '颈部',
-    '头部',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final partIndex = (elapsedRatio * _bodyParts.length).floor().clamp(
-      0,
-      _bodyParts.length - 1,
-    );
-    final currentPart = _bodyParts[partIndex];
-    final progress = (elapsedRatio * _bodyParts.length) - partIndex;
-
-    return Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.accent.withValues(alpha: 0.3),
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: Container(
-                width: 180 * progress,
-                height: 180 * progress,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.accent.withValues(alpha: 0.3),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 40),
-          Text(
-            '感受你的$currentPart',
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w300,
-            ),
-          ),
           const SizedBox(height: 16),
-          Text(
-            '放松并感受这个部位的温度和感觉',
-            style: TextStyle(
-              color: AppColors.textSecondary.withValues(alpha: 0.8),
-              fontSize: 16,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Text(
-            '${partIndex + 1} / ${_bodyParts.length}',
-            style: const TextStyle(color: AppColors.accent, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GuidedContent extends StatelessWidget {
-  final int remainingSeconds;
-  final int totalSeconds;
-
-  const _GuidedContent({
-    required this.remainingSeconds,
-    required this.totalSeconds,
-  });
-
-  List<String> get _steps => [
-    '找一个舒适的姿势坐好',
-    '轻轻闭上眼睛',
-    '深呼吸三次，放松身体',
-    '将注意力放在呼吸上',
-    '感受空气通过鼻腔',
-    '让思绪如云朵飘过',
-    '不要追逐或阻止想法',
-    '只是观察，然后放下',
-    '继续专注呼吸',
-    '准备好回到现实',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final stepIndex = ((1 - (remainingSeconds / totalSeconds)) * _steps.length)
-        .floor()
-        .clamp(0, _steps.length - 1);
-
-    return Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 8,
-            height: 200,
-            decoration: BoxDecoration(
-              color: AppColors.secondaryBackground,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Column(
+          SizedBox(
+            width: 120,
+            height: 120,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
-                Container(
-                  width: 8,
-                  height: 200 * (1 - remainingSeconds / totalSeconds),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(4),
+                CircularProgressIndicator(
+                  value: progress,
+                  strokeWidth: 3,
+                  backgroundColor: ZenTheme.deepSpace,
+                  valueColor: const AlwaysStoppedAnimation(ZenTheme.nebulaCyan),
+                ),
+                IconButton(
+                  onPressed: _togglePause,
+                  icon: Icon(
+                    _isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                    color: ZenTheme.starWhite,
+                    size: 40,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 40),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 500),
-            child: Text(
-              _steps[stepIndex],
-              key: ValueKey(stepIndex),
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 22,
-                fontWeight: FontWeight.w300,
+          const SizedBox(height: 16),
+          Text(
+            _isPaused ? '已暂停' : '冥想中',
+            style: const TextStyle(color: ZenTheme.textMuted, fontSize: 14),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ZenButton(
+                label: _isPaused ? '继续' : '暂停',
+                icon: _isPaused ? Icons.play_arrow : Icons.pause,
+                onPressed: _togglePause,
               ),
-              textAlign: TextAlign.center,
-            ),
+              const SizedBox(width: 16),
+              ZenButton(
+                label: '结束',
+                icon: Icons.stop,
+                isPrimary: false,
+                onPressed: _exit,
+              ),
+            ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RelaxationContent extends StatelessWidget {
-  final int remainingSeconds;
-  final int totalSeconds;
-
-  const _RelaxationContent({
-    required this.remainingSeconds,
-    required this.totalSeconds,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = 1 - (remainingSeconds / totalSeconds);
-    final waveOffset = progress * 20;
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color.lerp(
-              const Color(0xFF1a1a2e),
-              const Color(0xFF16213e),
-              progress,
-            )!,
-            AppColors.primaryBackground,
-          ],
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                ...List.generate(3, (index) {
-                  return AnimatedContainer(
-                    duration: const Duration(seconds: 3),
-                    width: 180 + (index * 40) + waveOffset,
-                    height: 180 + (index * 40) + waveOffset,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.accent.withValues(
-                          alpha: 0.1 - (index * 0.03),
-                        ),
-                        width: 1,
-                      ),
-                    ),
-                  );
-                }),
-                const Text('🌊', style: TextStyle(fontSize: 60)),
-              ],
-            ),
-            const SizedBox(height: 40),
-            const Text(
-              '海浪轻拍岸边',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.w300,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '想象自己躺在海滩上\n海风轻拂，浪声阵阵',
-              style: TextStyle(
-                color: AppColors.textSecondary.withValues(alpha: 0.8),
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }
