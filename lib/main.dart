@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-import 'providers/meditation_provider.dart';
+import 'core/theme.dart';
 import 'screens/home_screen.dart';
-import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,22 +11,20 @@ void main() {
       statusBarIconBrightness: Brightness.light,
     ),
   );
-  runApp(const JingXinApp());
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  runApp(const ZenApp());
 }
 
-class JingXinApp extends StatelessWidget {
-  const JingXinApp({super.key});
+class ZenApp extends StatelessWidget {
+  const ZenApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => MeditationProvider(),
-      child: MaterialApp(
-        title: '静心',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        home: const HomeScreen(),
-      ),
+    return MaterialApp(
+      title: '静心 | CYBER-ZEN',
+      debugShowCheckedModeBanner: false,
+      theme: ZenTheme.darkTheme,
+      home: const HomeScreen(),
     );
   }
 }
