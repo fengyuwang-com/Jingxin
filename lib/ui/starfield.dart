@@ -30,15 +30,16 @@ class _StarfieldState extends State<Starfield> {
   @override
   void initState() {
     super.initState();
-    // 2fps - enough for natural twinkle, low GPU load
-    _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    // 10fps - smooth parallax, still low GPU load
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (mounted) {
         setState(() => _time = (_time + 0.016) % 1.0);
       }
     });
 
+    // 30 stars instead of 80
     _stars = List.generate(
-      80,
+      30,
       (_) => Star(
         x: _random.nextDouble(),
         y: _random.nextDouble(),
@@ -61,15 +62,17 @@ class _StarfieldState extends State<Starfield> {
   Widget build(BuildContext context) {
     final primaryColor = widget.primaryColor ?? ZenTheme.nebulaCyan;
 
-    return CustomPaint(
-      size: Size.infinite,
-      painter: StarfieldPainter(
-        stars: _stars,
-        time: _time,
-        mouseX: widget.mouseX,
-        mouseY: widget.mouseY,
-        primaryColor: primaryColor,
-        isDarkMode: widget.isDarkMode,
+    return RepaintBoundary(
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: StarfieldPainter(
+          stars: _stars,
+          time: _time,
+          mouseX: widget.mouseX,
+          mouseY: widget.mouseY,
+          primaryColor: primaryColor,
+          isDarkMode: widget.isDarkMode,
+        ),
       ),
     );
   }
@@ -158,9 +161,8 @@ class StarfieldPainter extends CustomPainter {
         baseLight,
       ).toColor();
 
-      final starPaint = Paint()
-        ..color = starColor
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, star.size * 0.5);
+      // No blur - just solid circles for performance
+      final starPaint = Paint()..color = starColor;
 
       canvas.drawCircle(
         Offset(parallaxX * size.width, parallaxY * size.height),
@@ -168,14 +170,13 @@ class StarfieldPainter extends CustomPainter {
         starPaint,
       );
 
+      // Simple glow for larger stars - no blur filter
       if (star.size > 1.5) {
-        final glowColor = primaryColor.withValues(alpha: opacity * 0.3);
-        final glowPaint = Paint()
-          ..color = glowColor
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, star.size * 2);
+        final glowColor = primaryColor.withValues(alpha: opacity * 0.2);
+        final glowPaint = Paint()..color = glowColor;
         canvas.drawCircle(
           Offset(parallaxX * size.width, parallaxY * size.height),
-          star.size * 2,
+          star.size * 1.5,
           glowPaint,
         );
       }
