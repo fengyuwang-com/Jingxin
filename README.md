@@ -2,6 +2,8 @@
 
 极简风格的移动端冥想应用，支持呼吸、正念、引导、放松四种冥想模式。
 
+> **官网**：https://fengyuwang.com/zh-cn/jingxin.html
+
 ## 快速开始
 
 ```bash
