@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../core/theme.dart';
 import '../game/awakening.dart';
 import '../game/memento.dart';
+import '../game/memo_stats.dart';
 import '../game/shard.dart';
 import '../game/star_beast.dart';
 
@@ -415,6 +416,7 @@ class _MementoDrawerState extends State<_MementoDrawer> {
   final AwakeningState _awakening = AwakeningState();
   bool _showFootprint = false;
   bool _showPaste = false;
+  bool _showMemories = false; // 「重看那一夜」：碎片星点列（第 24 轮）。
   String? _message; // 一行淡字，用后即逝。
   bool _busy = false;
 
@@ -474,6 +476,86 @@ class _MementoDrawerState extends State<_MementoDrawer> {
     widget.onImported();
     _pasteController.clear();
     _say('心镜归位了，共 $added 片');
+  }
+
+  /// 「重看那一夜」的碎片星点：按时间排布的一串小星，
+  /// 颜色即来源区域。点选一枚，浮起那晚的记忆卡。
+  Widget _memoryChips() {
+    final records = List<ShardRecord>.of(widget.collection.records)
+      ..sort((a, b) => a.time.compareTo(b.time));
+    if (records.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 10, bottom: 4),
+        child: Text(
+          '还没有碎片。当光灵拾起第一片心镜，这里会亮起第一枚星点。',
+          style: TextStyle(
+            color: ZenTheme.textMuted.withValues(alpha: 0.5),
+            fontSize: 12,
+            height: 1.8,
+            letterSpacing: 1.5,
+          ),
+        ),
+      );
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: ZenTheme.voidBlack.withValues(alpha: 0.35),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final rec in records)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openMemoryCard(rec),
+              child: Tooltip(
+                message: '${_formatDate(rec.time)} · ${rec.region}',
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: regionDotColor(rec.region).withValues(
+                          alpha: 0.35,
+                        ),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: regionDotColor(rec.region),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 记忆卡：玻璃拟态底部浮层，重走那一夜的呼吸。
+  void _openMemoryCard(ShardRecord record) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (_) => _MemoryCard(record: record),
+    );
   }
 
   String get _footprintText {
@@ -541,7 +623,18 @@ class _MementoDrawerState extends State<_MementoDrawer> {
                       letterSpacing: 8,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
+                  // 顶部汇总（第 24 轮）：一句淡字，数字轻、无成绩感。
+                  Text(
+                    memorySummary(widget.collection.records),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ZenTheme.textMuted.withValues(alpha: 0.6),
+                      fontSize: 12,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   _MementoAction(
                     label: '带我的心境走',
                     hint: '把这片星图收进一段文字，随身带走',
@@ -577,6 +670,15 @@ class _MementoDrawerState extends State<_MementoDrawer> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  // 「重看那一夜」（第 24 轮）：点一枚星点，重走那次呼吸。
+                  _MementoAction(
+                    label: '重看那一夜',
+                    hint: '点一枚碎片，回到拾起它的时刻',
+                    onTap: () =>
+                        setState(() => _showMemories = !_showMemories),
+                  ),
+                  _expandable(visible: _showMemories, child: _memoryChips()),
                   const SizedBox(height: 10),
                   _MementoAction(
                     label: '放回心镜',
@@ -726,4 +828,163 @@ class _MementoAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 「一夜的记忆」记忆卡（第 24 轮）：玻璃拟态卡片，
+/// 时间戳 + 禅语 + 来源区域星点，卡内一枚程序化「呼吸纹」
+/// （三环涟漪，随呼吸节奏极缓慢脉动——回看时重走那次呼吸）。
+class _MemoryCard extends StatefulWidget {
+  const _MemoryCard({required this.record});
+
+  final ShardRecord record;
+
+  @override
+  State<_MemoryCard> createState() => _MemoryCardState();
+}
+
+class _MemoryCardState extends State<_MemoryCard>
+    with SingleTickerProviderStateMixin {
+  /// 呼吸纹周期：8s 一循环，与游戏内静呼吸节奏同量级，极缓。
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 8),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    super.dispose();
+  }
+
+  String _formatFull(DateTime t) {
+    final m = t.month.toString().padLeft(2, '0');
+    final d = t.day.toString().padLeft(2, '0');
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '$m月$d日 $hh:$mm';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dotColor = regionDotColor(widget.record.region);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 0, 32, 48),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            color: ZenTheme.surfaceDim.withValues(alpha: 0.62),
+            border: Border.all(color: dotColor.withValues(alpha: 0.22)),
+          ),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 呼吸纹：三环涟漪，极缓脉动。
+                AnimatedBuilder(
+                  animation: _breath,
+                  builder: (context, _) => CustomPaint(
+                    size: const Size(96, 96),
+                    painter: _BreathRipplePainter(
+                      phase: _breath.value,
+                      color: dotColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  widget.record.text,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: ZenTheme.textHigh,
+                    fontSize: 17,
+                    height: 1.7,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 来源区域：一枚小星点 + 区域名。
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: dotColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: dotColor.withValues(alpha: 0.5),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${widget.record.region} · ${_formatFull(widget.record.time)}',
+                      style: TextStyle(
+                        color: ZenTheme.textMuted.withValues(alpha: 0.7),
+                        fontSize: 12,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 呼吸纹画笔：三圈同心圆环涟漪，相位错开，透明度随呼吸相位
+/// 极缓慢地起伏（sin 波，无急停）。克制：只描边、不填充。
+class _BreathRipplePainter extends CustomPainter {
+  _BreathRipplePainter({required this.phase, required this.color});
+
+  /// 0..1 呼吸相位。
+  final double phase;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final maxR = size.shortestSide / 2 - 2;
+    final breathe = 0.5 + 0.5 * math.sin(phase * 2 * math.pi);
+    for (var i = 0; i < 3; i++) {
+      final t = (phase - i * 0.18) % 1.0;
+      final ripple = 0.5 + 0.5 * math.sin(t * 2 * math.pi);
+      final r = maxR * (0.34 + 0.30 * i / 2) + 3.0 * ripple;
+      final alpha = 0.16 + 0.20 * breathe - 0.06 * i;
+      canvas.drawCircle(
+        center,
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = Color.lerp(
+            ZenTheme.starWhite,
+            color,
+            0.55,
+          )!.withValues(alpha: alpha.clamp(0.0, 1.0)),
+      );
+    }
+    // 中心一粒安静的星点。
+    canvas.drawCircle(
+      center,
+      2.2 + 0.6 * breathe,
+      Paint()..color = color.withValues(alpha: 0.5 + 0.3 * breathe),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_BreathRipplePainter old) =>
+      old.phase != phase || old.color != color;
 }
