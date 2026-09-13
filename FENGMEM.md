@@ -73,3 +73,10 @@
 - AI 行动: 新增 voice.dart/voice_web.dart/voice_stub.dart（SpeechSynthesis，zh-CN 优先，rate0.85/pitch0.95/vol0.5，voices 异步探测）；koans.dart 加 10 句入睡引导池；soundscape 增 duck（0.5→0.3，1s/2s）；jingjing_screen 接入小喇叭开关（持久化默认关）、碎片禅语朗读、长夜 90~150s 随机 whisper、触摸取消 whisper/禅语读完、生命周期与退出 cancelAll；star_map_screen 增可选 onSpeakKoan
 - 产出: commit 451eb10；analyze 0 error（19 基线无新增）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
 - 关键决策: 朗读分两类礼仪（koan 不因触摸取消、whisper 触摸即停）；无可用声音时 UI 隐藏开关；lang 恒设 zh-CN 即便无中文声音
+
+
+## 2026-09-13 — 第 13 轮
+- 用户要求: 通宵升级第 13 轮——第四心境区域「纷心雾林」（世界左右水平带 ny 0.30~0.70、雾带视差+心事萤、核心机制雾沉降、墨枝雾灯笼、雾语池、analyze/build 门槛）
+- AI 行动: regions.dart 加水平边缘带支持（xFull/xStart/gateLo/gateHi + depthAtPoint + regionAt nx 分支，mistWood 常量）；新建 lib/game/mist_wood.dart（18 团低频软雾 3 层视差、14 心事萤、2 棵墨枝贝塞尔弧剪影+5 节点雾灯笼、settle 45s 沉/180s 升）；koans 加 _mistPool/nextMist；shard.dart 加 mist 标记；jingjing_game 加 mistDepth+装配+碎片 i%4 轮转；UPGRADE-LOG/todo/FENGMEM 更新
+- 产出: commit 2c3a4c6 [auto-night-13]；analyze 0 error（19 条既有基线无新增）；flutter build web 成功
+- 关键决策: 环绕世界 x=0/1 是同一接缝——左右两侧实为同一片雾林（向任一侧走即深入），纵向门带 0.28~0.72 与渊/荒原零重叠；雾沉降「落下易漫起慢」（45s vs 3min）；心事萤与荒原余烬作反差（急促 vs 静止）；雾灯笼随 settle 可逆点亮（当次反馈不持久化）；下一步建议：星图数据导出 / 区域旅程线 / 性能 profile
