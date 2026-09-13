@@ -8,6 +8,7 @@
 - [ ] （可选）装 Visual Studio C++ 工作负载以支持 Windows 桌面构建
 
 ## 已完成
+ - [x] 第22轮：arm64 瘦身包（--split-per-abi：arm64-v8a 17.3MB / v7a 14.9MB / x86_64 18.7MB，对比 fat release 49MB 降约 65%）+ 世界数值配平巡检（各系统增速/阈值复核无卡死点； awakening/mist_guardian 补设计意图注释；修 weary_heath 灯台余温 clamp 漂移真 bug→decayBeaconFuel；新增 weary_heath_test 4 项共 24 测试全过；analyze 19 基线/ build web 过，commit 8b28d28）
 - [x] 第21轮：腾讯镜像手动装 NDK r27c（27.2.12479018，Sdk/ndk/）+ build-tools 35.0.0（Sdk/build-tools/35.0.0），app/build.gradle.kts 固定 ndkVersion；flutter build apk --debug 成功（app-debug.apk 147.5MB fat）+ --release 成功（49.0MB，debug 签名）；analyze 0 error（19基线）/test 20 全过/build web 成功，commit 5158f3b
 
 - [x] 第20轮：Android 构建链路验证（licenses 全签 doctor [√]；修 JDK25↔Gradle8.14 不兼容→Adoptium21 + 项目 gradle.properties 固定；独立 GRADLE_USER_HOME .gradle-jingxin 隔离全局 JDK25 强制配置；web/index.html title「静境 · 用呼吸玩」+description；analyze 0 error/test 20 过/build web 过，commit f155a18；APK 因 AGP 自动下载 NDK r27（dl.google.com 慢）仍在后台进行，下轮收尾）

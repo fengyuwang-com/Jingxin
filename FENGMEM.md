@@ -122,3 +122,9 @@
 - AI 行动: 杀掉残留 sdkmanager/gradle daemon/kotlin daemon；删 Sdk/ndk 两个失败空壳；腾讯镜像下 android-ndk-r27c-windows.zip（781MB）解压为 Sdk/ndk/27.2.12479018；首次构建缺 build-tools;35.0.0 → 腾讯镜像 build-tools_r35_windows.zip 装入 Sdk/build-tools/35.0.0；build.gradle.kts 固定 ndkVersion=27.2.12479018；重跑构建成功；UPGRADE-LOG/todo/FENGMEM 更新
 - 产出: app-debug.apk 147.5MB、app-release.apk 49.0MB（debug 签名）于 build/app/outputs/flutter-apk/；analyze 0 error（19 基线）/test 20 全过/build web 成功；commit 5158f3b
 - 关键决策: NDK/build-tools 均手动从腾讯镜像装、绕开 dl.google.com；zip 解压后目录按 source.properties 的 Pkg.Revision 重命名为数字版本；下载缓存 .ndk-dl 已清理；下一步建议：真机验证 / split-per-abi 小包 / GitHub Pages（需确认 push）
+
+## 2026-09-13 — 第 22 轮
+- 用户要求: 通宵第 22 轮——split-per-abi arm64 瘦身包 + lib/game 世界数值配平巡检（小幅微调/注释，真 bug 修正补测试）+ 质量门槛 + 记录与 commit
+- AI 行动: 后台跑 flutter build apk --release --split-per-abi；通读 awakening/star_beast/weary_heath/mist_wood/still_path/reunion/mist_guardian/regions 关键数值；复核苏醒 13min/星兽 11min(近)/惘 60s/相会四条件均可达无卡死、无永假分支；修 weary_heath 灯台余温衰减 clamp 在 fuel∈(0,0.08) 被顶回 0.08 的"越放越暖"漂移（抽出 decayBeaconFuel 可测函数）；awakening/mist_guardian 补配平注释；新增 test/weary_heath_test.dart 4 项
+- 产出: app-arm64-v8a-release.apk 17.3MB（v7a 14.9MB/x86_64 18.7MB）；test 24/24；analyze 19 基线 0 error；build web 成功；commit 8b28d28 + 日志 cb81065（未 push）
+- 关键决策: 只修真漂移 bug 不动手感常数；余温线语义定为"达到过 0.08 才保底"，微小进度允许冷回 0；显形滞后于雾确认为刻意设计只加注释
