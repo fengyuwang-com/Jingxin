@@ -2,8 +2,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
+import '../game/awakening.dart';
+import '../game/memento.dart';
 import '../game/shard.dart';
 import '../game/star_beast.dart';
 
@@ -48,6 +51,25 @@ class _StarMapScreenState extends State<StarMapScreen> {
       _beastSwimming = _beastState.swimming;
       _loaded = true;
     });
+  }
+
+  /// 「拾忆」玻璃底部抽屉（第 15 轮）：导出 / 足迹 / 带回。
+  void _showMementoDrawer() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      isScrollControlled: true,
+      builder: (_) => _MementoDrawer(
+        collection: _collection,
+        beastState: _beastState,
+        onImported: () {
+          if (mounted) {
+            setState(() => _records = List<ShardRecord>.of(_collection.records));
+          }
+        },
+      ),
+    );
   }
 
   /// 黄金角螺旋：第 i 颗星的角度与半径（确定性排布，按收集顺序）。
@@ -180,6 +202,24 @@ class _StarMapScreenState extends State<StarMapScreen> {
                     fontSize: 12,
                     letterSpacing: 3,
                   ),
+                ),
+              ),
+            ),
+          ),
+          // 「拾忆」入口（第 15 轮）：右上角一枚极小的图标，克制不抢镜。
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: IconButton(
+                  tooltip: '拾忆',
+                  iconSize: 20,
+                  icon: Icon(
+                    Icons.auto_awesome_outlined,
+                    color: ZenTheme.textMuted.withValues(alpha: 0.6),
+                  ),
+                  onPressed: _showMementoDrawer,
                 ),
               ),
             ),
@@ -346,6 +386,342 @@ class _KoanCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 「拾忆」抽屉：玻璃拟态底部面板。三件小事，皆克制——
+/// 带我的心境走（导出到剪贴板）、看一眼足迹（极简回顾）、
+/// 放回心镜（粘贴带回）。不是备份工具，只是一次轻轻的拾忆。
+class _MementoDrawer extends StatefulWidget {
+  const _MementoDrawer({
+    required this.collection,
+    required this.beastState,
+    required this.onImported,
+  });
+
+  final ShardCollection collection;
+  final StarBeastState beastState;
+  final VoidCallback onImported;
+
+  @override
+  State<_MementoDrawer> createState() => _MementoDrawerState();
+}
+
+class _MementoDrawerState extends State<_MementoDrawer> {
+  final TextEditingController _pasteController = TextEditingController();
+  final AwakeningState _awakening = AwakeningState();
+  bool _showFootprint = false;
+  bool _showPaste = false;
+  String? _message; // 一行淡字，用后即逝。
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _awakening.load();
+  }
+
+  @override
+  void dispose() {
+    _pasteController.dispose();
+    super.dispose();
+  }
+
+  void _say(String msg) => setState(() => _message = msg);
+
+  String _formatDate(DateTime t) {
+    final m = t.month.toString().padLeft(2, '0');
+    final d = t.day.toString().padLeft(2, '0');
+    return '$m月$d日';
+  }
+
+  /// 「带我的心境走」：全部收集史 + 苏醒度/星兽状态打包进剪贴板。
+  Future<void> _carry() async {
+    if (_busy) return;
+    _busy = true;
+    final code = MementoCodec.encode(
+      shards: widget.collection.records,
+      awakening: _awakening.value,
+      beastValue: widget.beastState.value,
+      beastSwimUntil: widget.beastState.swimUntilEpoch,
+    );
+    await Clipboard.setData(ClipboardData(text: code));
+    _busy = false;
+    _say('已复制，收好');
+  }
+
+  /// 「放回心镜」：粘贴文本 → 校验 → 按时间戳去重合并，不覆盖现有。
+  Future<void> _bringBack() async {
+    if (_busy) return;
+    _busy = true;
+    final data = MementoCodec.tryDecode(_pasteController.text);
+    if (data == null) {
+      _busy = false;
+      _say('这段记忆读不出来');
+      return;
+    }
+    final (merged, added) = mergeShards(widget.collection.records, data.shards);
+    if (added > 0) {
+      widget.collection.records
+        ..clear()
+        ..addAll(merged);
+      await widget.collection.save();
+    }
+    _busy = false;
+    widget.onImported();
+    _pasteController.clear();
+    _say('心镜归位了，共 $added 片');
+  }
+
+  String get _footprintText {
+    final records = widget.collection.records;
+    if (records.isEmpty) {
+      return '足迹尚是空白。当光灵拾起第一片心镜，这里会留下第一行印迹。';
+    }
+    final sorted = List<ShardRecord>.of(records)
+      ..sort((a, b) => a.time.compareTo(b.time));
+    final first = sorted.first;
+    final last = sorted.last;
+    final buffer = StringBuffer(
+      '共 ${sorted.length} 片心镜。\n第一次是${_formatDate(first.time)}，'
+      '在${first.region}，捡到「${first.text}」。',
+    );
+    if (sorted.length > 1) {
+      buffer.write(
+        '\n最近一次是${_formatDate(last.time)}，'
+        '在${last.region}，捡到「${last.text}」。',
+      );
+    }
+    return buffer.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(28, 18, 28, 30),
+            decoration: BoxDecoration(
+              color: ZenTheme.surfaceDim.withValues(alpha: 0.62),
+              border: Border(
+                top: BorderSide(
+                  color: ZenTheme.nebulaCyan.withValues(alpha: 0.18),
+                ),
+              ),
+            ),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: ZenMotion.page,
+              curve: ZenMotion.pageCurve,
+              builder: (context, t, child) => Opacity(
+                opacity: t,
+                child: Transform.translate(
+                  offset: Offset(0, 24 * (1 - t)),
+                  child: child,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '拾 忆',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ZenTheme.starWhite.withValues(alpha: 0.7),
+                      fontSize: 14,
+                      letterSpacing: 8,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _MementoAction(
+                    label: '带我的心境走',
+                    hint: '把这片星图收进一段文字，随身带走',
+                    onTap: _carry,
+                  ),
+                  const SizedBox(height: 10),
+                  _MementoAction(
+                    label: '看一眼足迹',
+                    hint: '第一次与最近一次的拾取',
+                    onTap: () =>
+                        setState(() => _showFootprint = !_showFootprint),
+                  ),
+                  _expandable(
+                    visible: _showFootprint,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        color: ZenTheme.voidBlack.withValues(alpha: 0.35),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.06),
+                        ),
+                      ),
+                      child: Text(
+                        _footprintText,
+                        style: TextStyle(
+                          color: ZenTheme.textMuted.withValues(alpha: 0.75),
+                          fontSize: 13,
+                          height: 1.9,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _MementoAction(
+                    label: '放回心镜',
+                    hint: '把带走的文字粘贴回来',
+                    onTap: () => setState(() => _showPaste = !_showPaste),
+                  ),
+                  _expandable(
+                    visible: _showPaste,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _pasteController,
+                          maxLines: 3,
+                          style: TextStyle(
+                            color: ZenTheme.textHigh.withValues(alpha: 0.85),
+                            fontSize: 12,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '在此轻轻放下那段文字……',
+                            hintStyle: TextStyle(
+                              color:
+                                  ZenTheme.textMuted.withValues(alpha: 0.4),
+                              fontSize: 12,
+                            ),
+                            filled: true,
+                            fillColor:
+                                ZenTheme.voidBlack.withValues(alpha: 0.35),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextButton(
+                          onPressed: _bringBack,
+                          child: Text(
+                            '归位',
+                            style: TextStyle(
+                              color:
+                                  ZenTheme.nebulaCyan.withValues(alpha: 0.8),
+                              fontSize: 13,
+                              letterSpacing: 4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 一行淡字：结果提示，用后即逝。
+                  AnimatedOpacity(
+                    opacity: _message != null ? 1 : 0,
+                    duration: const Duration(milliseconds: 600),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: Text(
+                        _message ?? '',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: ZenTheme.textMuted.withValues(alpha: 0.55),
+                          fontSize: 12,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 顶部淡入展开的小区块（足迹 / 粘贴框共用）。
+  Widget _expandable({required bool visible, required Widget child}) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: visible ? 0 : 1, end: visible ? 1 : 0),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOut,
+      builder: (context, t, _) {
+        if (t == 0) return const SizedBox(width: double.infinity);
+        return Opacity(
+          opacity: t,
+          child: ClipRect(
+            child: Align(
+              heightFactor: t,
+              widthFactor: 1,
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: EdgeInsets.only(top: 10 * t),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 抽屉里的一行小动作：只有一句标题与一句更淡的注解。
+class _MementoAction extends StatelessWidget {
+  const _MementoAction({
+    required this.label,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final String label;
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: ZenTheme.starWhite.withValues(alpha: 0.8),
+                fontSize: 15,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              hint,
+              style: TextStyle(
+                color: ZenTheme.textMuted.withValues(alpha: 0.45),
+                fontSize: 11,
+                letterSpacing: 2,
+              ),
+            ),
+          ],
         ),
       ),
     );
