@@ -16,6 +16,7 @@ import 'regions.dart';
 import 'shard.dart';
 import 'soundscape.dart';
 import 'star_beast.dart';
+import 'still_path.dart';
 import 'weary_heath.dart';
 
 /// 静境（Jingjing）游戏循环。
@@ -231,6 +232,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(WearyHeath());
     add(AnxietyAbyss());
     add(MistWood());
+    add(StillPath()); // 静之径：区域间的余温旅程线（第 14 轮）。
     beast = StarBeast();
     add(beast);
     final rng = math.Random(42);
