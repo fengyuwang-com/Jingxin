@@ -791,3 +791,18 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 惑语深化：通达时惑星残影在原位留一瞬更淡的雾痕（温和的"来过"痕迹）；或注视深化 / 惘语偈语池扩充。
+
+## 第 53 轮（2026-09-14）—— 通达残影：雾痕与一次性的再遇馈赠
+- 理念：惑星通达消散后，原位留一道缓缓淡去的灰紫雾痕——温和的"来过"痕迹；玩家回到近旁且平稳呼吸时，雾痕轻微随呼吸起伏，并一次性掉落 1 枚普通心镜碎片，让"来过"值得一顾。
+- 实现：
+  - 纯函数（lib/game/perplex_insight.dart 追加）：① mistTraceAlpha(elapsedMs)——通达瞬间 0.14 起步，360000ms（约 6 分钟）线性淡至 0，输出按 0.02 步进量化，负值（同帧起点漂移）容错为 0 起，超时恒 0（渲染端据此短路停止绘制）；② mistTraceBreath(alpha, breathEnvelope)——包络 ±1 时 alpha 在 ±22% 带宽内起伏（0.22 幅度），包络 0 恰返回 alpha 本身，量化 0.02；③ mistTraceGrantAllowed 一次性掉落闸门（!granted && near && steady）。常量 kMistTraceFadeMs=360000 / kMistTraceStartAlpha=0.14 / kMistTraceAlphaStep=0.02 / mistTraceRegion='雾痕' / mistTraceShardText='雾散的地方，你来过。'。
+  - 状态与接线（perplex_planet.dart）：triggerInsight 成功即记录原位坐标 _tracePos 并置 _traceActive（内存态，不持久化）；_traceElapsedMs 自通达瞬间累计；gone 之后组件不再立即移除，改为只推进雾痕——近旁（复用 wrapDelta 80px 判定）+ 平稳呼吸时低通呼吸包络（dt*3，绝不瞬跳）并经闸门一次性掉落 1 枚普通心镜碎片（region='雾痕'，走 mergeShards 幂等通道 + shardMessage 浮出）；mistTraceAlpha 归零后 _traceActive=false 且 removeFromParent——彻底停止一切计算。
+  - 演出（极克制）：_renderMistTrace——gone 专属路径，灰紫 0xFF8f86ad 实色椭圆（drawOval，76×58 基准，随呼吸包络 ±5% 舒缩），alpha=mistTraceBreath(雾痕 alpha, 低通包络) 已量化；屏外 ±90px 剔除、introEase 短路、超时短路 return。惑星本体可见期间绝不画雾痕。
+  - 跨夜：状态全在惑星组件内存，跨夜重生成天然无痕。
+- 测试（test/mist_trace_test.dart 新增 16 项，210→226）：alpha 曲线端点/起点漂移容错/单调/量化/连续性（50ms 步长跳变 ≤ 0.02）/半程量级；呼吸起伏端点（0 恒 0、包络 0 返 alpha 本身）/±22% 带宽/单调+越界钳制/量化；掉落闸门四态与"掉后呼吸再久不再掉"翻转永久关断模拟；常量对齐校验。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 226/226；flutter build web 成功。
+- commit：feat(game): 通达残影——雾痕与一次性的再遇馈赠 [auto-night-53]（未 push）。
+- 下一步建议（第 54 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 雾痕深化：雾痕淡出末段偶发一次极淡的余光脉冲（如花火般"道别"）；或惘语偈语池扩充 / 注视深化。

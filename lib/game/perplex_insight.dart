@@ -103,6 +103,67 @@ double perplexInsightDustEnvelope(double t) {
   return math.sin(math.pi * t / kInsightDustSeconds);
 }
 
+// ---------------------------------------------------------------------------
+// 通达残影（第 53 轮）——"来过"的雾痕。
+//
+// 通达消散后，原位留一道极淡的灰紫雾痕，约 6 分钟缓淡至无；玩家回到
+// 近旁且平稳呼吸时，雾痕轻微随呼吸起伏，并一次性掉落 1 枚普通心镜
+// 碎片——"来过"值得一顾。状态全部在内存（惑星生命周期内），不持久化。
+// ---------------------------------------------------------------------------
+
+/// 雾痕淡出总时长（毫秒）：约 6 分钟，从通达瞬间起算。
+const int kMistTraceFadeMs = 360000;
+
+/// 雾痕起步 alpha（通达瞬间）。
+const double kMistTraceStartAlpha = 0.14;
+
+/// 雾痕 alpha 量化步进（渲染纪律：量化 alpha）。
+const double kMistTraceAlphaStep = 0.02;
+
+/// 雾痕随呼吸起伏的相对幅度（包络 ±1 时 alpha 变化 ±22%）。
+const double kMistTraceBreathAmp = 0.22;
+
+/// 雾痕碎片的收录区域名。
+const String mistTraceRegion = '雾痕';
+
+/// 雾痕一次性馈赠的碎片偈语（固定一句，走既有 mergeShards 幂等通道）。
+const String mistTraceShardText = '雾散的地方，你来过。';
+
+/// 雾痕 alpha 曲线（纯函数）：[elapsedMs] 自通达瞬间起算。
+///
+/// 起步 [kMistTraceStartAlpha]，约 [kMistTraceFadeMs]（6 分钟）内
+/// 线性平滑淡至 0；输出按 [kMistTraceAlphaStep] 步进量化。负值
+/// （同帧起点漂移）容错为 0 起；超时恒 0（调用方据此短路停止绘制）。
+double mistTraceAlpha(num elapsedMs) {
+  if (elapsedMs <= 0) return kMistTraceStartAlpha;
+  final ms = elapsedMs.toDouble();
+  if (ms >= kMistTraceFadeMs) return 0;
+  final a = kMistTraceStartAlpha * (1 - ms / kMistTraceFadeMs);
+  return (a / kMistTraceAlphaStep).round() * kMistTraceAlphaStep;
+}
+
+/// 雾痕的呼吸起伏映射（纯函数）：把呼吸包络 [breathEnvelope]（-1..1，
+/// 调用方用 sin 相位提供）映到 alpha 上的轻微起伏。
+///
+/// 包络为 0 时恰返回 [alpha] 本身；alpha 为 0 恒 0；输出按
+/// [kMistTraceAlphaStep] 步进量化，绝不越出 alpha 的 [1±amp] 带宽。
+double mistTraceBreath(double alpha, double breathEnvelope) {
+  if (alpha <= 0) return 0;
+  final e = breathEnvelope.clamp(-1.0, 1.0);
+  final v = alpha * (1 + kMistTraceBreathAmp * e);
+  return (v / kMistTraceAlphaStep).round() * kMistTraceAlphaStep;
+}
+
+/// 雾痕一次性馈赠闸门（纯函数）：仅在"近旁 + 平稳呼吸 + 尚未掉过"
+/// 时允许掉落——掉过之后呼吸再久也不再掉（只剩纯视觉雾痕直至消散）。
+bool mistTraceGrantAllowed({
+  required bool granted,
+  required bool near,
+  required bool breathSteady,
+}) {
+  return !granted && near && breathSteady;
+}
+
 /// 通达短语选取（纯函数）：从固定小池轮换；距上次浮出不足 15s 时
 /// 绝不重复上句（换邻位即可——每颗惑星至多一次通达，池远大于此）。
 /// [roll] 为任意非负整数（调用方用 RNG 提供）。
