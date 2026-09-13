@@ -3,4 +3,4 @@
 - [x] 第 55 轮：星花开谢——呼吸的痕迹（纯逻辑 9 函数+花园定长池 12+花谢/长夜闭合+21 条单测）——已完成，commit d462ce2
 - [x] 第 56 轮：星花映境——花随心境区域而异（regionAtPoint 纯函数+六心境调色+出生地记忆+同区微差+11 条单测）——已完成，commit 209e0d3
 
-- [ ] 第 57 轮：花径——星花连缀成路（flowerPathAlpha/flowerPathCandidates 纯函数+每秒节拍缓存+径线渲染+单测）——进行中
+- [x] 第 57 轮：花径——星花连缀成路（flowerPathAlpha/flowerPathCandidates 纯函数+每秒节拍缓存+径线渲染+12 条单测）——已完成，commit bfb23c5
