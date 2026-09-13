@@ -36,3 +36,8 @@
 - AI 行动: 新建 lib/game/star_beast.dart（StarBeastState 持久化 key jingxin.starbeast.v1 + StarBeast 渲染组件：约15节点星座连线巨魟+尾迹+5眼辉光+14星屑，视差0.7屏外跳过）；jingjing_game.dart 增量改造（新增 cycleCount 独立循环计数、beast 装配与 onShard 回调、_wrap 更名 wrap 公开、onRemove 存星兽）；star_map_screen.dart 底部极淡状态行（alpha 0.32 措辞随睁眼数变化）
 - 产出: commit 7fe81ab（代码）+ docs commit；analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md 已更新
 - 关键决策: 星兽用 cycleCount 独立计数不受碎片 consumeCycleEvent 消费影响；游弋期用时间戳持久化跨会话有效；睁眼4s线性渐变、轮廓alpha仅0.07+0.10*睁开度（比背景星稍亮）；性能克制无粒子堆砌
+## 2026-09-13 — 第 6 轮（通宵升级 auto-night-6）
+- 用户要求: 长夜收尾——白噪音声景引擎（Web Audio 程序合成粉红噪声海潮声，条件导入隔离，非 Web 静音降级）+ 长夜模式（小月亮入口，世界转深夜色调/星更亮/光晕收拢，白噪音极缓淡入，"世界睡了"小字）+ 长夜记忆持久化 + 浏览器自动播放手势处理
+- AI 行动: 新建 lib/game/soundscape.dart（门面+条件导出）、soundscape_web.dart（AudioContext+Paul Kellet 粉噪 8s 循环 buffer+480Hz 低通+0.06Hz LFO 海潮+GainNode 淡入淡出）、soundscape_stub.dart（静音降级）、lib/game/long_night.dart（visited 标记持久化）；改造 jingjing_game.dart（nightAmount 渐变+setNight、星场深夜色调/星亮、光灵 nightSoften 收拢）、jingjing_screen.dart（右下角月亮入口、深色遮罩 AnimatedContainer 4s、提示语、_toggleNight 接声景+markVisited）；pubspec 加 web ^1.1.0
+- 产出: analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新；commit 见 git log（feat(game): 长夜模式与合成海潮声景 [auto-night-6]）
+- 关键决策: AudioContext 懒创建+手势内 resume 规避自动播放；声景失败静默降级不打扰长夜；nightAmount 用 update 循环低通滑向目标（约4s）与 UI AnimatedContainer 同步渐变；长夜记忆只存不用

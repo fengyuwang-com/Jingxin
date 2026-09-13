@@ -64,3 +64,15 @@
 - 下一步建议（第6轮）二选一：
   1. 章节长夜/白噪音收尾：睡前长夜模式——时间感知的星光变化 + 程序生成环境音（海潮/风，WebAudio 白噪音合成），静呼吸多久长夜就多安宁
   2. 第二个心境区域「焦虑之渊」：苏醒度更高后解锁的下行区域，色调偏暖红微光、更深更快的心境律动，配专属碎片禅语池
+
+## 2026-09-13 第6轮：长夜收尾——白噪音声景引擎
+- 做了什么：
+  - 声景引擎：新增 lib/game/soundscape.dart（门面 + 条件导出）——Web 实现 soundscape_web.dart 用 dart:js_interop + package:web 调 AudioContext，程序合成粉红噪声（Paul Kellet 滤波法，8 秒无缝循环 buffer），经 BiquadFilter 低通（480Hz）滤出柔和底噪，0.06Hz 极慢 LFO 轻推增益模拟海潮涌落（约 16 秒一次），作为"海之白噪音"；淡入 4s / 淡出 3s 用 GainNode ramp；非 Web 平台 soundscape_stub.dart 优雅降级为静音（注释说明后续可用 audioplayers 补齐），analyze 不受影响；pubspec 新增 web: ^1.1.0
+  - 长夜模式：jingjing_screen 右下角新增极简小月亮入口（nightlight 图标，alpha 0.5，克制如一枚月痕）——点入后 JingjingGame.setNight(true)，nightAmount 约 4 秒极缓滑向 1：世界转入深夜色调（背景 lerp 至 0xFF030711，全屏 IgnorePointer 深色遮罩同步淡入）、星更亮（亮度 +0.22 且暗星也被托起、全员参与闪烁）、光灵光晕收拢变柔（glow 与本体半径乘 0.7 柔化系数）；白噪音极缓淡入 4 秒；底部 86px 处浮现一行极淡小字"世界睡了，你也可以睡了"（3s 淡入，alpha 0.45）；再点一次退出，一切缓缓复原、声音 3s 淡出
+  - 长夜记忆：新增 lib/game/long_night.dart（LongNightMemory，shared_preferences key jingxin.longnight.visited.v1 + 首次时间戳 jingxin.longnight.first.v1），首次进入长夜时记录，本轮只存不用（供后续睡前章节统计）
+  - 自动播放限制：AudioContext 延迟到首次点击月亮（用户手势调用栈内）才创建；已存在且 suspended 则先 resume()；创建/播放失败静默降级不打扰长夜
+- 不回退：呼吸输入、苏醒度、失眠之海漫游、星岛亮起、碎片收集、星图回看、星兽眠全部保留
+- 质量门槛：flutter analyze 0 error（回到基线 19 个既有 warning/info，无新增）；flutter build web 成功
+- 下一步建议（第7轮）二选一：
+  1. 第二个心境区域「焦虑之渊」：苏醒度更高后解锁的下行区域，程序生成暖红微光谷底 + 更快心境律动 + 专属碎片禅语池
+  2. 多声景切换：雨声/篝火等程序合成声景在长夜中极简切换（延续 Web Audio 合成路线，雨=滤波噪声脉冲+随机滴落，篝火=低频噼啪调制）
