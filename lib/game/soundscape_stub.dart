@@ -1,14 +1,17 @@
 /// 静音降级实现（非 Web 平台）。
 ///
-/// 长夜模式在本平台没有任何声音，UI 照常工作。
-/// 后续可用 audioplayers + 程序预生成的粉红噪声文件补齐原生声景。
+/// 长夜模式在本平台没有任何声音，UI 照常工作；声景选择仍可记录。
+/// 后续可用 audioplayers + 程序预生成的噪声文件补齐原生声景。
 library;
 
 import 'soundscape.dart';
-///
-/// 长夜模式在本平台没有任何声音，UI 照常工作。
-/// 后续可用 audioplayers + 程序预生成的粉红噪声文件补齐原生声景。
-class SeaSoundscapeImpl implements SeaSoundscape {
+
+class SoundscapeEngineImpl implements SoundscapeEngine {
+  SoundscapeScene _scene = SoundscapeScene.sea;
+
+  @override
+  SoundscapeScene get scene => _scene;
+
   @override
   bool get isActive => false;
 
@@ -17,4 +20,9 @@ class SeaSoundscapeImpl implements SeaSoundscape {
 
   @override
   Future<void> stop({double fadeOut = 3.0}) async {}
+
+  @override
+  Future<void> select(SoundscapeScene scene, {double crossfade = 2.5}) async {
+    _scene = scene;
+  }
 }

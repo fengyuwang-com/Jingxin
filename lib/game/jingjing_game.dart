@@ -12,6 +12,7 @@ import 'insomnia_sea.dart';
 import 'long_night.dart';
 import 'regions.dart';
 import 'shard.dart';
+import 'soundscape.dart';
 import 'star_beast.dart';
 
 /// 静境（Jingjing）游戏循环。
@@ -48,6 +49,17 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 长夜程度（0..1）：setNight 后极缓滑向目标，驱动深夜色调/星亮/光晕收拢。
   double nightAmount = 0;
   bool _nightTarget = false;
+
+  /// 视听联动（第 8 轮）：夜雨雨丝 / 篝火暖色的当前强度（0..1，极缓跟随）。
+  double rainAmount = 0;
+  double warmthAmount = 0;
+  SoundscapeScene? _sceneTarget;
+
+  /// 声景切换的视听联动：夜雨 -> 极淡雨丝；篝火 -> 极微暖色偏移。
+  /// 仅作视觉暗示，声音淡入淡出由声景引擎负责。
+  void setSoundscapeScene(SoundscapeScene? scene) {
+    _sceneTarget = scene;
+  }
 
   /// 本轮程序放置的碎片（2~4 片，极稀疏）。
   final List<MindShard> shards = [];
@@ -183,6 +195,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
       shards.add(shard);
       add(shard);
     }
+
+    // 声景视听联动层（最顶层渲染，极淡）：夜雨雨丝 / 篝火暖色偏移。
+    add(_NightWeather());
   }
 
   /// 刚完成一次平稳呼吸循环且尚未被碎片消费——供 MindShard 吸入判定。
@@ -231,6 +246,14 @@ class JingjingGame extends FlameGame with TapCallbacks {
     final nightGoal = _nightTarget ? 1.0 : 0.0;
     nightAmount += (nightGoal - nightAmount) * math.min(1.0, dt * 0.8);
     if ((nightAmount - nightGoal).abs() < 0.002) nightAmount = nightGoal;
+
+    // 声景视听联动：雨丝/暖色极缓跟随（淡入淡出与声音交叉渐变同量级）。
+    final rainGoal = (_sceneTarget == SoundscapeScene.rain) ? 1.0 : 0.0;
+    final warmGoal = (_sceneTarget == SoundscapeScene.campfire) ? 1.0 : 0.0;
+    rainAmount += (rainGoal - rainAmount) * math.min(1.0, dt * 0.5);
+    warmthAmount += (warmGoal - warmthAmount) * math.min(1.0, dt * 0.5);
+    if (rainAmount < 0.003) rainAmount = 0;
+    if (warmthAmount < 0.003) warmthAmount = 0;
   }
 
   /// 进入/退出长夜（声音淡入淡出由 UI 层的声景引擎负责）。
@@ -605,4 +628,78 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
       Offset(orbCenter.dx - textPainter.width / 2, orbCenter.dy + radius + 42),
     );
   }
+}
+
+/// 声景视听联动层（第 8 轮）：夜雨时叠加极淡雨丝缓落，篝火时背景
+/// 带极微弱暖色偏移。强度与长夜程度相乘（退出长夜自然消散），
+/// CYBER-ZEN 克制原则——只是"感到"，从不显眼。
+class _NightWeather extends Component with HasGameReference<JingjingGame> {
+  _NightWeather() {
+    final rng = math.Random(7);
+    for (int i = 0; i < 18; i++) {
+      drops.add(
+        _RainStreak(
+          x: rng.nextDouble(),
+          y0: rng.nextDouble(),
+          speed: 0.35 + rng.nextDouble() * 0.3,
+          length: 14 + rng.nextDouble() * 22,
+          drift: 0.04 + rng.nextDouble() * 0.05,
+        ),
+      );
+    }
+  }
+
+  final List<_RainStreak> drops = [];
+
+  @override
+  void render(Canvas canvas) {
+    final size = game.size;
+    if (size.x <= 0 || size.y <= 0) return;
+    final night = game.nightAmount;
+
+    // 篝火：极微弱暖色偏移（几乎只是底色的"体温"）。
+    final warm = game.warmthAmount * night;
+    if (warm > 0.004) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.x, size.y),
+        Paint()
+          ..color = const Color(0xFF62341a).withValues(alpha: 0.055 * warm),
+      );
+    }
+
+    // 夜雨：≤20 条细雨丝缓落，斜率极小，alpha 峰值仅 0.10。
+    final rain = game.rainAmount * night;
+    if (rain > 0.004) {
+      final t = game.time;
+      final paint = Paint()
+        ..strokeWidth = 1
+        ..strokeCap = StrokeCap.round;
+      for (final d in drops) {
+        final y = ((d.y0 + t * d.speed) % 1) * (size.y + d.length) - d.length;
+        final x = ((d.x + t * d.drift * 0.3) % 1) * size.x;
+        paint.color = ZenTheme.starWhite.withValues(alpha: 0.10 * rain);
+        canvas.drawLine(
+          Offset(x, y),
+          Offset(x + d.length * 0.08, y + d.length),
+          paint,
+        );
+      }
+    }
+  }
+}
+
+class _RainStreak {
+  _RainStreak({
+    required this.x,
+    required this.y0,
+    required this.speed,
+    required this.length,
+    required this.drift,
+  });
+
+  final double x;
+  final double y0;
+  final double speed;
+  final double length;
+  final double drift;
 }
