@@ -642,3 +642,20 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机全链路验证（连续多轮候选，最高优先）。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. Web 端分享卡长按预览（Dialog 内先看一眼再下载）；或久别重逢深化（星兽睁眼时远处几颗星依次亮起呼应）。
+
+## 第 43 轮（2026-09-14）— 惑星：世界里偶尔飘来的一个心结
+- 理念：不是每个结都要马上解，但它来了，世界给你足够的温柔去化解它。
+- 实现（新增 lib/game/perplex_planet.dart）：
+  - 浮现资格（纯函数 perplexShouldEmerge）：连续 ≥2 个平稳循环（循环间超过约 1.5 个呼吸周期即重计，温和不断粮）+ 本会话开场满 5 分钟 + 每会话至多 1 颗 + 演出互斥窗口（开场引导/相会/满醒/晨光告别/久别重逢，进行中被阻塞则延后）之外；浮现点在光灵 380~640px 的环绕最短距离处——靠近是一段小小的旅程而非撞见。
+  - 纯逻辑状态机 PerplexMachine（六阶段 hidden→emerging→drifting→dissolving/fading→gone）：drifting 期靠近 80px 且呼吸平稳（cycleCount 递增脉冲喂入）即松动——迷雾变淡（alpha 随松动度直降）、内旋弧加快（0.35→1.85 rad/s）；累计 3 个平稳循环 → 化解：星花散去 2.5s（复用 anxiety_abyss 星花视觉语言：9 枚花瓣星点外扩 + 花心呼吸辉光）+ 一句惑语（新池 3 句，首句「解开它的不是力气，是呼吸。」）+ 1 枚「惑星」心镜碎片（复用兽语签那套 mergeShards 同时间戳+同偈语幂等入账，unawaited save）。
+  - 温柔退出：呼吸紊乱持续 2.5s 或离开范围 3s（短暂漂出清零重计）→ fading 8s 重新凝实缓缓漂远，无惩罚、本会话不再出现（_appeared 置位）。
+  - 视觉：直径约 60px 半透明灰紫迷雾球（峰值 alpha 0.35 封顶）+ 极淡内旋双弧 + 呼吸般轻微舒缩 + 极小圆流漂移（≈5px/s）；hidden/gone 零渲染成本，屏外跳过。
+- 装配：jingjing_game.dart onLoad 末尾 add(PerplexPlanet())（演出层之上，ambience 不与演出争光）；组件只做输入采集（cycleCount 脉冲、breathSteady、环绕最短距离、互斥 blocked）与渲染，全部判定走纯函数。
+- 拾忆/星图配色：memo_stats.regionDotColor 与 star_card 星点色相新增「惑星」= 灰紫 0xFF9b8fb8。
+- 测试：test/perplex_planet_test.dart 新增 11 项——浮现资格正反例（循环不足/未满 5min/已出现/被阻塞）、emerging 淡入与封顶、hidden 不动与 beginEmerge 幂等、3 循环化解与星花散尽、2 循环不解但松动累积、紊乱温柔退出无奖励、离开温柔退出、短暂漂出不算离开、dissolving 迷雾随 burst 收散、惑语池 3 句与索引轮换。121→132 全过。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 132/132；flutter build web 成功。
+- commit：2b98172（feat(game): 惑星——温柔的心结微挑战 [auto-night-43]，未 push）。
+- 下一步建议（第 44 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. Web 端分享卡长按预览；或惑星深化：化解后在原处留一枚极淡的「解开的结」痕迹（几次呼吸后缓缓消散）；或星兽对惑星的一眼注视（路过时眠/惘的目光短暂跟随）。
