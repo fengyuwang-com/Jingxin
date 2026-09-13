@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../game/awakening.dart';
+import '../game/breath_flower.dart';
+import '../game/flower_ledger_store.dart';
 import '../game/full_awake.dart';
 import '../game/koans.dart';
 import '../game/memento.dart';
@@ -996,11 +998,18 @@ class _MementoDrawerState extends State<_MementoDrawer> {
   bool _nightsInitialized = false;
   String? _message; // 一行淡字，用后即逝。
   bool _busy = false;
+  // 花境图鉴（第 58 轮）：跨越夜晚的花之账。独立的温和回顾，
+  // 不与心镜碎片混排、不参与任何经济/进度（只增不减，像真实记忆）。
+  FlowerLedgerStore? _flowerLedgerStore;
+  FlowerLedger? _flowerLedger;
 
   @override
   void initState() {
     super.initState();
     _awakening.load();
+    _flowerLedgerStore = FlowerLedgerStore()..load().then((_) {
+      if (mounted) setState(() => _flowerLedger = _flowerLedgerStore!.ledger);
+    });
   }
 
   @override
@@ -1228,6 +1237,55 @@ class _MementoDrawerState extends State<_MementoDrawer> {
     return buffer.toString();
   }
 
+  /// 花境行（第 58 轮）：「花境」一签 + 六心境色点与各自开过的花数。
+  /// 色点复用 [kFlowerPalettes]（与游戏内花同色系）；开过花的区域
+  /// 数字稍亮，未开过的极淡。总数为 0 时由调用方整行隐藏。
+  Widget _flowerLedgerRow(FlowerLedger ledger) {
+    final total = ledger.fold<int>(0, (a, b) => a + b);
+    if (total <= 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '花境',
+            style: TextStyle(
+              color: ZenTheme.textMuted.withValues(alpha: 0.6),
+              fontSize: 12,
+              letterSpacing: 3,
+            ),
+          ),
+          const SizedBox(width: 14),
+          for (int i = 0; i < kFlowerLedgerRegions; i++) ...[
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: kFlowerPalettes[i].petal.withValues(
+                  alpha: ledger[i] > 0 ? 0.9 : 0.28,
+                ),
+              ),
+            ),
+            const SizedBox(width: 3),
+            Text(
+              '${ledger[i]}',
+              style: TextStyle(
+                color: ZenTheme.textMuted.withValues(
+                  alpha: ledger[i] > 0 ? 0.85 : 0.35,
+                ),
+                fontSize: 11,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1290,6 +1348,13 @@ class _MementoDrawerState extends State<_MementoDrawer> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // 花境（第 58 轮）：六个心境区域各自开过的花数，
+                  // 色点与游戏内花同色系（flowerPaletteFor）。
+                  // 总数为 0 时整行隐藏；无动画，只是轻轻一列数字。
+                  if (_flowerLedger != null) ...[
+                    _flowerLedgerRow(_flowerLedger!),
+                    const SizedBox(height: 4),
+                  ],
                   _MementoAction(
                     label: '带我的心境走',
                     hint: '把这片星图收进一段文字，随身带走',
