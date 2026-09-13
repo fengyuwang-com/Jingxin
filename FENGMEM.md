@@ -249,3 +249,10 @@
 - 产出: analyze 19 基线 0 error；test 121/121（+13）；build web 成功；commit（未 push）；UPGRADE-LOG/todo/FENGMEM 已追加。
 - 关键决策: 回礼选「仅演出时视觉 +0.10、不改持久化」——苏醒度是呼吸攒出来的旅程值，永久奖励会让它变成货币；损坏时刻串兜底为"从未记录"（宁可不响不在错误时刻打扰）；首次进入（无键）不触发，优先开场引导。
 - 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。
+
+## 2026-09-14 — 第 43 轮（通宵自动升级）
+- 用户要求: 惑星——世界里偶尔飘来的一个心结：浮现条件（连续 ≥2 平稳循环 + 5 分钟未出现 + 每会话 1 颗）、靠近 80px 平稳呼吸松动、3 循环化解（星花 + 惑语 3 句 + 心镜碎片来源「惑星」复用兽语签幂等）、呼吸乱/离开温柔退出；状态机纯函数 + 6~8 项测试；互斥演出；门槛 + commit + 文档。
+- AI 行动: 新增 lib/game/perplex_planet.dart（perplexShouldEmerge 纯函数 + PerplexMachine 六阶段状态机 + PerplexPlanet 组件：灰紫迷雾球渲染/内旋弧/星花散去/mergeShards 幂等入账），jingjing_game onLoad 装配，memo_stats/star_card 加惑星灰紫配色，test/perplex_planet_test.dart 11 项。
+- 产出: commit 2b98172（未 push）；analyze 19 基线 0 error；test 132/132（+11）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 化解驱动以"靠近期间累计 3 个平稳循环"为主、持续靠近仅极缓累积松动度（视觉先行不抢化解）；紊乱/离开各留 2.5s/3s 宽限且短暂漂出清零重计（温柔不惩罚）；惑语呈现复用 shardMessage 面板不新增 UI 通道；互斥只拦浮现不打断已浮现的雾（它是背景不是演出）。
+- 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。
