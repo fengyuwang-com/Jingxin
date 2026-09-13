@@ -65,6 +65,15 @@ class WearyHeath extends Component with HasGameReference<JingjingGame> {
 
   double _elapsed = 0;
 
+  // ---- 第 16 轮性能审计：画笔预建；地平线全屏渐变着色器按量化深度
+  // 缓存（原每帧重建 LinearGradient 着色器）。
+  final Paint _veilPaint = Paint();
+  final Paint _horizonPaint = Paint();
+  final Paint _linePaint = Paint();
+  final Paint _emberPaint = Paint();
+  Shader? _horizonShader;
+  int _horizonKey = -1;
+
   @override
   void update(double dt) {
     _elapsed += dt;
@@ -118,17 +127,22 @@ class WearyHeath extends Component with HasGameReference<JingjingGame> {
     if (depth <= 0.001) return;
 
     // ---- 旷野色调：灰蓝低饱和沉入，留白多、从不浓重 ----
-    final veil = Paint()
-      ..color = const Color(0xFF0c1016).withValues(alpha: 0.42 * depth);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), veil);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.x, size.y),
+      _veilPaint
+        ..color = const Color(0xFF0c1016).withValues(alpha: 0.42 * depth),
+    );
 
     // ---- 地平线微光：黎明前的第一线光，极简的一条线 ----
     final horizonY = _toScreen(
       Vector2(0, horizonNy * JingjingGame.worldPeriod.y),
     ).dy;
     if (horizonY > -80 && horizonY < size.y + 80) {
-      final glow = Paint()
-        ..shader = LinearGradient(
+      // 着色器按量化深度缓存（0.01 步进）。
+      final depthQ = (depth * 100).round();
+      if (depthQ != _horizonKey) {
+        _horizonKey = depthQ;
+        _horizonShader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
@@ -138,13 +152,15 @@ class WearyHeath extends Component with HasGameReference<JingjingGame> {
           ],
           stops: const [0.0, 0.5, 1.0],
         ).createShader(Rect.fromLTWH(0, horizonY - 22, size.x, 44));
-      canvas.drawRect(Rect.fromLTWH(0, horizonY - 22, size.x, 44), glow);
+      }
+      _horizonPaint.shader = _horizonShader;
+      canvas.drawRect(Rect.fromLTWH(0, horizonY - 22, size.x, 44), _horizonPaint);
       // 线本体：一条极细的暖沙色线，随呼吸般的节律极缓明灭。
       final breathe = 0.7 + 0.3 * math.sin(_elapsed * math.pi * 2 / 16.0);
       canvas.drawLine(
         Offset(0, horizonY),
         Offset(size.x, horizonY),
-        Paint()
+        _linePaint
           ..strokeWidth = 1
           ..color = const Color(
             0xFFe8d0a8,
@@ -163,7 +179,7 @@ class WearyHeath extends Component with HasGameReference<JingjingGame> {
       canvas.drawCircle(
         p,
         e.radius,
-        Paint()..color = const Color(0xFFb8965c).withValues(
+        _emberPaint..color = const Color(0xFFb8965c).withValues(
           alpha: (0.05 + 0.09 * flicker) * depth,
         ),
       );
@@ -199,6 +215,12 @@ class _Beacon {
 
   late final List<({double angle, double len, double width})> _sticks =
       _buildSticks();
+
+  // 暖光辉光着色器缓存（第 16 轮：按量化暖光 alpha 缓存，
+  // 燃烧程度变化平缓，重建率低）。
+  final Paint _glowPaint = Paint();
+  Shader? _glowShader;
+  int _glowKey = -1;
 
   List<({double angle, double len, double width})> _buildSticks() {
     final rng = math.Random(seed);
@@ -242,16 +264,20 @@ class _Beacon {
         ? 0.75 + 0.25 * math.sin(time * math.pi * 2 / 5.5)
         : 0.55 + 0.45 * math.sin(time * 1.2);
     final warmA = (0.08 + 0.30 * ease) * pulse * depth;
-    final glow = Paint()
-      ..shader = RadialGradient(
+    final glowR = 30 + 14 * ease;
+    final warmQ = (warmA * 100).round();
+    if (warmQ != _glowKey) {
+      _glowKey = warmQ;
+      _glowShader = RadialGradient(
         colors: [
           const Color(0xFFe8a25c).withValues(alpha: warmA),
           const Color(0xFF6a4a30).withValues(alpha: warmA * 0.5),
           Colors.transparent,
         ],
         stops: const [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: 30 + 14 * ease));
-    canvas.drawCircle(center, 30 + 14 * ease, glow);
+      ).createShader(Rect.fromCircle(center: center, radius: glowR));
+    }
+    canvas.drawCircle(center, glowR, _glowPaint..shader = _glowShader);
 
     // 火心：重燃程度越高越亮的一小点暖光。
     canvas.drawCircle(

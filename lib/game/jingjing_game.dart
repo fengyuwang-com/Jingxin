@@ -12,6 +12,7 @@ import 'awakening.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
 import 'mist_wood.dart';
+import 'quality.dart';
 import 'regions.dart';
 import 'shard.dart';
 import 'soundscape.dart';
@@ -130,21 +131,21 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 相机坐标 = 基准跟随位置 + 极缓的呼吸微动（第 11 轮：与呼吸相位
   /// 同相，幅度仅约 2 逻辑像素，整个世界随之极轻地"一起呼吸"）。
   Vector2 spiritPos = Vector2.zero();
-  final Vector2 _camBase = Vector2.zero();  Vector2 _spiritVelocity = Vector2.zero();
+  final Vector2 _camBase = Vector2.zero();
+  Vector2 _spiritVelocity = Vector2.zero();
   Vector2? _touchPoint;
+
+  /// 渲染用相机坐标的复用缓冲（第 16 轮性能审计）：camPos 原来是
+  /// getter 每次调用都分配新 Vector2，而每个组件每帧都要读它——
+  /// 现在每帧 update 开头算一次，所有组件共享同一个实例（只读）。
+  final Vector2 _camPos = Vector2.zero();
 
   /// 光灵当前速度（供尾迹微粒等生命感细节读取）。
   Vector2 get spiritVelocity => _spiritVelocity;
 
-  /// 相机呼吸微动：与呼吸相位同相的极小位移。
-  Vector2 get _camBreath {
-    final phase = _breathProgress * math.pi * 2 - math.pi / 2;
-    return Vector2(math.cos(phase) * 1.4, math.sin(phase) * 2.2);
-  }
-
-  /// 渲染用相机坐标（基准 + 呼吸微动）。基准由漫游跟随逐帧更新，
-  /// 这里用一个可变缓冲承载，避免暴露可变状态。
-  Vector2 get camPos => (_camBase + _camBreath);
+  /// 渲染用相机坐标（基准 + 呼吸微动）。每帧 update 开头重算一次，
+  /// 各组件每帧读取共享同一实例（绝不修改它）。
+  Vector2 get camPos => _camPos;
 
   // ---- 开场苏醒（第 11 轮）：每次进入静境，世界从纯黑缓缓亮起 ----
   /// 开场进度（0..1，约 3.5 秒走完）。
@@ -209,7 +210,8 @@ class JingjingGame extends FlameGame with TapCallbacks {
     awakeningValue.value = awakening.value;
 
     final stars = <_Star>[];
-    for (int i = 0; i < 90; i++) {
+    // 画质档位：低档星空减半（第 16 轮），仅数量、不改变任何行为。
+    for (int i = 0; i < Quality.current.skyStars; i++) {
       final r = _random.nextDouble();
       stars.add(
         _Star(
@@ -343,6 +345,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   @override
   void update(double dt) {
+    // 相机渲染坐标每帧先算一次（所有组件共享，避免 getter 重复分配）。
+    _camPos
+      ..setFrom(_camBase)
+      ..x += math.cos(_breathProgress * math.pi * 2 - math.pi / 2) * 1.4
+      ..y += math.sin(_breathProgress * math.pi * 2 - math.pi / 2) * 2.2;
     super.update(dt);
     _time += dt;
 
@@ -604,6 +611,7 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
   // 复用的画笔与缓存的星云着色器（减少每帧分配）。
   final Paint _starPaint = Paint();
   final Paint _nebulaPaint = Paint();
+  final Paint _bgPaint = Paint(); // 底色画笔复用（每帧只换色）。
   Shader? _nebulaShader;
   int _nebulaKey = -1;
 
@@ -622,7 +630,7 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
     // 长夜：整体转入更深的夜色（比苏醒底色更暗）。
     final night = game.nightAmount;
     final deepBg = Color.lerp(bg, const Color(0xFF030711), 0.85 * night)!;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), Paint()..color = deepBg);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), _bgPaint..color = deepBg);
 
     // 中央星云微光：随苏醒度扩散、色温偏暖（着色器按量化参数缓存）。
     final lenQ = (size.length / 8).round();
@@ -712,11 +720,13 @@ class _Star {
 class LightSpirit extends Component with HasGameReference<JingjingGame> {
   LightSpirit({required this.tint}) {
     // 环绕微粒的固定参数（预生成，避免每帧分配 Random 与对象）。
+    // 数量按画质档位削减（第 16 轮），只减数量不减呼吸感。
     final rng = math.Random(42);
-    for (int i = 0; i < particleCount; i++) {
+    for (int i = 0; i < Quality.current.orbParticles; i++) {
       _particles.add(
         _OrbParticle(
-          angle: (i / particleCount) * math.pi * 2 + rng.nextDouble() * 0.5,
+          angle: (i / Quality.current.orbParticles) * math.pi * 2 +
+              rng.nextDouble() * 0.5,
           distFactor: 0.5 + rng.nextDouble() * 0.5,
           size: 1.5 + rng.nextDouble() * 2.5,
         ),
@@ -726,12 +736,61 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
 
   final Color tint;
 
-  /// 环绕微粒数量。
+  /// 环绕微粒数量（按画质档位，见构造函数）。
   static const int particleCount = 18;
   final List<_OrbParticle> _particles = [];
 
   /// 标签文字的预排版（只 layout 一次）。
   TextPainter? _labelPainter;
+
+  // ---- 第 16 轮性能审计：光灵原本每帧新建 7 个 RadialGradient 着色器
+  //（6 层辉光 + 本体），是每帧最贵的分配。改为：着色器统一按固定
+  // 半径 100 构建，绘制时用 canvas 缩放到实际半径（径向渐变缩放后
+  // 视觉完全一致）；alpha 变化（辉光强度/半径）按粗粒度量化缓存，
+  // 呼吸是准周期的，缓存暖机后几乎零重建。
+  static const double _shaderRadius = 100;
+  final Map<int, Shader> _glowShaders = {};
+  final Map<int, Shader> _bodyShaders = {};
+  final List<Paint> _glowPaints = List.generate(6, (_) => Paint());
+  final Paint _bodyPaint = Paint();
+  final Paint _trailPaint = Paint();
+  final Paint _particlePaint = Paint();
+  final Paint _ripplePaint = Paint();
+  final Path _orbPath = Path();
+
+  Shader? _glowShader(int layer, double glow) {
+    final q = (glow * 20).round().clamp(0, 60); // 0.05 步进
+    final key = layer * 100 + q;
+    return _glowShaders[key] ??= () {
+      final g = q / 20; // 用量化后的 glow 构建缓存（视觉差异不可感）
+      final opacity = (0.12 - layer * 0.018) * g; // 每层基准透明度 × 辉光
+      return RadialGradient(
+        colors: [
+          tint.withValues(alpha: (opacity * 2).clamp(0.0, 1.0)),
+          ZenTheme.nebulaPurple.withValues(alpha: opacity.clamp(0.0, 1.0)),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(
+        Rect.fromCircle(center: Offset.zero, radius: _shaderRadius),
+      );
+    }();
+  }
+
+  Shader _bodyShader() {
+    final q = (breatheProgress * 40).round().clamp(0, 40); // 0.025 步进
+    return _bodyShaders[q] ??= RadialGradient(
+      colors: [
+        ZenTheme.starWhite.withValues(alpha: 0.92),
+        tint.withValues(alpha: 0.75),
+        ZenTheme.nebulaPurple.withValues(alpha: 0.4),
+        ZenTheme.voidBlack.withValues(alpha: 0),
+      ],
+      stops: const [0.0, 0.35, 0.65, 1.0],
+    ).createShader(
+      Rect.fromCircle(center: Offset.zero, radius: _shaderRadius),
+    );
+  }
 
   /// 0..1，由呼吸输入层驱动（平滑跟随，不瞬跳）。
   double breatheProgress = 0;
@@ -771,35 +830,23 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
         (0.25 + 0.75 * intro) *
         (1 + 0.18 * calm);
 
-    // 多层呼吸光晕。
+    // 多层呼吸光晕：着色器按固定半径缓存，绘制时缩放到实际半径。
     for (int i = 5; i >= 0; i--) {
       final layerRadius = radius * 1.2 + i * radius * 0.28 * (0.5 + glow);
-      final opacity = (0.12 - i * 0.018) * glow;
-      final paint = Paint()
-        ..shader = RadialGradient(
-          colors: [
-            tint.withValues(alpha: (opacity * 2).clamp(0.0, 1.0)),
-            ZenTheme.nebulaPurple.withValues(alpha: opacity.clamp(0.0, 1.0)),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ).createShader(Rect.fromCircle(center: orbCenter, radius: layerRadius));
-      canvas.drawCircle(orbCenter, layerRadius, paint);
+      final shader = _glowShader(i, glow);
+      if (shader == null) continue;
+      final paint = _glowPaints[i]..shader = shader;
+      canvas.save();
+      canvas.translate(orbCenter.dx, orbCenter.dy);
+      canvas.scale(layerRadius / _shaderRadius);
+      canvas.drawCircle(Offset.zero, _shaderRadius, paint);
+      canvas.restore();
     }
 
     // 光球本体：边缘带轻微呼吸噪声形变（顶点微扰而非贴图），
     // 光灵像一滴活着的 光，而不是一枚标准的圆。
-    final bodyPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          ZenTheme.starWhite.withValues(alpha: 0.92),
-          tint.withValues(alpha: 0.75),
-          ZenTheme.nebulaPurple.withValues(alpha: 0.4),
-          ZenTheme.voidBlack.withValues(alpha: 0),
-        ],
-        stops: const [0.0, 0.35, 0.65, 1.0],
-      ).createShader(Rect.fromCircle(center: orbCenter, radius: radius));
-    final orb = Path();
+    _bodyPaint.shader = _bodyShader();
+    final orb = _orbPath..reset();
     const segments = 28;
     for (int i = 0; i <= segments; i++) {
       final a = i / segments * math.pi * 2;
@@ -819,22 +866,23 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
       }
     }
     orb.close();
-    canvas.drawPath(orb, bodyPaint);
+    canvas.drawPath(orb, _bodyPaint);
 
     // 尾迹微粒（第 11 轮）：朝游动方向的反向留下一串渐隐的光尘，
-    // 让光灵的移动有"穿过世界"的朝向感。
+    // 让光灵的移动有"穿过世界"的朝向感。数量按画质档位削减。
     final vel = game.spiritVelocity;
     final speed = vel.length;
     if (speed > 5) {
       final dx = vel.x / speed;
       final dy = vel.y / speed;
-      for (int i = 1; i <= 6; i++) {
+      final trail = Quality.current.spiritTrail;
+      for (int i = 1; i <= trail; i++) {
         final d = i * radius * 0.24 * (0.6 + breatheProgress * 0.6);
-        final fade = (1 - i / 7) * 0.11 * intro;
+        final fade = (1 - i / (trail + 1)) * 0.11 * intro;
         canvas.drawCircle(
           Offset(orbCenter.dx - dx * d, orbCenter.dy - dy * d),
-          1.6 + (6 - i) * 0.4,
-          Paint()..color = tint.withValues(alpha: fade),
+          1.6 + (trail - i) * 0.4,
+          _trailPaint..color = tint.withValues(alpha: fade),
         );
       }
     }
@@ -843,7 +891,7 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     // 随音量包络脉动（alpha 峰值仅 0.15），世界感知到"真实的气息"。
     if (game.micBreathEnabled && game.micEnvelope > 0.015) {
       final pulse = game.micEnvelope;
-      final ringPaint = Paint()
+      final ringPaint = _ripplePaint
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.4
         ..color = tint.withValues(alpha: 0.15 * pulse);
@@ -865,7 +913,6 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     final particleOpacity =
         ((0.75 - breatheProgress * 0.45) * (0.4 + glow * 0.6) * intro)
             .clamp(0.0, 1.0);
-    final particlePaint = Paint();
     for (final particle in _particles) {
       final wobbleAngle = particle.angle + math.sin(t * 0.6 + particle.angle * 3) * 0.12;
       final distance =
@@ -875,10 +922,13 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
         orbCenter.dx + math.cos(wobbleAngle) * distance,
         orbCenter.dy + math.sin(wobbleAngle) * distance,
       );
-      particlePaint.color = ZenTheme.starWhite.withValues(
-        alpha: particleOpacity,
+      canvas.drawCircle(
+        p,
+        particle.size,
+        _particlePaint..color = ZenTheme.starWhite.withValues(
+          alpha: particleOpacity,
+        ),
       );
-      canvas.drawCircle(p, particle.size, particlePaint);
     }
 
     // 底部提示文字：预排版一次，开场后稳定呈现。
@@ -920,8 +970,9 @@ class _OrbParticle {
 /// CYBER-ZEN 克制原则——只是"感到"，从不显眼。
 class _NightWeather extends Component with HasGameReference<JingjingGame> {
   _NightWeather() {
+    // 雨丝数量按画质档位削减（第 16 轮）。
     final rng = math.Random(7);
-    for (int i = 0; i < 18; i++) {
+    for (int i = 0; i < Quality.current.rainDrops; i++) {
       drops.add(
         _RainStreak(
           x: rng.nextDouble(),

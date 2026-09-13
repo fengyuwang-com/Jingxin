@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../game/breath_mic.dart';
 import '../game/jingjing_game.dart';
 import '../game/koans.dart';
+import '../game/quality.dart';
 import '../game/soundscape.dart';
 import '../game/voice.dart';
 import 'star_map_screen.dart';
@@ -82,6 +83,11 @@ class _JingjingScreenState extends State<JingjingScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // 画质档位（第 16 轮）：进入静境前按设备判定一次，无任何 UI 呈现。
+    Quality.detect(
+      dpr: WidgetsBinding
+          .instance.platformDispatcher.implicitView?.devicePixelRatio,
+    );
     _game = JingjingGame(seedColor: widget.seedColor);
     _game.shardMessage.addListener(_onShardMessage);
     // 开场引导：一行淡字缓缓浮现，约 6 秒后自行淡去，绝无按钮。
@@ -207,6 +213,11 @@ class _JingjingScreenState extends State<JingjingScreen>
 
   /// 进入/退出长夜：世界渐暗 + 星更亮（game 侧渐变），白噪音淡入淡出。
   /// 首次点击（用户手势）时才创建 AudioContext，规避浏览器自动播放限制。
+  ///
+  /// 防休眠（第 16 轮备注）：长夜模式的本意是陪伴入睡，屏幕常亮反而
+  /// 违背产品语义，故**有意不做** NoSleep 式方案（VideoWakeLock 等
+  /// 需要隐藏 video 元素与额外依赖，耗电且 Web 兼容性参差）。
+  /// 用户锁屏即自然休眠——这是设计，不是缺失。
   Future<void> _toggleNight() async {
     final entering = !_nightMode;
     setState(() => _nightMode = entering);
@@ -465,9 +476,11 @@ class _JingjingScreenState extends State<JingjingScreen>
                                 behavior: HitTestBehavior.opaque,
                                 onTap: () => _selectScene(scene),
                                 child: Padding(
+                                  // 命中区 ≥44px（第 16 轮触控适配）：视觉
+                                  // 小字不变，只扩大可点区域。
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 8,
+                                    horizontal: 10,
+                                    vertical: 14,
                                   ),
                                   child: Text(
                                     scene.label,
@@ -612,9 +625,10 @@ class _JingjingScreenState extends State<JingjingScreen>
                                 behavior: HitTestBehavior.opaque,
                                 onTap: () => _selectMicSensitivity(s),
                                 child: Padding(
+                                  // 命中区 ≥44px（第 16 轮触控适配）。
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 9,
-                                    vertical: 8,
+                                    vertical: 14,
                                   ),
                                   child: Text(
                                     s.label,
