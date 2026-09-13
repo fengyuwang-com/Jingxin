@@ -190,6 +190,9 @@ class _JingjingScreenState extends State<JingjingScreen>
     }
     setState(() => _micOn = true);
     _game.enableMicBreath(engine);
+    // 初次入静引导（第 23 轮）：随息用户零打扰——开启麦克风即静默退场，
+    // 并打上已引导标记，之后永不再现。
+    _game.cancelOnboarding();
     if (!_micEverOn) {
       _micEverOn = true;
       _showToast('只听气息，不留声音'); // 隐私说明：一次、一行、极淡。
