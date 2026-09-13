@@ -46,6 +46,9 @@ class _StarMapScreenState extends State<StarMapScreen> {
   bool _fullAwakePlayed = false;
   FullAwakeCount _fullAwakeCount = const FullAwakeCount(count: 1);
 
+  /// 第 38 轮压测：碎片超过此数后星点改为静亮（不挂循环动画控制器）。
+  static const int _animatedStarLimit = 400;
+
   @override
   void initState() {
     super.initState();
@@ -144,10 +147,19 @@ class _StarMapScreenState extends State<StarMapScreen> {
   }
 
   /// 黄金角螺旋：第 i 颗星的角度与半径（确定性排布，按收集顺序）。
-  static Offset _starOffset(int index, Size size) {
+  ///
+  /// 第 38 轮压测调整：与分享卡同款的「总数感知」系数
+  /// c = min(26, R/√N)（R = 最短边×0.42）。碎片少时与旧排布一致；
+  /// 碎片多时收敛为向日葵式均匀盘面——既不把星点推 出屏幕外
+  /// （旧实现半径无封顶，3000 枚时会到 1400px 开外），也不让
+  /// 外圈挤成一圈重叠的环。
+  Offset _starOffset(int index, Size size) {
     const goldenAngle = 2.39996;
+    final maxRadius = size.shortestSide * 0.42;
+    final n = _records.isEmpty ? 1 : _records.length;
+    final c = math.min(26.0, maxRadius / math.sqrt(n));
     final angle = index * goldenAngle;
-    final radius = 26.0 * math.sqrt(index + 1);
+    final radius = math.min(c * math.sqrt(index + 1), maxRadius);
     final cx = size.width / 2;
     final cy = size.height * 0.44;
     return Offset(
@@ -463,7 +475,14 @@ class _StarMapScreenState extends State<StarMapScreen> {
           widget.onSpeakKoan?.call(rec.text);
         },
         child: Center(
-          child: _StarWidget(phase: twinklePhase, selected: isSelected),
+          child: _StarWidget(
+            phase: twinklePhase,
+            selected: isSelected,
+            // 第 38 轮压测：碎片极多时（>400 枚）关闭每星一个的
+            // 重复动画控制器，改为静亮——数量级降开销，观感只少
+            // 了一点极缓的闪烁。
+            animated: _records.length <= _animatedStarLimit,
+          ),
         ),
       ),
     );
@@ -471,11 +490,18 @@ class _StarMapScreenState extends State<StarMapScreen> {
 }
 
 /// 单颗星：柔和光点 + 微呼吸闪烁；选中时泛起青紫光环。
+/// [animated] 为 false 时静亮（碎片超过 [_animatedStarLimit] 时由
+/// 星图屏传入，避免为每颗星都挂一个循环动画控制器）。
 class _StarWidget extends StatefulWidget {
-  const _StarWidget({required this.phase, required this.selected});
+  const _StarWidget({
+    required this.phase,
+    required this.selected,
+    this.animated = true,
+  });
 
   final double phase;
   final bool selected;
+  final bool animated;
 
   @override
   State<_StarWidget> createState() => _StarWidgetState();
@@ -483,52 +509,60 @@ class _StarWidget extends StatefulWidget {
 
 class _StarWidgetState extends State<_StarWidget>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 4),
-  )..repeat();
+  late final AnimationController? _controller = widget.animated
+      ? (AnimationController(
+          vsync: this,
+          duration: const Duration(seconds: 4),
+        )..repeat())
+      : null;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
+  }
+
+  Widget _starBody(double tw) {
+    final glowColor = widget.selected
+        ? ZenTheme.nebulaPurple
+        : ZenTheme.nebulaCyan;
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: glowColor.withValues(alpha: 0.10 + 0.22 * tw),
+            blurRadius: widget.selected ? 18 : 10,
+            spreadRadius: widget.selected ? 3 : 1,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Container(
+          width: widget.selected ? 7 : 5,
+          height: widget.selected ? 7 : 5,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: ZenTheme.starWhite.withValues(alpha: 0.75 + 0.25 * tw),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+    if (controller == null) return _starBody(0.7);
     return AnimatedBuilder(
-      animation: _controller,
+      animation: controller,
       builder: (context, _) {
         final tw =
             0.5 +
-            0.5 * math.sin(_controller.value * 2 * math.pi + widget.phase);
-        final glowColor = widget.selected
-            ? ZenTheme.nebulaPurple
-            : ZenTheme.nebulaCyan;
-        return Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: glowColor.withValues(alpha: 0.10 + 0.22 * tw),
-                blurRadius: widget.selected ? 18 : 10,
-                spreadRadius: widget.selected ? 3 : 1,
-              ),
-            ],
-          ),
-          child: Center(
-            child: Container(
-              width: widget.selected ? 7 : 5,
-              height: widget.selected ? 7 : 5,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: ZenTheme.starWhite.withValues(alpha: 0.75 + 0.25 * tw),
-              ),
-            ),
-          ),
-        );
+            0.5 * math.sin(controller.value * 2 * math.pi + widget.phase);
+        return _starBody(tw);
       },
     );
   }
@@ -701,14 +735,13 @@ class _MementoDrawerState extends State<_MementoDrawer> {
       );
     }
     // 首次展开时初始化折叠状态：最近一夜展开，其余收起。
+    final groups = groupNightsByDate(records); // 只算一次（第 38 轮压测）。
     if (!_nightsInitialized) {
       _nightsInitialized = true;
-      final groups = groupNightsByDate(records);
       _collapsedNights = {
         for (final g in groups.skip(1)) g.dateKey,
       };
     }
-    final groups = groupNightsByDate(records);
     final maxCount = busiestNight(records);
     return Container(
       width: double.infinity,

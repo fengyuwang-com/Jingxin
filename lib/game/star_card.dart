@@ -31,12 +31,19 @@ const double starCardGoldenAngle = 2.39996;
 /// (宽/2, 高×0.46)，纵向压扁系数 0.82，与星图屏同款气质。
 /// 半径封顶（最短边×0.42），碎片再多也始终留在卡内。
 /// 纯函数、确定性——同序号永远同位置。
-Offset starCardStarOffset(int index, Size size) {
+///
+/// 第 38 轮压测调整：碎片总数很多时（> 57 枚左右），硬封顶会让
+/// 之后的所有星点都挤在半径 = 封顶的同一圈环带上，3000 枚时相邻
+/// 星点近到完全重叠。改为「总数感知」的螺旋系数
+/// c = min(30, R/√N)：N ≤ 57 时 c 恒为 30（与旧排布完全一致），
+/// N 更大时整体收敛为向日葵（Vogel）式均匀盘面，任意两枚星心的
+/// 最小间距保持在约 c（3000 枚时 ~4px，星核半径 3.2 互不吞没）。
+Offset starCardStarOffset(int index, Size size, {int total = 1}) {
   final angle = index * starCardGoldenAngle;
-  final radius = math.min(
-    30.0 * math.sqrt(index + 1),
-    size.shortestSide * 0.42,
-  );
+  final maxRadius = size.shortestSide * 0.42;
+  final n = total < 1 ? 1 : total;
+  final c = math.min(30.0, maxRadius / math.sqrt(n));
+  final radius = math.min(c * math.sqrt(index + 1), maxRadius);
   final cx = size.width / 2;
   final cy = size.height * 0.46;
   return Offset(
@@ -126,7 +133,7 @@ class _StarCardPainter extends CustomPainter {
 
     // 星点：每枚碎片一枚，区域色相（兽语签 = 星兽金）。
     for (var i = 0; i < records.length; i++) {
-      final pos = starCardStarOffset(i, size);
+      final pos = starCardStarOffset(i, size, total: records.length);
       final color = records[i].region.contains('兽语')
           ? _beastGold
           : regionDotColor(records[i].region);

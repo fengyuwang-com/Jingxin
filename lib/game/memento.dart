@@ -109,19 +109,24 @@ class MementoData {
 /// 同一片 = 同一时间戳 + 同禅语（含区域一致则更稳）。返回
 /// [合并后的全部碎片（按时间升序）, 新带入的片数]。
 /// 合并后的列表复用现有实例的记录对象（identical 保持），只追加新的。
+///
+/// 第 38 轮压测优化：去重键放进 HashSet（O(n+m)），替换原先对
+/// 每一枚来件都全表线性扫的 O(n·m)——3000×3000 时从数秒级降到
+/// 个位毫秒级。判定结果与旧实现完全一致。
 (List<ShardRecord> merged, int added) mergeShards(
   List<ShardRecord> existing,
   List<ShardRecord> incoming,
 ) {
-  bool same(ShardRecord a, ShardRecord b) =>
-      a.time.millisecondsSinceEpoch == b.time.millisecondsSinceEpoch &&
-      a.text == b.text;
+  // 去重键 = 时间戳 + 单元分隔符 + 禅语（\x1F 不会出现在禅语文本里，
+  // 拼接后仍一一对应）。
+  String keyOf(ShardRecord r) =>
+      '${r.time.millisecondsSinceEpoch}\x1F${r.text}';
 
   final merged = List<ShardRecord>.of(existing);
+  final seen = <String>{for (final r in existing) keyOf(r)};
   var added = 0;
   for (final inc in incoming) {
-    final dup = merged.any((m) => same(m, inc));
-    if (dup) continue;
+    if (!seen.add(keyOf(inc))) continue;
     merged.add(inc);
     added++;
   }
