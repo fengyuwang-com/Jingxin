@@ -718,3 +718,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. Web 端分享卡长按预览；或晨光深化：满醒日印当天的晨光回涨带一点极轻的高八度泛音（世界醒来的第一声更亮）。
+
+## 第 48 轮（2026-09-14）—— Web 分享卡长按预览：带走之前，先看一眼
+- 理念：带走星图前给一次安静的对视——长按「带走星图」入口，卡片在全屏黑幕里等比浮起，看完点一下就收，不催促、不弹窗。
+- 实现：
+  - 纯函数（lib/game/star_card.dart）：fitCardToScreen(screen, card, {margin}) 把卡片等比缩进安全区（四边留白 starCardPreviewMargin=24）；永不放大（屏幕比卡大就原大显示）、非法尺寸退回卡片原尺寸（宁可原大也不消失），确定性可单测。
+  - 接线（lib/screens/star_map_screen.dart）：分享 IconButton 外包 GestureDetector onLongPressStart → _openCardPreview()：复用第 35 轮的 renderStarCardImage（抽出共用 _renderCardImage()，导出与预览同源同卡），离屏图放进全屏预览层——AnimatedOpacity 黑幕（α0.82）+ AnimatedScale 0.96→1 浮起，Center+LayoutBuilder 用 fitCardToScreen 定尺寸、RawImage 填充；点任意处 / 右上关闭钮淡出（隐式动画，350ms 后释放 ui.Image，dispose 亦兜底）。预览层 IgnorePointer(ignoring: !showing)，关闭态零命中；纯 UI 不碰游戏状态，也不阻塞「带走星图」的保存下载（二者互斥忙位但不共用入口）。生成期间沿用转圈禁用，失败温柔提示与导出同款。
+  - 保存提示：Web（kIsWeb）打开预览即显示一行淡字「点『带走星图』即可保存这张卡 · 点任意处收起」——Web 端保存走 anchor download，预览不拦；桌面端 hover（MouseRegion）才亮出。移动端提示文案退化为「点任意处收起」。
+- 测试（test/star_card_preview_test.dart 新增 6 项，150→156）：竖屏按宽收进保持 2:3、宽矮窗口按高收进、不放大、自定义留白生效、零/过小屏幕与非法卡片退回原尺寸、纯函数确定性。
+- 质量门槛：flutter analyze 19 条基线持平、0 error（中途一版多出 1 条未用 import，已清）；flutter test 156/156；flutter build web 成功。
+- commit：4968acc（feat(game): Web 分享卡全屏长按预览 [auto-night-48]，未 push）。
+- 下一步建议（第 49 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 预览深化：预览层里直接放一枚「收下」小钮就地触发保存（现在是提示指回入口）；或惑星深化 / 星兽注视等第 47 轮候选。
