@@ -113,3 +113,13 @@ class ZenSpacing {
   static const double xl = 32;
   static const double xxl = 48;
 }
+
+/// 统一动效规范（第 11 轮）：所有页面转场共用同一套时长与曲线，
+/// 让"静境"里的一切移动都带着同一种呼吸般的缓。
+class ZenMotion {
+  /// 页面转场时长：淡入淡出足够慢，像呼吸而不像切换。
+  static const Duration page = Duration(milliseconds: 800);
+
+  /// 页面转场曲线：MD3 强调缓出，温柔收敛、无急停。
+  static const Curve pageCurve = Curves.easeOutCubic;
+}
