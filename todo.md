@@ -10,6 +10,7 @@
 
 ## 已完成
 
+ - [x] 第18轮：「相会」——眠与惘的稀有时刻（新增 lib/game/reunion.dart：纯函数触发判定 ReunionTrigger（眠游弋期+惘 reveal>0.85+苏醒度>0.5+光灵离两兽连线中点<260，且仅在平稳呼吸循环瞬间评估）+ 小状态机演出 ReunionPhase（approach 26s 各移近≤200px→glow 8s 星光细线+静之径短暂亮起+径上尘聚拢小圈+中点星→3 圈青色深海鸣涟漪 3.2s→retreat 16s 各退回），全程无文字无锁定；双星碎片金色 0xFFe8c96a 走拾取/星图全链路 region「两兽之间」+ 相会偈语池 2 句；swimUntilEpoch 记账每游弋周期至多一次；test/reunion_test.dart 6 项；analyze 0 error（19基线）/test 20 全过/build web 通过，commit e51c665）
 - [x] 第17轮：星兽惘——雾林守林者（新增 lib/game/mist_guardian.dart：11 节点星座狐+5 节细尾，锚点 nx0.06/ny0.50 视差 0.80 比林稍深，平时 alpha≤0.06 青灰微光；苏醒与眠差异化=显形度直接跟随雾林沉降度（升限速 60s 最短渐进、雾回升退回雾里），显形后向光灵走出几步≤140px+尾轻摆+眼亮柔光；完全显形>0.85+靠近<300+平稳循环→2.8s 点头轻触送金色心镜碎片（MindShard gift 标记+惘语池 3 句：被看见/不孤单），每显形期至多一次；性能按 16 轮纪律（Path 缓存/画笔复用/眼辉光量化缓存/屏外跳过/低档雾尘 5）；analyze 0 error（19 基线）/test 14 全过/build web 通过）
 
 - [x] 第16轮：性能 profile 与移动端适配 pass（审计修复：camPos 共享缓冲（原每次读取分配 Vector2）；光灵 7 个每帧 RadialGradient→固定半径着色器缓存+canvas 缩放；渊/荒原全屏渐变、雾团/薄霭/灯笼/眼睛辉光、星岛/碎片辉光按量化参数缓存；星兽星座 Path 静态缓存；星岛剪影 Path 缓存；海层约 30 个每帧 Paint 复用；bbox 剔除全数核查无漏网；触控=TapCallbacks 无拖拽/长按冲突确认；新增 lib/game/quality.dart 画质档位（桌面高档/移动中档/低内存或高DPR或原生移动壳低档：星空减半 45、雾 2 层、尾迹 3、微粒 10、径尘 5、海屑 14、雨丝 10，构造时读取零运行分支，无 UI 呈现）；声景/灵敏度 chips 命中区 ≥44px；长夜 NoSleep 有意不做已注释；build/web 41MB（引擎产物 37MB，应用 3MB，非异常）；analyze 0 error（19 基线）/test 14 全过（+quality_test 5 项）/build web 通过，commit 79575ff）
