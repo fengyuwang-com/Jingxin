@@ -1,11 +1,12 @@
 {
-    "name": "jingxin_meditation",
-    "short_name": "jingxin_meditation",
+    "name": "静境",
+    "short_name": "静境",
+    "description": "静境 · 用呼吸玩 —— 一款帮助放松与专注的呼吸节奏小游戏。",
+    "lang": "zh-CN",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0a0a0f",
+    "theme_color": "#0a0a0f",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

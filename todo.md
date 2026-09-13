@@ -93,3 +93,7 @@
 ## 第 40 轮（2026-09-14）✅ 已完成
 - [x] 时辰印记汉字化：shichenOf 纯函数（23-1 子时两小时制映射，桶公式跨午夜安全），印记环左侧 12px textMuted 极小汉字（子/丑/…/亥），小点仍按第 39 轮昼夜相位；低语面板 grep 检查无钟表时刻文案，不强加。新增测试 7 项。analyze 19 基线 0 error，test 108/108，build web ✅，commit 9325add（未 push）。
 - 待办（第 41 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览。
+
+## 第 41 轮（2026-09-14）✅ 已完成
+- [x] PWA 可安装化：manifest 静境/zh-CN/standalone/深色 #0a0a0f；tool/gen_icons.py 纯 PIL 生成 192/512 + maskable + Icon-180 + favicon.ico（深空底+青白光球渐晕）；index.html 补 theme-color/apple meta；确认 flutter_service_worker.js 在 build 产物；本地服冒烟 12 项资源连续两次 200 后 taskkill。analyze 19 基线 0 error，test 108/108，build web ✅，commit（未 push）。
+- 待办（第 42 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览。

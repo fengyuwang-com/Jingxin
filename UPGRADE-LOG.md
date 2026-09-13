@@ -609,3 +609,19 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机全链路验证（连续多轮候选，最高优先）。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 分享卡深化：Web 端长按预览（Dialog 内先看一眼再下载）；或日期行旁顺带加「廿三日子时」式干笔合写（需农历/干支换算，工程量较大，慎选）。
+
+## 第 41 轮（2026-09-14）— PWA 可安装化：把静境装进主屏
+- 理念：平静的工具应该随时在，断网也在。
+- 图标（tool/gen_icons.py，纯 PIL 离线生成，无外部素材，4x 超采样）：
+  - 视觉：深空底（voidBlack #0a0a0f 径向暗渐变自 deepSpace）+ 中央青白光球（starWhite 核心 → nebulaCyan → 渐入背景的高斯式渐晕）+ 一枚克制的 neonGlow 细环；maskable 版光球/环收进 10% 安全区。
+  - 产出：icons/Icon-192/512、Icon-maskable-192/512 重绘，新增 Icon-180（apple-touch-icon）、web/favicon.ico（16/32/48 多尺寸，此前缺失）。
+- web/manifest.json：name/short_name 改「静境」，补 lang zh-CN 与中文 description；theme_color/background_color #0175C2 → #0a0a0f（CYBER-ZEN voidBlack）；display standalone、图标清单不变。
+- web/index.html：补 meta theme-color #0a0a0f、apple-mobile-web-app-capable；apple-mobile-web-app-title 改「静境」；apple-touch-icon 指向 180。
+- SW：Flutter 3.4x 自带 flutter_service_worker.js，build 后确认存在于 build/web 且经本地服 200，未手写。
+- 离线冒烟（python http.server 8899 → curl 断言）：/ /manifest.json /icons/*5 张 /favicon.png /favicon.ico /flutter_service_worker.js /flutter_bootstrap.js /main.dart.js 全部连续两次 200（缓存头生效），完事 taskkill 清理。
+- 质量门槛：flutter analyze 19 条基线持平 0 error；flutter test 108/108 全过；flutter build web 成功（图标不破坏构建）。
+- commit：feat(web): PWA 可安装化与图标 [auto-night-41]（未 push）。
+- 下一步建议（第 42 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）；部署后用真浏览器（Lighthouse）验证安装横幅与离线二次打开。
+  3. Web 端分享卡长按预览（Dialog 内先看一眼再下载）。
