@@ -235,3 +235,10 @@
 - 产出: commit 9325add（未 push）；analyze 19 条基线 0 error；test 108/108（+7）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
 - 关键决策: 汉字放环左侧而非环内（环径 28px 内放字太挤）；卡面中文用系统字体与第 35 轮同源，无乱码风险不额外处理；低语面板无时刻文案不强加。
 - 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。
+
+## 2026-09-14 01:5x — 第 41 轮
+- 用户要求: PWA 可安装化——manifest 静境化、CYBER-ZEN 深色 theme color、图标（呼吸光球视觉，无外部素材）、apple meta、验证自带 SW、离线冒烟、门槛、commit、文档。
+- AI 行动: 新写 tool/gen_icons.py（PIL 4x 超采样：voidBlack 深空底 + starWhite→nebulaCyan 光球渐晕 + neonGlow 细环，maskable 收进安全区），重绘 192/512/maskable + 新增 Icon-180/favicon.ico；manifest.json/index.html 静境化 + theme_color #0a0a0f；http.server:8899 冒烟 12 资源两次 200 后 taskkill。
+- 产出: commit feat(web): PWA 可安装化与图标 [auto-night-41]（未 push）；analyze 19 基线 0 error；test 108/108；build web 成功。
+- 关键决策: 不手写 SW（Flutter 3.4x 自带，验证存在即可）；首版光球过大吞掉深空底，缩到 core 0.16s/halo 1.9x 达到「纯色克制」；favicon.ico 用 PIL 直接多尺寸产出补齐此前缺失。
+- 下一步建议: Android 真机验证（最高优先）；GitHub Pages 部署需主人确认 push；部署后 Lighthouse 验装安装横幅与离线打开。
