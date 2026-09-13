@@ -92,6 +92,7 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
     required this.tint,
     this.abyss = false,
     this.heath = false,
+    this.mist = false,
   });
 
   /// 世界坐标（环绕周期内）。
@@ -105,6 +106,9 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
   /// 是否为「疲惫荒原」碎片：用荒原偈语池与暖沙色调（第 9 轮）。
   final bool heath;
 
+  /// 是否为「纷心雾林」碎片：用雾林偈语池与青灰色调（第 13 轮）。
+  final bool mist;
+
   /// 0..1 被吸入进度；>=1 后由游戏层移除并回调禅语。
   double absorb = 0;
   bool _absorbing = false;
@@ -114,6 +118,8 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
       ? Koans.nextAbyss()
       : heath
       ? Koans.nextHeath()
+      : mist
+      ? Koans.nextMist()
       : Koans.next();
 
   bool get isAbsorbed => absorb >= 1;
