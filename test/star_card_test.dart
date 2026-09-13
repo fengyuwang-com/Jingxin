@@ -123,4 +123,64 @@ void main() {
       expect(marksWithinSafeArea(const Size(70, 70)), isFalse);
     });
   });
+
+  group('时辰汉字 shichenOf（第 40 轮）', () {
+    test('跨午夜边界：23:59 与 0:00 都是子时', () {
+      expect(shichenOf(0), '子'); // 0:00
+      expect(shichenOf(59), '子'); // 0:59
+      expect(shichenOf(1380), '子'); // 23:00
+      expect(shichenOf(1439), '子'); // 23:59
+    });
+
+    test('两小时一档：丑时 1:00–2:59', () {
+      expect(shichenOf(60), '丑'); // 1:00
+      expect(shichenOf(119), '丑'); // 1:59
+      expect(shichenOf(120), '丑'); // 2:00
+      expect(shichenOf(179), '丑'); // 2:59
+    });
+
+    test('正午属午时（11:00–12:59）', () {
+      expect(shichenOf(660), '午'); // 11:00
+      expect(shichenOf(720), '午'); // 12:00 正午
+      expect(shichenOf(779), '午'); // 12:59
+      expect(shichenOf(780), '未'); // 13:00 立刻换未
+    });
+
+    test('边界分钟：桶边界两侧各差一分钟换时辰', () {
+      expect(shichenOf(179), '丑'); // 2:59 丑
+      expect(shichenOf(180), '寅'); // 3:00 寅
+      expect(shichenOf(300), '卯'); // 5:00 卯
+      expect(shichenOf(299), '寅'); // 4:59 寅
+      expect(shichenOf(420), '辰'); // 7:00 辰
+      expect(shichenOf(540), '巳'); // 9:00 巳
+      expect(shichenOf(900), '申'); // 15:00 申
+      expect(shichenOf(1020), '酉'); // 17:00 酉
+      expect(shichenOf(1140), '戌'); // 19:00 戌
+      expect(shichenOf(1260), '亥'); // 21:00 亥
+      expect(shichenOf(1379), '亥'); // 22:59 亥
+    });
+
+    test('十二时辰齐备且顺序正确', () {
+      // 取每个时辰的中点分钟数采样：0:00, 2:00, 4:00 … 22:00。
+      final expected = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+      for (var i = 0; i < 12; i++) {
+        expect(shichenOf(i * 120), expected[i], reason: 'mid of hour-pair $i');
+      }
+    });
+
+    test('汉字位置：在时辰印记圆环左侧、与日期行同高', () {
+      final size = starCardSize;
+      final off = shichenTextOffset(size);
+      final ringC = tideMarkCenter(size);
+      expect(off.dy, ringC.dy);
+      expect(off.dx, lessThan(ringC.dx));
+      expect(off.dx, greaterThan(size.width / 2)); // 仍在右半区，不撞日期行中心
+    });
+
+    test('防御：shichenOf 对越界分钟也稳定（负数与超一天）', () {
+      expect(shichenOf(-1), shichenOf(1439)); // -1 ≡ 23:59 子
+      expect(shichenOf(1440), '子'); // 环绕回子时
+      expect(shichenOf(1441), shichenOf(1)); // 顺延
+    });
+  });
 }

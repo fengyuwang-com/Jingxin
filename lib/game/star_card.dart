@@ -106,6 +106,21 @@ Color tideMarkDotColor(int minutes) {
   return Color.lerp(ZenTheme.starWhite, DayTide.duskWarmTint, g)!;
 }
 
+/// 传统时辰汉字（第 40 轮）：23:00–0:59 子时起，每两小时一时辰，
+/// 与 [tideMarkAngle] 的昼夜映射同一时刻来源。纯函数、确定性，
+/// 跨午夜安全（23:59 与 0:00 都是「子」）。
+String shichenOf(int minutesOfDay) {
+  const names = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+  // +60 把子时中点（0:00）对齐到桶中心，再每 120 分钟一桶。
+  return names[((minutesOfDay + 60) ~/ 120) % 12];
+}
+
+/// 时辰印记汉字位置：圆环左侧一枚极小的字（与环同行对齐）。
+Offset shichenTextOffset(Size size) {
+  final c = tideMarkCenter(size);
+  return Offset(c.dx - tideMarkRingRadius - 10, c.dy);
+}
+
 /// 时辰印记环心位置：右下角日期行旁。
 Offset tideMarkCenter(Size size) => Offset(size.width - 48, size.height - 58);
 
@@ -293,6 +308,16 @@ class _StarCardPainter extends CustomPainter {
       tideMarkPoint(minutesOfDay, ringC, tideMarkRingRadius),
       tideMarkDotRadius,
       Paint()..color = tideMarkDotColor(minutesOfDay).withValues(alpha: 0.75),
+    );
+    // 时辰汉字（第 40 轮）：环左侧一枚 12px 极小淡字——「子」「午」，
+    // 禅意配传统时辰；系统字体，与卡面其余中文同源（第 35 轮已验证）。
+    _drawText(
+      canvas,
+      shichenOf(minutesOfDay),
+      shichenTextOffset(size),
+      12,
+      color: ZenTheme.textMuted.withValues(alpha: 0.60),
+      letterSpacing: 0,
     );
 
     // 满醒金印（第 39 轮）：左下角一枚小金点 + 细环，
