@@ -128,3 +128,9 @@
 - AI 行动: 后台跑 flutter build apk --release --split-per-abi；通读 awakening/star_beast/weary_heath/mist_wood/still_path/reunion/mist_guardian/regions 关键数值；复核苏醒 13min/星兽 11min(近)/惘 60s/相会四条件均可达无卡死、无永假分支；修 weary_heath 灯台余温衰减 clamp 在 fuel∈(0,0.08) 被顶回 0.08 的"越放越暖"漂移（抽出 decayBeaconFuel 可测函数）；awakening/mist_guardian 补配平注释；新增 test/weary_heath_test.dart 4 项
 - 产出: app-arm64-v8a-release.apk 17.3MB（v7a 14.9MB/x86_64 18.7MB）；test 24/24；analyze 19 基线 0 error；build web 成功；commit 8b28d28 + 日志 cb81065（未 push）
 - 关键决策: 只修真漂移 bug 不动手感常数；余温线语义定为"达到过 0.08 才保底"，微小进度允许冷回 0；显形滞后于雾确认为刻意设计只加注释
+
+## 2026-09-13 19:48 — 第 23 轮
+- 用户要求: 通宵升级第 23 轮：初次入静开场呼吸引导演出（onboarding）
+- AI 行动: 新增 lib/game/onboarding.dart（持久化/纯逻辑状态机/渲染层三件套）+ jingjing_game 装配与 getter + screen 随息取消；新增 5 项纯逻辑测试
+- 产出: commit 36cce35；analyze 19 条基线持平；test 29/29；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
+- 关键决策: 复用 cycleCount 平稳循环判定驱动谢幕；随息用户开启麦克风即静默退场并打 onboarded 标记（永不再现）；提示文字 alpha 按 0.05 档量化缓存
