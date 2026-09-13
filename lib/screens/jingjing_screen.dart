@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../game/breath_mic.dart';
 import '../game/breath_sound.dart';
+import '../game/day_tide.dart';
 import '../game/full_awake.dart';
 import '../game/jingjing_game.dart';
 import '../game/koans.dart';
@@ -396,20 +397,24 @@ class _JingjingScreenState extends State<JingjingScreen>
 
   /// 入睡礼让（第 45 轮）：按长夜已持续的秒数把呼吸音全局系数
   /// 缓缓压轻（10 分钟半档、20 分钟极轻，见 breathNightFactor）；
-  /// 随息开着时叠一层 ±15% 的气息起伏（breathWobbleFactor）。
+  /// 晨光回涨（第 47 轮）：长夜跨过天亮时，增益随晨光
+  ///（DayTide.daylight）从夜间的低量平滑涨回全量（breathDawnFactor）；
+  /// 随息开着时再叠一层 ±15% 的气息起伏（breathWobbleFactor）。
   /// 退出长夜由 [_finishFarewell] 把系数调回 1.0（引擎侧长 ramp）。
   void _syncBreathLull() {
     if (!_breathSoundOn || !_nightMode || _farewell) return;
     final start = _nightStartAt;
     if (start == null) return;
-    final nightSeconds =
-        DateTime.now().difference(start).inMilliseconds / 1000.0;
+    final now = DateTime.now();
+    final nightSeconds = now.difference(start).inMilliseconds / 1000.0;
+    // 夜间礼让与晨光回涨复合：天亮前=纯礼让，天亮后随晨光滑回全量。
+    final night = breathNightFactor(nightSeconds);
+    final minutes = now.hour * 60 + now.minute;
+    final factor = breathDawnFactor(DayTide.daylight(minutes), night);
     // 随息包络（0..1）直接当起伏源；未开随息传 0.5（构造上恰为 1.0，
     // 呼吸音保持原档位，见 breathWobbleFactor 的中点约定）。
     final envelope = _micOn ? _game.micEnvelope : 0.5;
-    _soundscape?.setBreathLullFactor(
-      breathNightFactor(nightSeconds) * breathWobbleFactor(envelope),
-    );
+    _soundscape?.setBreathLullFactor(factor * breathWobbleFactor(envelope));
   }
 
   /// 开始晨光告别：暖金晨光 15s 漫入、星兽眯眼、白噪音 20s 平滑淡出、

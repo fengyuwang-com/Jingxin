@@ -2,6 +2,7 @@
 // 第 45 轮追加：入睡礼让曲线（breathNightFactor）与随息起伏（breathWobbleFactor）。
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jingxin_meditation/game/breath_sound.dart';
+import 'package:jingxin_meditation/game/day_tide.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -177,6 +178,73 @@ void main() {
           expect(f, greaterThanOrEqualTo(kBreathLullDeepFactor * 0.85 - 1e-9));
         }
       }
+    });
+  });
+  group('晨光回涨（第 47 轮 breathDawnFactor）', () {
+    test('晨光进度：天未亮为 0，daylight 达阈值后为 1，中间单调上行', () {
+      expect(breathDawnProgress(-0.3), 0.0);
+      expect(breathDawnProgress(0.0), 0.0);
+      expect(breathDawnProgress(kBreathDawnFullDaylight), 1.0);
+      expect(breathDawnProgress(1.0), 1.0);
+      // smoothstep 起步为零斜率：6:00 处回涨恰好从零缓缓开始。
+      double prev = 0.0;
+      for (int i = 0; i <= 50; i++) {
+        final d = kBreathDawnFullDaylight * i / 50;
+        final p = breathDawnProgress(d);
+        expect(p, greaterThanOrEqualTo(prev),
+            reason: 'daylight=$d 应继续上行（无回跌）');
+        prev = p;
+      }
+      expect(breathDawnProgress(kBreathDawnFullDaylight / 2),
+          closeTo(0.5, 1e-9), reason: 'smoothstep 中点恰为半程');
+    });
+
+    test('复合：天未亮时严格等于夜间系数，回涨完成后恒为全量 1.0', () {
+      for (final s in [0.0, 600.0, 1200.0, 3600.0]) {
+        final n = breathNightFactor(s);
+        expect(breathDawnFactor(-0.5, n), closeTo(n, 1e-9),
+            reason: '夜深 seconds=$s：无晨光不回涨');
+      }
+      // 上午 9:00（daylight=0.5）之后，无论夜多深都涨回全量。
+      for (final s in [0.0, 600.0, 1200.0, 7200.0]) {
+        expect(breathDawnFactor(0.6, breathNightFactor(s)), closeTo(1.0, 1e-9),
+            reason: 'seconds=$s：晨光足时回涨完成');
+      }
+      // 非长夜（nightFactor=1）复合恒为 1.0，晨光不叠加。
+      expect(breathDawnFactor(0.3, 1.0), closeTo(1.0, 1e-9));
+    });
+
+    test('整夜逐分钟连续性：相邻分钟采样差值 < 0.02，无跳变', () {
+      // 长夜从 23:00 开始，一直采样到上午 11:00（跨过 6:00 日出）。
+      const startMinutes = 23 * 60;
+      double prev = -1;
+      for (int m = startMinutes; m <= startMinutes + 12 * 60; m++) {
+        final minuteOfDay = m % 1440;
+        final seconds = (m - startMinutes).toDouble();
+        final f = breathDawnFactor(
+          DayTide.daylight(minuteOfDay),
+          breathNightFactor(seconds),
+        );
+        if (prev >= 0) {
+          expect((f - prev).abs(), lessThan(0.02),
+              reason: 'minute=$minuteOfDay 出现跳变：$prev -> $f');
+        }
+        expect(f, inInclusiveRange(kBreathLullDeepFactor, 1.0),
+            reason: 'minute=$minuteOfDay 越界：$f');
+        prev = f;
+      }
+    });
+
+    test('日出后回涨单调上行：6:00~9:30 之间不回跌', () {
+      // 夜已深（极轻平台），daylight 随分钟上行使复合系数单调涨回。
+      double prev = 0.0;
+      for (int m = 360; m <= 570; m++) {
+        final f = breathDawnFactor(DayTide.daylight(m), kBreathLullDeepFactor);
+        expect(f, greaterThanOrEqualTo(prev - 1e-12),
+            reason: 'minute=$m 回涨不应回跌');
+        prev = f;
+      }
+      expect(prev, closeTo(1.0, 1e-9));
     });
   });
 }

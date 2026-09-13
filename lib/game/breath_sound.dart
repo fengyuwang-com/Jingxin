@@ -52,6 +52,35 @@ const double kBreathLullDeepFactor = 0.35;
 /// 用 smoothstep 在 60 秒里缓缓滑下去，绝不跳变。
 const double kBreathLullRampSeconds = 60;
 
+/// 晨光回涨（第 47 轮）：daylight 达到该值时呼吸音回涨到全量。
+/// DayTide.daylight 以 6:00 过零、正午 +1，0.5 约在上午 9:00——
+/// 太阳升起后的三个小时里，琴随晨光缓缓涨回来。
+const double kBreathDawnFullDaylight = 0.5;
+
+/// 晨光回涨进度（纯函数，0..1）：[daylight] 为 DayTide.daylight
+///（-1..1，清晨从 0 起升）。daylight ≤ 0（天还没亮）时为 0——
+/// 纯夜间礼让系数原样生效；daylight ≥ [kBreathDawnFullDaylight]
+/// 时为 1——回涨完成。中间用 smoothstep（3t²-2t³，两端导数为
+/// 零）过渡：6:00 太阳在地平线处回涨恰好从零开始，无起步顿挫。
+double breathDawnProgress(double daylight) {
+  if (daylight <= 0) return 0.0;
+  final t = (daylight / kBreathDawnFullDaylight).clamp(0.0, 1.0);
+  return t * t * (3 - 2 * t);
+}
+
+/// 晨光回涨复合（纯函数）：把夜间礼让系数 [nightFactor]
+///（breathNightFactor 的结果，0.35..1.0）与晨光进度复合——
+/// 天亮后增益从夜间的低量沿晨光平滑涨回全量 1.0：
+/// factor = nightFactor + (1 - nightFactor) × breathDawnProgress。
+///
+/// 连续性：nightFactor 对秒连续、daylight 对分钟连续，两侧都是
+/// smoothstep 光滑过渡，复合无跳变；daylight ≤ 0 时严格等于
+/// nightFactor（回涨不提前启动）。非长夜（nightFactor=1）时恒 1.0。
+double breathDawnFactor(double daylight, double nightFactor) {
+  final n = nightFactor.clamp(0.0, 1.0).toDouble();
+  return n + (1.0 - n) * breathDawnProgress(daylight);
+}
+
 /// 随息（麦克风）联动：呼吸音随气息包络起伏的幅度（±15%）。
 const double kBreathWobbleDepth = 0.15;
 
