@@ -31,3 +31,8 @@
 - AI 行动: 新建 lib/game/koans.dart（20句禅语池防重复）、lib/game/shard.dart（ShardCollection持久化/MindShard吸入动画/区域九宫格命名）、lib/screens/star_map_screen.dart（黄金角螺旋星座+玻璃偈语卡+空状态）；改造 jingjing_game.dart（碎片生成/consumeCycleEvent单次消费/shardMessage通知）；jingjing_screen 加左下角入口+禅语面板
 - 产出: commit df1313f；analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md 已更新
 - 关键决策: 一次平稳循环只能吸入一片（防止同帧双吸）；禅语在碎片构建时预生成避免卡顿；星图用黄金角螺旋按收集顺序排布（是风景不是列表）；游戏画面禅语面板不用 BackdropFilter（省性能），星图回看页用
+## 2026-09-13 — 第 5 轮（通宵升级 auto-night-5）
+- 用户要求: 星兽「眠」——失眠之海的长线存在：星座连线巨魟平时隐约可见；独立苏醒累计（循环+微、附近循环+多、碎片+点）跨会话持久化；5档逐只睁眼（每只3~5s渐变+涟漪+星屑聚拢）；无进度条，星图页仅极淡措辞一行；全睁游弋一阵后归零重睡（循环非终局）
+- AI 行动: 新建 lib/game/star_beast.dart（StarBeastState 持久化 key jingxin.starbeast.v1 + StarBeast 渲染组件：约15节点星座连线巨魟+尾迹+5眼辉光+14星屑，视差0.7屏外跳过）；jingjing_game.dart 增量改造（新增 cycleCount 独立循环计数、beast 装配与 onShard 回调、_wrap 更名 wrap 公开、onRemove 存星兽）；star_map_screen.dart 底部极淡状态行（alpha 0.32 措辞随睁眼数变化）
+- 产出: commit 7fe81ab（代码）+ docs commit；analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md 已更新
+- 关键决策: 星兽用 cycleCount 独立计数不受碎片 consumeCycleEvent 消费影响；游弋期用时间戳持久化跨会话有效；睁眼4s线性渐变、轮廓alpha仅0.07+0.10*睁开度（比背景星稍亮）；性能克制无粒子堆砌
