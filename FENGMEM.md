@@ -256,3 +256,10 @@
 - 产出: commit 2b98172（未 push）；analyze 19 基线 0 error；test 132/132（+11）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
 - 关键决策: 化解驱动以"靠近期间累计 3 个平稳循环"为主、持续靠近仅极缓累积松动度（视觉先行不抢化解）；紊乱/离开各留 2.5s/3s 宽限且短暂漂出清零重计（温柔不惩罚）；惑语呈现复用 shardMessage 面板不新增 UI 通道；互斥只拦浮现不打断已浮现的雾（它是背景不是演出）。
 - 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。
+
+## 2026-09-14 — 第 44 轮（通宵自动升级）
+- 用户要求: 呼吸之音——给呼吸配一把极轻的琴：可选开关（默认关）、吸气五声音阶上行/呼气下行（正弦 ≤0.06）、相位与 Web Audio gain 平滑连接无咔哒、紊乱时更轻、走 layer bus 受 duck 让位 TTS、条件导入与既有模式一致、纯函数 + 4~6 项测试、门槛、commit、文档。
+- AI 行动: 新增 lib/game/breath_sound.dart（breathToneFor 纯映射 + BreathSoundPreference 新键 jingxin.breathsound.v1）、soundscape.dart 接口加 setBreathSoundEnabled/updateBreathTone（stub 空实现）、soundscape_web.dart 加 _BreathVoice（常驻正弦 + bus，setTargetAtTime 平滑，master bus 汇入自动受 duck）、jingjing_game 加 onBreathTone 每帧回调、jingjing_screen 加「呼吸音」chip/开关/接线（进长夜/dispose 同步），test/breath_sound_test.dart 8 项。
+- 产出: commit feat(game): 呼吸之音——可选的五声音阶呼吸引导音 [auto-night-44]（未 push）；analyze 19 基线 0 error；test 140/140（+8）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 键选 jingxin.breathsound.v1 布尔新键——soundscape.v1 存的是场景枚举名，呼吸音是正交开关，不硬塞同键；紊乱用增益 ×0.35"更少的音"而非静默（与"乱了世界变暗"同语义）；端点增益严格归零 + setTargetAtTime 平滑是"无咔哒"的双保险；TTS 让位不新做——呼吸音汇入 master bus，duck 自动波及。
+- 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。

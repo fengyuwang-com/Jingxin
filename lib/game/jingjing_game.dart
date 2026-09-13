@@ -85,6 +85,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
     _sceneTarget = scene;
   }
 
+  /// 呼吸之音（第 44 轮）：非空时每帧收到（相位 0..1、是否吸气、
+  /// 是否平稳）。UI 层在呼吸之音开启且进入长夜时注入，退出长夜/
+  /// 关闭开关时置回 null——引擎侧再校验 playing 与开关，双保险。
+  void Function(double phase, bool inhaling, bool steady)? onBreathTone;
+
   /// 本轮程序放置的碎片（2~4 片，极稀疏）。
   final List<MindShard> shards = [];
 
@@ -816,6 +821,13 @@ class JingjingGame extends FlameGame with TapCallbacks {
       _setHint('呼气…');
     } else if (_breathProgress <= 0.001 && !(_autoWeight > 0.01)) {
       _setHint(null);
+    }
+
+    // 呼吸之音（第 44 轮）：UI 层在开关开启时注入回调；引擎每帧
+    // 把相位/方向/平稳度喂出去，发声与让位（duck）由声景引擎负责。
+    final breathCb = onBreathTone;
+    if (breathCb != null) {
+      breathCb(_breathProgress, delta > 0, breathSteady);
     }
   }
 

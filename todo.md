@@ -105,3 +105,7 @@
 ## 第 43 轮（2026-09-14）✅ 已完成
 - [x] 惑星——温柔的心结微挑战：长按呼吸稳定（连续 ≥2 平稳循环）且开场满 5 分钟、演出互斥窗口外，光灵 380~640px 处极缓浮现灰紫迷雾球（alpha ≤0.35、直径 ~60px、内旋双弧、缓慢漂移），每会话至多 1 颗；靠近 80px + 平稳呼吸 → 松动（雾淡旋快），3 个平稳循环 → 化解（星花散去 + 惑语新池 3 句 + 「惑星」碎片 mergeShards 幂等入账）；呼吸乱/离开 → 温柔退出本会话不再现。状态机 PerplexMachine 六阶段纯逻辑 + perplexShouldEmerge 纯函数。新增 test/perplex_planet_test.dart 11 项。analyze 19 基线 0 error，test 132/132，build web ✅，commit 2b98172（未 push）。
 - 待办（第 44 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览；惑星深化候选：化解处留「解开的结」淡痕、星兽目光短暂注视惑星。
+
+## 第 44 轮（2026-09-14）✅ 已完成
+- [x] 呼吸之音：纯映射 breathToneFor（五声音阶 C-D-E-G-A 上行/下行、钟形增益 ≤0.06 端点归零、紊乱 ×0.35）；新键 jingxin.breathsound.v1 布尔开关默认关；Web 端 _BreathVoice 常驻正弦经 setTargetAtTime 平滑推进、汇入 master bus 受 duck 让位；chip「呼吸音」并列声景行；接口新增两方法，stub 空实现。新增 test/breath_sound_test.dart 8 项。analyze 19 基线 0 error，test 140/140，build web ✅，commit（未 push）。
+- 待办（第 45 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览；呼吸之音深化候选：入睡 10 分钟后自行降到极轻半档。

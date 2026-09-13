@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../game/breath_mic.dart';
+import '../game/breath_sound.dart';
 import '../game/full_awake.dart';
 import '../game/jingjing_game.dart';
 import '../game/koans.dart';
@@ -47,6 +48,11 @@ class _JingjingScreenState extends State<JingjingScreen>
   /// 声景选择持久化与当前选择（默认海潮）。
   final SoundscapePreference _pref = SoundscapePreference();
   SoundscapeScene _scene = SoundscapeScene.sea;
+
+  /// 呼吸之音（第 44 轮）：可选开关，默认关；独立键
+  /// `jingxin.breathsound.v1`（与声景场景枚举正交，见 breath_sound.dart）。
+  final BreathSoundPreference _breathPref = BreathSoundPreference();
+  bool _breathSoundOn = false;
 
   /// 长夜模式：true 时世界缓缓入夜，声景极缓淡入。
   bool _nightMode = false;
@@ -193,6 +199,12 @@ class _JingjingScreenState extends State<JingjingScreen>
       setState(() => _scene = _pref.scene);
       _game.setSoundscapeScene(_pref.scene);
     });
+    // 呼吸之音（第 44 轮）：读回开关（默认关）；开且在长夜里才接线。
+    _breathPref.load().then((_) {
+      if (!mounted) return;
+      setState(() => _breathSoundOn = _breathPref.enabled);
+      _syncBreathSound();
+    });
     // 闻声：朗读时把声景 master gain 轻压下去，读完缓缓恢复。
     _voice.onSpeakingStart = (_) => _soundscape?.duck(active: true);
     _voice.onSpeakingEnd = (_) => _soundscape?.duck(active: false);
@@ -238,6 +250,7 @@ class _JingjingScreenState extends State<JingjingScreen>
     _farewellTimer?.cancel();
     _farewellFinishTimer?.cancel();
     _soundscape?.stop(fadeOut: 1.5);
+    _game.onBreathTone = null; // 呼吸之音：随世界一起安静。
     _voice.cancelAll(); // 退出静境：一切朗读停止。
     unawaited(_micEngine?.stop()); // 彻底释放麦克风流与轨道。
     _game.awakening.save();
@@ -330,6 +343,7 @@ class _JingjingScreenState extends State<JingjingScreen>
       final engine = _soundscape ??= SoundscapeEngineImpl();
       await engine.select(_scene); // 未播放时只记录选择
       unawaited(engine.start(fadeIn: 4.0));
+      _syncBreathSound(); // 呼吸之音：开关开着就随长夜一同浮起。
       _syncWhisperTimer(); // 闻声：长夜里随机低频的入睡引导。
       _syncIdleTimer(); // 晨光告别：安静满 90 秒自动天亮。
       _beastWhisper.beginNight(); // 星兽低语：新的一夜重新记账。
@@ -555,6 +569,39 @@ class _JingjingScreenState extends State<JingjingScreen>
     await _pref.save(scene);
     if (_nightMode) {
       unawaited(_soundscape?.select(scene, crossfade: 2.5));
+    }
+  }
+
+  /// 呼吸之音（第 44 轮）开关：立即生效并持久化。默认关——
+  /// 呼吸永远默认安静，开是一个温柔的选择。
+  Future<void> _toggleBreathSound() async {
+    final on = !_breathSoundOn;
+    setState(() => _breathSoundOn = on);
+    await _breathPref.save(on);
+    _syncBreathSound();
+    _showToast(on ? '呼吸之音已开' : '呼吸之音已关');
+  }
+
+  /// 按（开关状态 × 是否在长夜）接线呼吸之音：
+  /// - 开 + 长夜：引擎侧打开（未播放时只记录，start 时生效），
+  ///   并把游戏每帧的呼吸相位接到引擎；
+  /// - 其余：断开相位回调并让引擎侧缓缓收声。
+  void _syncBreathSound() {
+    if (_breathSoundOn) {
+      _soundscape?.setBreathSoundEnabled(true);
+      if (_nightMode) {
+        _game.onBreathTone = (phase, inhaling, steady) =>
+            _soundscape?.updateBreathTone(
+              phase: phase,
+              inhaling: inhaling,
+              steady: steady,
+            );
+      } else {
+        _game.onBreathTone = null;
+      }
+    } else {
+      _game.onBreathTone = null;
+      _soundscape?.setBreathSoundEnabled(false);
     }
   }
 
@@ -957,6 +1004,43 @@ class _JingjingScreenState extends State<JingjingScreen>
                                 ),
                               ),
                             ],
+                            // 呼吸之音（第 44 轮）：与三声景并列的一枚
+                            // 开关 chip——同一套 UI 语言，默认安静。
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                              ),
+                              child: Text(
+                                '·',
+                                style: TextStyle(
+                                  color: ZenTheme.textMuted.withValues(
+                                    alpha: 0.25,
+                                  ),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: _toggleBreathSound,
+                              child: Padding(
+                                // 命中区 ≥44px（第 16 轮触控适配）。
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 14,
+                                ),
+                                child: Text(
+                                  '呼吸音',
+                                  style: TextStyle(
+                                    color: ZenTheme.textMuted.withValues(
+                                      alpha: _breathSoundOn ? 0.9 : 0.38,
+                                    ),
+                                    fontSize: 12,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),

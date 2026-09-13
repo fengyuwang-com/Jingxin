@@ -55,6 +55,19 @@ abstract class SoundscapeEngine {
   /// 既有 gain ramp，在 [seconds] 秒内平滑归零——绝不瞬间断音。
   /// 与 [stop] 的区别：即便 stop 的长淡出已在进行中也能重新压快。
   void silence({double seconds = 1.0});
+
+  /// 呼吸之音（第 44 轮）开关：开启且正在播放时，作为一枚极轻的
+  /// layer 汇入同一 master bus（受 duck 影响——闻声 TTS 播报瞬间
+  /// 呼吸音随声景一起被轻压让位）。未播放时只记录，start 时生效。
+  void setBreathSoundEnabled(bool enabled);
+
+  /// 每帧喂入呼吸相位（0..1）与方向/平稳度；Web 实现据此把正弦
+  /// 振荡器的频率/增益平滑 ramp 到目标（纯映射在 breath_sound.dart）。
+  void updateBreathTone({
+    required double phase,
+    required bool inhaling,
+    required bool steady,
+  });
 }
 
 /// 声景选择持久化（shared_preferences，所有平台可用）。

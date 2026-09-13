@@ -31,4 +31,14 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
 
   @override
   void silence({double seconds = 1.0}) {}
+
+  @override
+  void setBreathSoundEnabled(bool enabled) {}
+
+  @override
+  void updateBreathTone({
+    required double phase,
+    required bool inhaling,
+    required bool steady,
+  }) {}
 }
