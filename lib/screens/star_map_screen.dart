@@ -48,6 +48,9 @@ class _StarMapScreenState extends State<StarMapScreen> {
   ui.Image? _previewImage;
   // 桌面端 hover 才亮出的一行保存提示；Web 端打开预览即显示。
   bool _previewHintVisible = false;
+  // 「收下」（第 49 轮）：预览层内就地保存的小钮状态机（仅 Web 显示）。
+  CardSavePhase _savePhase = CardSavePhase.idle;
+  Timer? _saveResetTimer;
   // 「满醒纪念签」（第 31 轮）：演过满醒终幕才有的印记，未满醒零渲染。
   bool _fullAwakePlayed = false;
   FullAwakeCount _fullAwakeCount = const FullAwakeCount(count: 1);
@@ -80,6 +83,7 @@ class _StarMapScreenState extends State<StarMapScreen> {
   @override
   void dispose() {
     _tokenTimer?.cancel();
+    _saveResetTimer?.cancel();
     _previewImage?.dispose();
     super.dispose();
   }
@@ -171,16 +175,125 @@ class _StarMapScreenState extends State<StarMapScreen> {
   }
 
   /// 关闭预览层：先淡出（隐式动画），动画走完再释放离屏图。
+  /// 「收下」保存（第 49 轮）与预览层完全解耦——保存时另渲染一张
+  /// 新离屏图，生命周期（渲染→编码→释放）完全在保存函数内部，
+  /// 保存期间关闭预览、释放预览图都互不影响；这里只把按钮归位。
   void _closeCardPreview() {
     if (!_cardPreviewing) return;
     setState(() {
       _cardPreviewing = false;
       _previewHintVisible = false;
+      _savePhase = cardSavePhaseNext(_savePhase, CardSaveEvent.reset);
     });
+    _saveResetTimer?.cancel();
     Future<void>.delayed(const Duration(milliseconds: 350), () {
       _previewImage?.dispose();
       if (mounted) setState(() => _previewImage = null);
     });
+  }
+
+  /// 「收下」（第 49 轮）：预览层内就地保存这张卡——只走 Web 的
+  /// anchor download 路径（与「带走星图」同一 StarCardSaver 出口）。
+  /// 选用「另渲染一张新离屏图」而不是复用预览图的方案：预览图
+  /// 会在关闭预览 350ms 后被 dispose，若保存直接持有它，就得做
+  /// 引用计数或延迟释放，复杂且易漏；新图生命周期完全局部于本
+  /// 函数（渲染 → toByteData → dispose），最简且天然并发安全。
+  Future<void> _saveFromPreview() async {
+    if (_savePhase != CardSavePhase.idle &&
+        _savePhase != CardSavePhase.failed) {
+      return;
+    }
+    setState(
+      () => _savePhase = cardSavePhaseNext(_savePhase, CardSaveEvent.start),
+    );
+    _saveResetTimer?.cancel();
+    try {
+      final image = await _renderCardImage();
+      if (image == null) throw StateError('not loaded');
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (data == null) {
+        throw StateError('toByteData returned null');
+      }
+      final saver = StarCardSaverImpl();
+      final ok = await saver.savePng(
+        data.buffer.asUint8List(),
+        saveCardFileName(DateTime.now(), _records.length),
+      );
+      if (!mounted) return;
+      setState(() {
+        _savePhase = cardSavePhaseNext(
+          _savePhase,
+          ok ? CardSaveEvent.succeed : CardSaveEvent.fail,
+        );
+      });
+      if (_savePhase == CardSavePhase.done) {
+        // 确认态 1.5s 后淡回静候；若中途关了预览，_closeCardPreview
+        // 已 reset 并取消本计时器（幂等，再 reset 一次无害）。
+        _saveResetTimer = Timer(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            setState(
+              () => _savePhase = cardSavePhaseNext(
+                _savePhase,
+                CardSaveEvent.reset,
+              ),
+            );
+          }
+        });
+      } else {
+        _say('这张星图暂时带不走，晚点再来');
+        _saveResetTimer = Timer(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            setState(
+              () => _savePhase = cardSavePhaseNext(
+                _savePhase,
+                CardSaveEvent.reset,
+              ),
+            );
+          }
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _savePhase = cardSavePhaseNext(_savePhase, CardSaveEvent.fail),
+      );
+      _say('这张星图暂时带不走，晚点再来');
+    }
+  }
+
+  /// 「收下」小钮的内容：随状态机四态切换——静候 / 转圈 / 已收下 ✓。
+  Widget _saveButtonLabel() {
+    switch (_savePhase) {
+      case CardSavePhase.idle:
+      case CardSavePhase.failed:
+        return Text(
+          '收 下',
+          style: TextStyle(
+            color: ZenTheme.textHigh.withValues(alpha: 0.85),
+            fontSize: 13,
+            letterSpacing: 4,
+          ),
+        );
+      case CardSavePhase.saving:
+        return SizedBox(
+          width: 15,
+          height: 15,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: ZenTheme.nebulaCyan.withValues(alpha: 0.7),
+          ),
+        );
+      case CardSavePhase.done:
+        return Text(
+          '已收下 ✓',
+          style: TextStyle(
+            color: ZenTheme.nebulaCyan.withValues(alpha: 0.9),
+            fontSize: 13,
+            letterSpacing: 3,
+          ),
+        );
+    }
   }
 
   /// 一行淡字提示（底部 snackbar，温柔、用后即逝）。
@@ -584,6 +697,62 @@ class _StarMapScreenState extends State<StarMapScreen> {
                             onPressed: _closeCardPreview,
                           ),
                         ),
+                        // 「收下」（第 49 轮）：预览层内就地保存。
+                        // 仅 Web（kIsWeb）显示——保存走 anchor download；
+                        // 其他平台保持原有行为，此钮完全不出现。
+                        if (kIsWeb)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 52,
+                            child: Center(
+                              child: AnimatedScale(
+                                scale: _savePhase == CardSavePhase.idle ||
+                                        _savePhase == CardSavePhase.failed
+                                    ? 1
+                                    : 0.97,
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOut,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(22),
+                                  child: BackdropFilter(
+                                    filter: ui.ImageFilter.blur(
+                                      sigmaX: 12,
+                                      sigmaY: 12,
+                                    ),
+                                    child: Material(
+                                      color: ZenTheme.surfaceDim.withValues(
+                                        alpha: 0.55,
+                                      ),
+                                      shape: StadiumBorder(
+                                        side: BorderSide(
+                                          color: ZenTheme.nebulaCyan
+                                              .withValues(alpha: 0.22),
+                                        ),
+                                      ),
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(22),
+                                        // saving / done 态禁用防重复点击。
+                                        onTap:
+                                            _savePhase ==
+                                                CardSavePhase.saving ||
+                                            _savePhase == CardSavePhase.done
+                                            ? null
+                                            : _saveFromPreview,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 22,
+                                            vertical: 10,
+                                          ),
+                                          child: _saveButtonLabel(),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         // 保存提示：Web 端打开即显示；桌面端 hover 亮出。
                         Positioned(
                           left: 0,
@@ -605,7 +774,7 @@ class _StarMapScreenState extends State<StarMapScreen> {
                               duration: const Duration(milliseconds: 400),
                               child: Text(
                                 kIsWeb
-                                    ? '点「带走星图」即可保存这张卡 · 点任意处收起'
+                                    ? '点「收下」即可保存这张卡 · 点任意处收起'
                                     : '点任意处收起',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
