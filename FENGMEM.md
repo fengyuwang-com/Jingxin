@@ -170,3 +170,15 @@
 - AI 行动: 新增 lib/game/morning_star.dart（MorningStarCtl 纯逻辑：位置/命中/冷却/可见性 + KoanRotator 轮换 + MorningStar 渲染组件）；koans.dart 新增 morningStarPool 3 句；jingjing_game.dart onTapDown 加命中检测（互斥判定）并挂载组件；test/morning_star_test.dart 4 项。
 - 产出: analyze 19 条基线持平 0 error；test 57/57；build web 成功；commit 本次（未 push）；UPGRADE-LOG/todo/FENGMEM 已更新。
 - 关键决策: 只读既有 jingxin.fullawake.v1 标记不新增键；偈语呈现复用 shardMessage 既有禅语面板（5s 淡出免费获得）；位置程序生成 (0.585, 0.225)·period 与渊/荒原/雾林/静之径带外自证；冷却中命中吞掉点击避免穿透误触呼吸。
+
+## 2026-09-13 — 第 30 轮（通宵自动升级）
+- 用户要求: README 追平 20~29 轮 + 拾忆抽屉限高滚动 + 测试/README 一致性巡检 + 质量门槛 + commit + 记录更新。
+- AI 行动: README 玩法/快速开始/架构树/升级史补齐第 20~29 轮内容；star_map_screen.dart 拾忆抽屉内容包 ConstrainedBox(屏高 55%)+SingleChildScrollView；巡检 test/ 11 文件与 README 一致；跑 analyze/test/build web；追加 UPGRADE-LOG/todo/FENGMEM。
+- 产出: analyze 19 条基线持平 0 error；test 57/57；build web 成功；commit 18e44c7（未 push）。
+- 关键决策: 限高选屏高 55%、加在最内层内容上（ClipRRect/BackdropFilter 不动，玻璃拟态与圆角自然保留）；一致性巡检未发现需改代码处。
+
+## 2026-09-13 — 第 31 轮（通宵自动升级）
+- 用户要求: 星图屏「满醒纪念签」：演过满醒终幕后星图外缘浮现金白光点+极细光晕（90s 自转），点击弹玻璃小卡（第 M 次满醒 · 于 9月13日 + 满醒偈），5s 淡出 15s 冷却，演出中不可点，未满醒零渲染。
+- AI 行动: full_awake.dart 新增 countPrefKey=jingxin.fullawake.count.v1（唯一新键，格式 `次数|yyyyMMdd`，无键=1 向后兼容）+ FullAwakeCount 纯类 + bumpCount/loadCount + performanceActive 标志与 tokenAngle/tokenTapAllowed 纯函数；star_map_screen.dart 加 _AwakeTokenWidget/_AwakeTokenPainter/_AwakeTokenCard 与螺旋外缘定位；新增 test/awake_token_test.dart 4 项。
+- 产出: commit f90e33e；analyze 19 条基线 0 error；test 61/61；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新。
+- 关键决策: 计数键用字符串 `次数|yyyyMMdd` 单键同时存次数与最近日期（不新增第二个键）；计数 +1 挂在 FullAwakeEvent._begin 的 fullShow 分支（真正开演处）；演出互斥用静态 performanceActive 标志（跨屏幕可读，星图侧轻量判定）。
