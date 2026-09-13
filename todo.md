@@ -19,3 +19,4 @@
 - [x] Flutter 3.47.4 安装（C:\FengProj\flutter），pub 镜像 flutter-io.cn，PATH 永久配置
 - [x] tag v1.0-pre-jingjing 已推送 GitHub（重构前最终版）
 - [x] 基线验证：pub get / analyze 0 error / flutter build web 通过
+- [x] 第8轮：多声景——夜雨与篝火（soundscape.dart 扩展为 SoundscapeEngine 三声景 sea/rain/campfire + select 交叉渐变 2.5s；Web 层架构全声景汇入 master gain 0.5 防爆音、层懒构建复用、噪声素材共用；夜雨=粉噪雨幕底+稀疏带通雨滴瞬态（90~410ms 随机音高）+25~60s 遥远低频雷滚；篝火=棕噪 220Hz 暖底+噼啪脉冲簇+0.05Hz 音量摇曳；长夜中玻璃拟态三小字切换（海潮·夜雨·篝火）持久化 jingxin.soundscape.v1；视听联动：夜雨 ≤18 条雨丝 alpha 0.10、篝火暖色偏移 alpha 0.055，随长夜程度消散；analyze 0 error/build web 通过）

@@ -25,11 +25,15 @@ class _JingjingScreenState extends State<JingjingScreen> {
   late final JingjingGame _game;
   Timer? _koanTimer;
 
-  /// "海之白噪音"声景（Web 合成实现；非 Web 平台静音降级）。
+  /// 声景引擎（Web 合成实现；非 Web 平台静音降级）。
   /// 懒创建：首次进入长夜（用户手势内）才真正初始化 AudioContext。
-  SeaSoundscape? _soundscape;
+  SoundscapeEngine? _soundscape;
 
-  /// 长夜模式：true 时世界缓缓入夜，白噪音极缓淡入。
+  /// 声景选择持久化与当前选择（默认海潮）。
+  final SoundscapePreference _pref = SoundscapePreference();
+  SoundscapeScene _scene = SoundscapeScene.sea;
+
+  /// 长夜模式：true 时世界缓缓入夜，声景极缓淡入。
   bool _nightMode = false;
 
   @override
@@ -37,6 +41,11 @@ class _JingjingScreenState extends State<JingjingScreen> {
     super.initState();
     _game = JingjingGame(seedColor: widget.seedColor);
     _game.shardMessage.addListener(_onShardMessage);
+    _pref.load().then((_) {
+      if (!mounted) return;
+      setState(() => _scene = _pref.scene);
+      _game.setSoundscapeScene(_pref.scene);
+    });
   }
 
   /// 碎片被吸入：禅语玻璃面板淡入，停留数秒后自行淡出。
@@ -75,11 +84,22 @@ class _JingjingScreenState extends State<JingjingScreen> {
     _game.setNight(entering);
     if (entering) {
       await _game.longNight.markVisited();
-      unawaited(
-        (_soundscape ??= SeaSoundscapeImpl()).start(fadeIn: 4.0),
-      );
+      final engine = _soundscape ??= SoundscapeEngineImpl();
+      await engine.select(_scene); // 未播放时只记录选择
+      unawaited(engine.start(fadeIn: 4.0));
     } else {
       unawaited(_soundscape?.stop(fadeOut: 3.0));
+    }
+  }
+
+  /// 切换声景：交叉渐变（旧淡出/新淡入）+ 视听联动 + 持久化。
+  Future<void> _selectScene(SoundscapeScene scene) async {
+    if (scene == _scene) return;
+    setState(() => _scene = scene);
+    _game.setSoundscapeScene(scene);
+    await _pref.save(scene);
+    if (_nightMode) {
+      unawaited(_soundscape?.select(scene, crossfade: 2.5));
     }
   }
 
@@ -202,6 +222,82 @@ class _JingjingScreenState extends State<JingjingScreen> {
                     color: ZenTheme.textMuted.withValues(alpha: 0.45),
                     fontSize: 13,
                     letterSpacing: 5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // 声景选择：长夜里浮现的三个小字（海潮 · 夜雨 · 篝火），
+          // 玻璃拟态、无滑块无设置页；只有长夜中可点。
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 122),
+                child: IgnorePointer(
+                  ignoring: !_nightMode,
+                  child: AnimatedOpacity(
+                    opacity: _nightMode ? 1 : 0,
+                    duration: const Duration(seconds: 3),
+                    curve: Curves.easeOut,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          color: ZenTheme.surfaceDim.withValues(alpha: 0.32),
+                          border: Border.all(
+                            color: ZenTheme.nebulaCyan.withValues(alpha: 0.14),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final scene in SoundscapeScene.values) ...[
+                              if (scene != SoundscapeScene.sea)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 2,
+                                  ),
+                                  child: Text(
+                                    '·',
+                                    style: TextStyle(
+                                      color: ZenTheme.textMuted.withValues(
+                                        alpha: 0.25,
+                                      ),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => _selectScene(scene),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                  child: Text(
+                                    scene.label,
+                                    style: TextStyle(
+                                      color: ZenTheme.textMuted.withValues(
+                                        alpha: scene == _scene ? 0.9 : 0.38,
+                                      ),
+                                      fontSize: 12,
+                                      letterSpacing: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

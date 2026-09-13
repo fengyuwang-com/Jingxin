@@ -46,3 +46,8 @@
 - AI 行动: 新建 lib/game/regions.dart（GameRegion 深度带+九宫格命名+色调抽象，海=全域底层、渊=ny 0.80→0.93）、lib/game/anxiety_abyss.dart（36乱星频率趋同+相位靠拢同化机制、2盏心跳微光9s脉动、5朵星花按附近乱星平均sync开合、全屏冷紫沉入色调按深度淡入）；koans.dart 加10句渊语池+_draw通用防重复；shard.dart 加 abyss 标记+regionNameFor 委托 regions；jingjing_game.dart 加 abyssDepth 每帧计算+AnxietyAbyss 装配+奇数碎片沉渊
 - 产出: commit b5a98e6；analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新
 - 关键决策: 渊带定在 ny 0.80→0.93（星兽锚点 0.78 仍在海层不冲突）；同化目标频率=1/8s 与自动呼吸引导同周期（隐喻一致性）；星花绽放取附近乱星平均同化度而非全局值（局部一致性才开花）；同化缓升0.09/s、恢复0.012/s（乱易同心难）
+## 2026-09-13 — 第 8 轮（通宵升级 auto-night-8）
+- 用户要求: 多声景——夜雨与篝火：在现有 Web Audio 合成架构上新增两个程序合成声景（雨=粉噪雨幕+稀疏带通雨滴瞬态+可选遥远雷；篝火=低频暖噪+噼啪簇+慢 LFO 摇曳）；长夜中极简三小字切换 UI 交叉渐变 2~3s；选择持久化；轻视听联动（雨丝/暖色）；master gain 0.5 防爆音；不回退
+- AI 行动: 重构 soundscape.dart（SoundscapeScene 枚举+SoundscapeEngine 接口+SoundscapePreference 持久化 key jingxin.soundscape.v1）；soundscape_web.dart 改层架构（_Layer 基类 bus gain 专职渐变、master 0.5、粉噪/棕噪/短脉冲素材共用；_SeaLayer/_RainLayer/_RainLayer 雷滚 Timer/_CampfireLayer 噼啪 Timer）；soundscape_stub.dart 适配；jingjing_screen.dart 长夜底部玻璃拟态三小字（海潮·夜雨·篝火）+_selectScene；jingjing_game.dart 加 rainAmount/warmthAmount 低通+setSoundscapeScene+_NightWeather 顶层组件（18 条雨丝+暖色偏移）
+- 产出: analyze 0 error（19基线无新增）；build web 成功；commit [auto-night-8]；UPGRADE-LOG/todo/FENGMEM 已更新
+- 关键决策: 交叉渐变由每层独立 bus gain 承担（海潮 LFO 移到层内不再与 ramp 抢同一 AudioParam）；瞬态全部走 Dart Timer 调度且 audible=false 即停（淡出后不再发声）；雨滴密度 90~410ms、噼啪 0.25~1.4s 宁稀勿密；视听联动强度与 nightAmount 相乘退出长夜自然消散
