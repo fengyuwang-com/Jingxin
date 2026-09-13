@@ -848,3 +848,16 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 星花支线深化：相邻花之间浮现极淡「花径」连线；或按区域统计已开花数做「花境图鉴」式的温和回顾。
+
+## 第 57 轮（2026-09-14）—— 花径：星花连缀的呼吸之路
+- 理念：两朵开得较高的星花离得近时，它们之间浮现一道极淡的径线——**玩家回望时才发现的痕迹，不是目标、不做任何提示或引导**（语义已写进代码注释，防后续轮误加引导系统）。星花支线第三轮。
+- 实现：
+  - 纯函数（lib/game/breath_flower.dart 追加）：① flowerPathAlpha(dist, bloomA, bloomB)——两朵花开度均 > kFlowerPathBloomGate（0.4）且环面距离 < kFlowerPathMaxDist（220px）时浮现，alpha = 峰值 0.09 × smoothstep 距离衰减 × 开度差压低（任一朵收拢/谢幕同步变淡，bloom 归零即消失），0.02 步进量化（kFlowerPathAlphaStep）；② flowerPathCandidates(positions, blooms, period)——O(n²) 算出所有满足门槛+wrap 距离的 (i, j, dist) 花对（i<j，positions 用 (x,y) 记录避免向量类型耦合，单轴 wrap 取最短环绕，Dart % 恒非负容错负坐标）。顺手收敛：量化助手公开为 flowerQuantize（原 _quantize 委托之），花园 _q 改为委托同一实现（行为不变）。
+  - 演出（jingjing_game.dart BreathFlowerGarden）：候选对每秒节拍算一次并缓存（_pathTimer ≥ 1s 才 O(n²)，12 朵最多 66 对，绝不每帧算），缓存的是花对象引用 (_Flower, _Flower)；渲染在花之后、谢幕光尘之前，alpha 用**实时** wrap 距离 + 实时开度（flowerVisual 的 open，随花谢/长夜/FIFO 消失自然归零，无需特判），颜色取两花花瓣色的确定性中点 Color.lerp(0.5)；1px 细线 + BlendMode.screen，沿用 3x3 环绕镜像（B 端按 wrap 差值绘制，接缝两侧径线连续），屏外整对剔除（两端都出 m=280px 才跳过），introEase 短路。花径不引导：无任何提示文案/高亮/目标标记。
+- 测试（test/flower_path_test.dart 新增 12 项，266→278）：峰值量化端点（0.10）、开度门槛（0.4 侧为 0、0.55 侧 >0）、距离单调 + 220 恒 0 + 全程 0.02 量化步进、近端远端收敛、收拢同步变淡（full>half>low>0）、FIFO/花谢 bloom 归零径线消失（0.5→0 下落扫描单调趋 0）、全组合量化；候选对 i<j 与距离字段、门槛剔除、x/y 双向跨缝 wrap（2390↔10、1790↔10 实距 20）、12 朵 66 对上限、距离逐对复算一致。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 278/278；flutter build web 成功。
+- commit：bfb23c5（feat(game): 花径——星花连缀的呼吸之路 [auto-night-57]，未 push）。pubspec.yaml 新增 dev_dependencies: vector_math ^2.4.2（测试显式依赖，消 depend_on_referenced_packages 提示）。
+- 下一步建议（第 58 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 星花支线可收束或深化：按区域统计已开花数做「花境图鉴」式温和回顾；或花径微光随呼吸相位缓慢流动（克制，不加引导）。
