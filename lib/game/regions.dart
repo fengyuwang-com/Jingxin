@@ -17,6 +17,7 @@ class GameRegion {
     required this.tint,
     required this.depthStart,
     required this.depthFull,
+    this.upper = false,
   });
 
   final String name;
@@ -35,6 +36,23 @@ class GameRegion {
   /// depthStart < 0 表示全域常在（底层区域）。
   final double depthStart;
   final double depthFull;
+
+  /// 上部区域（如「疲惫荒原」的旷野带）：depthFull < ny 即开始浮现，
+  /// ny < depthStart 完全进入（与下行区域的接入方式镜像对称）。
+  final bool upper;
+
+  /// 「疲惫荒原」：世界上部的旷野高空带（第 9 轮，第三个心境区域）。
+  /// 地形隐喻是「地平线/旷野」而非深度——光灵上浮抵达。
+  static const wearyHeath = GameRegion(
+    name: '疲惫荒原',
+    centerName: '旷心',
+    rows: ['天隈', '旷原', '风缘'],
+    cols: ['西碛', '中碛', '东碛'],
+    tint: Color(0xFFc9a97a),
+    depthStart: 0.05,
+    depthFull: 0.18,
+    upper: true,
+  );
 
   /// 「失眠之海」：全域底层的第一个心境区域。
   static const insomniaSea = GameRegion(
@@ -58,20 +76,27 @@ class GameRegion {
     depthFull: 0.93,
   );
 
-  static const List<GameRegion> all = [anxietyAbyss, insomniaSea];
+  static const List<GameRegion> all = [anxietyAbyss, wearyHeath, insomniaSea];
 
   /// 归一化 y -> 区域深度（0..1，smoothstep；全域区域恒为 1）。
+  /// 上部区域方向反转：ny 越小越深入。
   double depthAt(double ny) {
     if (depthStart < 0) return 1;
-    final t = ((ny - depthStart) / (depthFull - depthStart)).clamp(0.0, 1.0);
+    final t = upper
+        ? ((depthFull - ny) / (depthFull - depthStart)).clamp(0.0, 1.0)
+        : ((ny - depthStart) / (depthFull - depthStart)).clamp(0.0, 1.0);
     return t * t * (3 - 2 * t);
   }
 
-  /// 世界坐标所属区域：按深度带从深到浅匹配，海是默认底层。
+  /// 世界坐标所属区域：按深度带从两端向中间匹配，海是默认底层。
   static GameRegion regionAt(Vector2 worldPos) {
     final ny = (worldPos.y / JingjingGame.worldPeriod.y) % 1.0;
     for (final region in all) {
-      if (region.depthStart >= 0 && ny >= region.depthStart) return region;
+      if (region.depthStart < 0) continue;
+      final inBand = region.upper
+          ? ny <= region.depthFull
+          : ny >= region.depthStart;
+      if (inBand) return region;
     }
     return insomniaSea;
   }

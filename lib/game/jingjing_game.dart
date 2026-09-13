@@ -7,6 +7,7 @@ import 'package:flutter/material.dart' hide Draggable;
 
 import '../core/theme.dart';
 import 'anxiety_abyss.dart';
+import 'breath_mic.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
@@ -14,6 +15,7 @@ import 'regions.dart';
 import 'shard.dart';
 import 'soundscape.dart';
 import 'star_beast.dart';
+import 'weary_heath.dart';
 
 /// 静境（Jingjing）游戏循环。
 ///
@@ -81,6 +83,31 @@ class JingjingGame extends FlameGame with TapCallbacks {
   double _prevBreathProgress = 0;
   double _idleTime = 0;
 
+  // ---- 麦克风呼吸输入（第 9 轮，完全可选、默认关闭）----
+  /// 由 UI 层在用户点击手势内设置；null = 触控模式。
+  /// 引擎只输出 0..1 音量包络（绝不录音存储，见 breath_mic.dart）。
+  BreathMicEngine? micEngine;
+
+  /// 麦克风模式是否开启（驱动光灵的"声息涟漪"等细微反馈）。
+  bool micBreathEnabled = false;
+
+  /// 游戏侧对包络的再平滑镜像（0..1），供涟漪与呼吸跟随使用。
+  double micEnvelope = 0;
+
+  /// 两种输入源"最近活跃者"仲裁：各自的最后活跃时刻。
+  double _lastTouchInputTime = -999;
+  double _lastMicInputTime = -999;
+
+  /// 开启/关闭麦克风呼吸输入。传 null 即回到纯触控模式。
+  void enableMicBreath(BreathMicEngine? engine) {
+    micEngine = engine;
+    micBreathEnabled = engine != null;
+    if (engine == null) {
+      _lastMicInputTime = -999;
+      micEnvelope = 0;
+    }
+  }
+
   /// 自动呼吸混合权重：无输入越久越趋近 1（回归引导节奏）。
   double _autoWeight = 1;
 
@@ -105,6 +132,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 光灵当前在「焦虑之渊」的深度（0..1，按区域深度带随漫游自然过渡）。
   double abyssDepth = 0;
+
+  /// 光灵当前在「疲惫荒原」的深度（0..1，世界上部旷野带，与渊镜像对称）。
+  double heathDepth = 0;
 
   /// 呼吸平稳度：|Δprogress| 的低通值，低于阈值视为"平稳呼吸"。
   double _breathJitter = 0;
@@ -150,6 +180,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 失眠之海：星潮背景 -> 焦虑之渊（海的更深处）-> 星兽 -> 星岛 -> 光灵。
     final sea = InsomniaSea();
     add(sea);
+    add(WearyHeath());
     add(AnxietyAbyss());
     beast = StarBeast();
     add(beast);
@@ -170,16 +201,25 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(_spirit);
 
     // 心镜碎片：本轮漫游程序放置 2~4 片，散布在世界中（远离光灵起点）。
-    // 奇数序号的碎片有意沉入「焦虑之渊」深度带（区域感知的偈语池）。
+    // 碎片按序号分配心境区域：i%3==1 沉入「焦虑之渊」深度带，
+    // i%3==2 上浮「疲惫荒原」旷野带（各自用专属偈语池）。
     final shardRng = math.Random(DateTime.now().millisecondsSinceEpoch);
     final count = 2 + shardRng.nextInt(3);
     final abyssBand = GameRegion.anxietyAbyss;
+    final heathBand = GameRegion.wearyHeath;
     for (int i = 0; i < count; i++) {
-      final inAbyss = i.isOdd;
-      final ny = inAbyss
-          ? abyssBand.depthStart +
-                0.02 + shardRng.nextDouble() * (0.98 - abyssBand.depthStart)
-          : 0.06 + 0.88 * shardRng.nextDouble();
+      final inAbyss = i % 3 == 1;
+      final inHeath = i % 3 == 2;
+      double ny;
+      if (inAbyss) {
+        ny = abyssBand.depthStart +
+            0.02 + shardRng.nextDouble() * (0.98 - abyssBand.depthStart);
+      } else if (inHeath) {
+        ny = heathBand.depthFull - 0.03 -
+            shardRng.nextDouble() * (heathBand.depthFull - 0.02);
+      } else {
+        ny = 0.06 + 0.88 * shardRng.nextDouble();
+      }
       final pos = Vector2(
         (0.06 + 0.88 * shardRng.nextDouble()) * worldPeriod.x,
         ny * worldPeriod.y,
@@ -189,8 +229,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
         phase: shardRng.nextDouble() * math.pi * 2,
         tint: inAbyss
             ? const Color(0xFFc9a0b8)
-            : (i.isOdd ? const Color(0xFF34d399) : ZenTheme.nebulaCyan),
+            : inHeath
+            ? const Color(0xFFd8bc8e)
+            : ZenTheme.nebulaCyan,
         abyss: inAbyss,
+        heath: inHeath,
       );
       shards.add(shard);
       add(shard);
@@ -217,18 +260,21 @@ class JingjingGame extends FlameGame with TapCallbacks {
   void onTapDown(TapDownEvent event) {
     _pressing = true;
     _idleTime = 0;
+    _lastTouchInputTime = _time;
     _touchPoint = event.canvasPosition.clone();
   }
 
   @override
   void onTapUp(TapUpEvent event) {
     _pressing = false;
+    _lastTouchInputTime = _time;
     _touchPoint = null;
   }
 
   @override
   void onTapCancel(TapCancelEvent event) {
     _pressing = false;
+    _lastTouchInputTime = _time;
     _touchPoint = null;
   }
 
@@ -317,10 +363,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
     spiritPos += _spiritVelocity * dt;
     wrap(spiritPos);
 
-    // 区域深度：按光灵所在归一化 y 平滑过渡（渊在海的更深处）。
-    abyssDepth = GameRegion.anxietyAbyss.depthAt(
-      spiritPos.y / worldPeriod.y,
-    );
+    // 区域深度：按光灵所在归一化 y 平滑过渡（渊在海的更深处，
+    // 荒原在世界上部的旷野带，接入方式镜像对称）。
+    final ny = spiritPos.y / worldPeriod.y;
+    abyssDepth = GameRegion.anxietyAbyss.depthAt(ny);
+    heathDepth = GameRegion.wearyHeath.depthAt(ny);
 
     // 相机极缓跟随：光灵在屏幕上只做小幅游移，世界在四周流动。
     final camDelta = spiritPos - camPos;
@@ -351,10 +398,32 @@ class JingjingGame extends FlameGame with TapCallbacks {
     _prevBreathProgress = _breathProgress;
     _cycleTime += dt;
 
+    // 麦克风包络镜像：游戏侧再低通一次（引擎已慢平滑，这里是双保险），
+    // 并用"包络有明显变化"作为麦克风输入活跃的信号（最近活跃者仲裁）。
+    final mic = micEngine;
+    final micLive = mic != null && micBreathEnabled && mic.isRunning;
+    if (micLive) {
+      final env = mic!.envelope;
+      if ((env - micEnvelope).abs() > 0.008) _lastMicInputTime = _time;
+      micEnvelope += (env - micEnvelope) * math.min(1.0, dt * 3.0);
+    } else {
+      micEnvelope += (0 - micEnvelope) * math.min(1.0, dt * 2.0);
+      if (micEnvelope < 0.002) micEnvelope = 0;
+    }
+    // 两种输入源取最近活跃者：触控随时可接管，气息重新起伏时自然交还。
+    final touchWins = _lastTouchInputTime >= _lastMicInputTime;
+    final micWins = micLive && !touchWins;
+
     // 平滑向目标推进：跟随输入速度，从不瞬跳、不惩罚过快。
     if (_pressing) {
       _breathProgress = (_breathProgress + dt / inhaleDuration).clamp(0.0, 1.0);
       _idleTime = 0;
+    } else if (micWins) {
+      // 麦克风模式：音量包络 = 呼吸目标，柔和跟随（约 0.4s 惯性）。
+      _breathProgress +=
+          (micEnvelope - _breathProgress) * math.min(1.0, dt * 2.4);
+      _breathProgress = _breathProgress.clamp(0.0, 1.0);
+      _idleTime = 0; // 有真实气息输入就不进入空闲自动节奏。
     } else {
       _breathProgress = (_breathProgress - dt / exhaleDuration).clamp(0.0, 1.0);
       // 完全呼尽且继续无输入，才逐渐进入空闲自动节奏。
@@ -587,6 +656,28 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
         stops: const [0.0, 0.35, 0.65, 1.0],
       ).createShader(Rect.fromCircle(center: orbCenter, radius: radius));
     canvas.drawCircle(orbCenter, radius, bodyPaint);
+
+    // 声息涟漪（第 9 轮）：麦克风呼吸开启时，光灵边缘一圈极淡的涟漪
+    // 随音量包络脉动（alpha 峰值仅 0.15），世界感知到"真实的气息"。
+    if (game.micBreathEnabled && game.micEnvelope > 0.015) {
+      final pulse = game.micEnvelope;
+      final ringPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = tint.withValues(alpha: 0.15 * pulse);
+      canvas.drawCircle(
+        orbCenter,
+        radius * (1.32 + 0.28 * pulse),
+        ringPaint,
+      );
+      // 更外一圈更淡的余韵，让涟漪有层次而非单线。
+      ringPaint.color = tint.withValues(alpha: 0.07 * pulse);
+      canvas.drawCircle(
+        orbCenter,
+        radius * (1.62 + 0.42 * pulse),
+        ringPaint,
+      );
+    }
 
     // 环绕微粒：吸气时外扩、呼气时收拢。
     final rng = math.Random(42);

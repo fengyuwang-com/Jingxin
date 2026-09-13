@@ -51,3 +51,8 @@
 - AI 行动: 重构 soundscape.dart（SoundscapeScene 枚举+SoundscapeEngine 接口+SoundscapePreference 持久化 key jingxin.soundscape.v1）；soundscape_web.dart 改层架构（_Layer 基类 bus gain 专职渐变、master 0.5、粉噪/棕噪/短脉冲素材共用；_SeaLayer/_RainLayer/_RainLayer 雷滚 Timer/_CampfireLayer 噼啪 Timer）；soundscape_stub.dart 适配；jingjing_screen.dart 长夜底部玻璃拟态三小字（海潮·夜雨·篝火）+_selectScene；jingjing_game.dart 加 rainAmount/warmthAmount 低通+setSoundscapeScene+_NightWeather 顶层组件（18 条雨丝+暖色偏移）
 - 产出: analyze 0 error（19基线无新增）；build web 成功；commit [auto-night-8]；UPGRADE-LOG/todo/FENGMEM 已更新
 - 关键决策: 交叉渐变由每层独立 bus gain 承担（海潮 LFO 移到层内不再与 ramp 抢同一 AudioParam）；瞬态全部走 Dart Timer 调度且 audible=false 即停（淡出后不再发声）；雨滴密度 90~410ms、噼啪 0.25~1.4s 宁稀勿密；视听联动强度与 nightAmount 相乘退出长夜自然消散
+## 2026-09-13 — 第 9 轮（通宵升级 auto-night-9）
+- 用户要求: 第三心境区域「疲惫荒原」——上部旷野带接入（与渊镜像对称）、余烬星尘+地平线微光视觉、灯台「重燃」机制（2~3 平稳循环累积、可倒退不归零、会话内保留）、荒原偈语池 8 句、性能克制、不回退
+- AI 行动: regions.dart 加 upper 标志+wearyHeath 常量（depthAt 方向反转、regionAt 双端匹配）；新建 lib/game/weary_heath.dart（26 余烬微尘、地平线微光线、_Beacon 剪影+fuel 累积 22s/倒退 0.01/s 保底 0.08+lit 锁存+5.5s 脉动暖光）；koans.dart 加 _heathPool/nextHeath；shard.dart MindShard 加 heath 标记（暖沙色 0xFFd8bc8e）；jingjing_game.dart 加 heathDepth+WearyHeath 装配+碎片 i%3 分区（0海/1渊/2荒原）
+- 产出: analyze 0 error（23 条既有 warning/info，基线 24 无新增）；flutter build web 成功；commit [auto-night-9]；UPGRADE-LOG/todo/FENGMEM 已更新
+- 关键决策: 荒原带定 ny 0.05~0.18 与渊 0.80~0.93 对称、地平线放带中央 0.115；重燃周期 22s（≈2~3 个 8s 循环）且 fuel 满后永久锁存当次会话（扎根感）；灯台离开倒退但保底 0.08 余温（"可倒退不归零"）；碎片分区从奇数入渊改为 i%3 三区轮转
