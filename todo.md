@@ -64,3 +64,7 @@
 ## 第 31 轮（2026-09-13）✅ 已完成
 - [x] 星图「满醒纪念签」：full_awake.dart 新增唯一新键 jingxin.fullawake.count.v1（格式 `次数|yyyyMMdd`，无键=1 向后兼容，满醒开演处 +1）+ FullAwakeCount 纯类 + performanceActive 标志 + tokenAngle/tokenTapAllowed 纯函数；star_map_screen.dart 星座外缘金白光点+极细光晕伴点 90s 自转（螺旋外延定位、半径封顶），点击玻璃小卡（第 M 次满醒 · 于 9月13日 + 满醒偈池轮换）5s 淡出、15s 冷却、演出中不可点，未满醒零渲染。新增 test/awake_token_test.dart 4 项。analyze 19 基线 0 error，test 61/61，build web ✅，commit f90e33e（未 push）。
 - 待办（第 32 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 纪念签深化（多次满醒伴点微增或日期扩到精确时刻）。
+
+## 第 32 轮（2026-09-13）✅ 已完成
+- [x] 长夜「星兽低语」：long_night_whisper.dart 新增 BeastWhisperCtl（5~8 分钟随机抖动、≥20s 安静判定、每夜至多 3 句、偈语近期去重队列、alphaAt 8s 包络峰值 0.3）+ BeastWhisperText 渲染组件（跟随较近星兽，触摸 0.9s 快速淡出）；jingjing_screen 调度触发（演出互斥：告别/满醒/引导），闻声开启时 rate 0.7 / volume 0.32 轻声念（voice.speak 新增可选 rate/volume，whisper 礼仪与 duck 复用）；koans 暴露 whisperPool 只读视图。新增 test/beast_whisper_test.dart 6 项。analyze 19 基线 0 error，test 67/67，build web ✅，commit 3a5bfbf（未 push）。
+- 待办（第 33 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 星兽低语深化（低语时星兽轻眨眼或呼吸微增一拍；星图页"兽语"回忆签）。

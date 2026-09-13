@@ -476,3 +476,20 @@
   1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒终幕/纪念签全链路。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 纪念签深化：多次满醒时印记按次数微增一枚伴点（M 次满醒 M 粒伴点，封顶 5，仍是极小印记）；或纪念签日期改为最近一次满醒的精确时刻（需在既有键内扩展，不新增键）。
+
+## 第 32 轮（2026-09-13）— 长夜「星兽低语」
+- 理念：长夜里世界不是死的——星兽偶尔极轻地说一句梦话。稀疏感是重点。
+- 调度（新增 lib/game/long_night_whisper.dart，纯逻辑可测）：
+  - BeastWhisperCtl：间隔 5~8 分钟随机抖动（每次会话以时间播种，抖动各不相同）；安静判定 ≥20s 无触摸才低语；每夜至多 3 句（beginNight 重记账，之后星兽彻底安眠）；偈语近期去重队列（保留最近 4 句，全池近期都出现过才回退）。
+  - shouldSpeak 纯函数：blocked（晨光告别 / 满醒终幕 / 开场引导进行中）一律不触发；alphaAt 纯函数 8s sin 包络、两端归零、峰值恰 0.3。
+- 触发与呈现：
+  - jingjing_screen：进入长夜时 beginNight + 一次性计时器（触发后重排）；触发时选较近星兽（眠/惘，环绕最短距离判定），闻声开启则用极慢语速（rate 0.7）、更低音量（volume 0.32）轻声念——voice 路径复用 whisper 礼仪（触摸即取消），duck 压低白噪音走既有 onSpeakingStart 回调。
+  - VoiceEngine.speak 新增可选 rate/volume 参数（默认值与旧参数一致，零行为变化）；koans.dart 暴露 whisperPool 只读视图。
+  - 游戏侧 showBeastWhisper 选定跟随的星兽，BeastWhisperText 组件在兽身旁极淡浮现（alpha 峰值 0.3、8s 淡入淡出、偈语未显示零渲染成本）；游戏 onTapDown 任何触摸立即快速淡出（0.9s 档）。
+- 测试：新增 test/beast_whisper_test.dart 6 项（间隔抖动范围+会话差异 / 安静判定 / 互斥+每夜限额+新夜重记账 / 偈语去重不重复 / alpha 包络峰值与两端 / 入睡池可被调度器取用）。总计 67/67 全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 67/67；flutter build web 成功。
+- commit：3a5bfbf（未 push）。
+- 下一步建议（第 33 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒/纪念签/星兽低语全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 星兽低语深化：低语浮现时该星兽极轻地眨一下眼或呼吸幅度微增一拍（世界"说了梦话"的身体感）；或星图页为低语留一条只读的"兽语"回忆签。
