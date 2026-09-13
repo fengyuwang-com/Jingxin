@@ -28,4 +28,7 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
 
   @override
   void duck({required bool active}) {}
+
+  @override
+  void silence({double seconds = 1.0}) {}
 }

@@ -235,6 +235,10 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
   /// 每只眼的睁开度 0..1（极慢渐变，约 4 秒/只）。
   final List<double> eyeOpen = List.filled(StarBeastState.eyeCount, 0.0);
 
+  /// 眯眼系数 0..1（第 26 轮「晨光告别」）：晨光漫入时把睁眼目标
+  /// 等比压低——星兽不是被惊醒地闭眼，而是像困倦那样缓缓眯起。
+  double squint = 0.0;
+
   double _time = 0;
   double _swimT = 0;
   int _lastCycleCount = 0;
@@ -262,7 +266,7 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
     // 眼睛极慢渐变开合（每只约 4 秒）。
     final target = state.openedEyes;
     for (int i = 0; i < eyeOpen.length; i++) {
-      final want = i < target ? 1.0 : 0.0;
+      final want = (i < target ? 1.0 : 0.0) * (1.0 - squint.clamp(0.0, 1.0));
       final cur = eyeOpen[i];
       if (cur < want) {
         eyeOpen[i] = math.min(want, cur + dt / 4.0);

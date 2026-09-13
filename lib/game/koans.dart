@@ -116,6 +116,21 @@ class Koans {
 
   static final List<int> _whisperRecent = [];
 
+  /// 「晨光告别」偈语池（第 26 轮）：长夜终了、天亮时分的一句道别——
+  /// 主题：夜替你收好、晨光归还。克制、留白，勿鸡汤。
+  static const List<String> _farewellPool = [
+    '夜替你收好了什么，晨光就还给你什么。',
+    '守了一夜的东西，天亮了，放下吧。',
+    '夜到这里就守完了，剩下的交给光。',
+    '天亮不是结束，是夜把你轻轻交还给白天。',
+    '光进来了，夜退到你看不见的地方继续守着。',
+  ];
+
+  static final List<int> _farewellRecent = [];
+
+  /// 「晨光告别」偈语：长夜终了的道别（第 26 轮）。
+  static String nextFarewell() => _draw(_farewellPool, _farewellRecent);
+
   /// 入睡引导极短句（长夜朗读用，与碎片禅语互不干扰）。
   static String nextWhisper() => _draw(_whisperPool, _whisperRecent);
 

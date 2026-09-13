@@ -439,6 +439,12 @@ class JingjingGame extends FlameGame with TapCallbacks {
     _nightTarget = on;
   }
 
+  /// 晨光告别（第 26 轮）：t∈0..1，驱动星兽眯眼（睁眼目标等比压低，
+  /// 沿用每只眼约 4 秒的既有渐变——天亮时分缓缓眯起，不是惊醒闭眼）。
+  void setFarewell(double t) {
+    beast.squint = t.clamp(0.0, 1.0);
+  }
+
   /// 碎片吸入完成：记录收集史 + 通知 UI 浮现禅语。不打断漫游。
   void _updateShards(double dt) {
     // 逆序遍历：避免每帧复制列表（减少 GC 压力）。
