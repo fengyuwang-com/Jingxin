@@ -659,3 +659,18 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机全链路验证（连续多轮候选，最高优先）。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. Web 端分享卡长按预览；或惑星深化：化解后在原处留一枚极淡的「解开的结」痕迹（几次呼吸后缓缓消散）；或星兽对惑星的一眼注视（路过时眠/惘的目光短暂跟随）。
+
+## 第 44 轮（2026-09-14）— 呼吸之音：给呼吸配一把极轻的琴
+- 理念：呼吸本身可以成为音乐，但永远默认安静。
+- 实现（新增 lib/game/breath_sound.dart）：
+  - 纯映射 breathToneFor({phase, inhaling, steady}) → BreathTone(frequency, gain)：吸气沿五声音阶（宫商角徵羽，C4 起 C-D-E-G-A 两段 10 音）随相位上行，呼气对称下行回落；增益 = 0.06 × sin(π·pos) 钟形包络，相位两端严格归零（换向/换气无咔哒声的根），紊乱时增益 ×0.35——用更少的音回应（同一旋律只把光调暗），频率不变。
+  - 持久化：新键 `jingxin.breathsound.v1`（布尔）。不复用 jingxin.soundscape.v1 的理由：那个键存声景场景枚举名（字符串），呼吸之音是正交开关（与选哪个声景无关），塞同键需拼接解析约定反而脆。默认关。
+- Web 发声（soundscape_web.dart 新增 _BreathVoice）：一枚常驻正弦振荡器 + 音内 gain + bus gain 汇入同一 master——受 duck 影响自然成立：闻声 TTS 播报瞬间呼吸音随声景一起被轻压让位。频率/增益目标经纯映射给出，setTargetAtTime（约 50ms 时间常数）平滑推进，绝不瞬跳；开关起停走 bus 长淡入淡出（4s 浮起/2s 收声），stop/silence 一并收束，select 换声景不动呼吸音。SoundscapeEngine 接口新增 setBreathSoundEnabled/updateBreathTone，stub 平台空实现（条件导入与既有模式一致）。
+- 接线：jingjing_game 暴露 onBreathTone(phase, inhaling, steady) 回调（_updateBreath 末尾每帧喂，delta 判方向、既有 breathSteady 判平稳）；jingjing_screen 新增状态/pref 加载/_toggleBreathSound/_syncBreathSound（开+长夜才接回调，其余断开收声；进入长夜 _toggleNight 与 dispose 均同步）；声景 chip 行尾加「呼吸音」chip（同一套小字语言，开 0.9 / 关 0.38 alpha，命中区 ≥44px），切换带一行淡字 toast。
+- 测试（test/breath_sound_test.dart 新增 8 项，132→140）：吸气端点取宫/羽、全程单调上行且取音全在五声表内、呼气与吸气补相位镜像、端点增益归零（连续性）+ 中段达峰 ≤0.06、越界相位钳制增益不越界、紊乱衰减（增益 ×0.35 且频率不变）、偏好默认关、开关往返持久化。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 140/140；flutter build web 成功。
+- commit：feat(game): 呼吸之音——可选的五声音阶呼吸引导音 [auto-night-44]（未 push）。
+- 下一步建议（第 45 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. Web 端分享卡长按预览；或呼吸之音深化：长夜入睡 10 分钟后呼吸音自行降到极轻半档（世界陪你睡，而不是叫你听）。

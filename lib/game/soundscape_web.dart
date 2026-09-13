@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:web/web.dart' as web;
 
+import 'breath_sound.dart';
 import 'soundscape.dart';
 
 /// Web 实现：Web Audio 程序合成三种声景（无音频文件）。
@@ -30,6 +31,11 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
 
   /// 是否处于朗读 duck 状态（start 时也尊重该状态）。
   bool _ducked = false;
+
+  /// 呼吸之音（第 44 轮）：开关与那一枚极轻的琴声 layer。
+  /// 与三声景一样汇入 master bus——duck（闻声 TTS 让位）自动波及。
+  bool _breathEnabled = false;
+  _BreathVoice? _breath;
 
   @override
   SoundscapeScene get scene => _scene;
@@ -58,6 +64,7 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
       _playing = true;
       // master 保持常开（0.5，朗读 duck 时 0.3），淡入淡出全部由各层 bus 负责。
       master.gain.value = _ducked ? 0.3 : 0.5;
+      _startOrStopBreath(fadeIn: fadeIn);
     } catch (_) {
       // 浏览器不支持/被策略拦截：静默降级，不打扰长夜。
       _playing = false;
@@ -75,6 +82,7 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
         layer.setAudible(false);
         layer.fadeTo(0.0001, fadeOut);
       }
+      _fadeBreathOut(fadeOut);
       // 淡出完成后挂起上下文，省电且下次手势可 resume 复用。
       await Future<void>.delayed(
         Duration(milliseconds: (fadeOut * 1000).ceil()),
@@ -120,6 +128,7 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
         layer.setAudible(false);
         layer.fadeTo(0.0001, seconds);
       }
+      _fadeBreathOut(seconds);
       // 静音完成后挂起上下文（与 stop 相同的收尾，省电可复用）。
       unawaited(
         Future<void>.delayed(
@@ -155,6 +164,57 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
     master.gain.value = 0.5;
     master.connect(ctx.destination);
     return master;
+  }
+
+  // ---- 呼吸之音（第 44 轮）----
+
+  @override
+  void setBreathSoundEnabled(bool enabled) {
+    _breathEnabled = enabled;
+    final ctx = _ctx;
+    if (ctx == null) return; // 未创建 AudioContext：start 时按开关生效。
+    try {
+      if (enabled && _playing) {
+        final voice = _breath ??= _BreathVoice(ctx, _master!);
+        voice.ensureBuilt();
+        voice.setAudible(true);
+        // 与声景同拍极缓浮起，绝不突兀。
+        voice.fadeTo(1.0, 4.0);
+      } else {
+        _fadeBreathOut(2.0);
+      }
+    } catch (_) {
+      // 呼吸之音构建失败无伤大雅：长夜照旧安静。
+    }
+  }
+
+  @override
+  void updateBreathTone({
+    required double phase,
+    required bool inhaling,
+    required bool steady,
+  }) {
+    if (!_breathEnabled || !_playing) return;
+    _breath?.apply(phase: phase, inhaling: inhaling, steady: steady);
+  }
+
+  /// start/开关变更时按当前状态起停呼吸之音。
+  void _startOrStopBreath({required double fadeIn}) {
+    if (_breathEnabled && _playing) {
+      setBreathSoundEnabled(true);
+    } else if (!_breathEnabled && _breath != null) {
+      _fadeBreathOut(2.0);
+    }
+  }
+
+  /// 呼吸之音缓缓收声（stop/silence/关闭开关共用）。
+  void _fadeBreathOut(double seconds) {
+    final voice = _breath;
+    if (voice == null || !voice.audible) return;
+    voice.setAudible(false);
+    try {
+      voice.fadeTo(0.0001, seconds);
+    } catch (_) {}
   }
 
   _Layer _createLayer(SoundscapeScene scene) {
@@ -508,5 +568,106 @@ class _CampfireLayer extends _Layer {
       }
       _scheduleNextCluster();
     });
+  }
+}
+
+/// 呼吸之音层（第 44 轮）：一枚持续运行的正弦振荡器 + 增益节点。
+///
+/// - 频率/增益目标由纯函数 [breathToneFor] 给出（breath_sound.dart），
+///   本层只负责把 AudioParam 平滑 ramp 过去（约 0.15 秒过渡）——
+///   换音、换向、换气都无咔哒声；
+/// - 汇入 master bus：声景 duck（闻声 TTS）时呼吸音一起被轻压让位；
+/// - bus gain 专职起停淡入淡出（与各声景层的 bus 同一约定），
+///   音内包络（≤0.06）由纯映射给出，两层相乘即最终音量。
+class _BreathVoice {
+  _BreathVoice(this.ctx, this.master);
+
+  final web.AudioContext ctx;
+  final web.GainNode master;
+
+  late final web.OscillatorNode osc;
+  late final web.GainNode toneGain;
+  late final web.GainNode bus;
+  bool built = false;
+
+  /// 是否正在发声（决定 updateBreathTone 是否推进参数）。
+  bool audible = false;
+
+  double _lastFreq = -1;
+  double _lastGain = -1;
+
+  /// 懒构建（必须在 AudioContext 已 resume 的调用栈里首次触发）。
+  void ensureBuilt() {
+    if (built) return;
+    bus = ctx.createGain();
+    bus.gain.value = 0;
+    bus.connect(master);
+    osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = kBreathPentatonic.first;
+    toneGain = ctx.createGain();
+    toneGain.gain.value = 0.0001;
+    osc.connect(toneGain);
+    toneGain.connect(bus);
+    osc.start();
+    built = true;
+  }
+
+  /// 每帧喂相位：把频率/增益 ramp 向纯映射的目标值。
+  void apply({
+    required double phase,
+    required bool inhaling,
+    required bool steady,
+  }) {
+    if (!built || !audible) return;
+    try {
+      final tone = breathToneFor(
+        phase: phase,
+        inhaling: inhaling,
+        steady: steady,
+      );
+      final now = ctx.currentTime;
+      const ramp = 0.15;
+      if (tone.frequency != _lastFreq) {
+        osc.frequency.setTargetAtTime(tone.frequency, now, ramp / 3);
+        _lastFreq = tone.frequency;
+      }
+      if ((tone.gain - _lastGain).abs() > 0.0005) {
+        toneGain.gain.setTargetAtTime(
+          tone.gain <= 0.0005 ? 0.0001 : tone.gain,
+          now,
+          ramp / 3,
+        );
+        _lastGain = tone.gain;
+      }
+    } catch (_) {
+      // 参数推进失败不致命：下一帧再来。
+    }
+  }
+
+  /// 起停淡入淡出走 bus（与声景层同一套 ramp 约定）。
+  void setAudible(bool v) {
+    audible = v;
+    if (!built) return;
+    if (v) {
+      _lastFreq = -1;
+      _lastGain = -1;
+    } else {
+      try {
+        final now = ctx.currentTime;
+        toneGain.gain.setTargetAtTime(0.0001, now, 0.05);
+        _lastGain = -1;
+      } catch (_) {}
+    }
+  }
+
+  void fadeTo(double target, double seconds) {
+    if (!built) return;
+    try {
+      final now = ctx.currentTime;
+      bus.gain.cancelScheduledValues(now);
+      bus.gain.setValueAtTime(bus.gain.value, now);
+      bus.gain.linearRampToValueAtTime(target, now + seconds);
+    } catch (_) {}
   }
 }
