@@ -41,3 +41,8 @@
 - AI 行动: 新建 lib/game/soundscape.dart（门面+条件导出）、soundscape_web.dart（AudioContext+Paul Kellet 粉噪 8s 循环 buffer+480Hz 低通+0.06Hz LFO 海潮+GainNode 淡入淡出）、soundscape_stub.dart（静音降级）、lib/game/long_night.dart（visited 标记持久化）；改造 jingjing_game.dart（nightAmount 渐变+setNight、星场深夜色调/星亮、光灵 nightSoften 收拢）、jingjing_screen.dart（右下角月亮入口、深色遮罩 AnimatedContainer 4s、提示语、_toggleNight 接声景+markVisited）；pubspec 加 web ^1.1.0
 - 产出: analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新；commit 见 git log（feat(game): 长夜模式与合成海潮声景 [auto-night-6]）
 - 关键决策: AudioContext 懒创建+手势内 resume 规避自动播放；声景失败静默降级不打扰长夜；nightAmount 用 update 循环低通滑向目标（约4s）与 UI AnimatedContainer 同步渐变；长夜记忆只存不用
+## 2026-09-13 — 第 7 轮（通宵升级 auto-night-7）
+- 用户要求: 第二心境区域「焦虑之渊」——区域抽象成轻量概念，渊在海的更深处自然过渡（无加载/传送门/按钮）；乱星快速低亮明灭且被平稳呼吸逐渐同化；渊底心跳微光；星花按同化度开合；渊中碎片+专属命名；性能克制；不回退
+- AI 行动: 新建 lib/game/regions.dart（GameRegion 深度带+九宫格命名+色调抽象，海=全域底层、渊=ny 0.80→0.93）、lib/game/anxiety_abyss.dart（36乱星频率趋同+相位靠拢同化机制、2盏心跳微光9s脉动、5朵星花按附近乱星平均sync开合、全屏冷紫沉入色调按深度淡入）；koans.dart 加10句渊语池+_draw通用防重复；shard.dart 加 abyss 标记+regionNameFor 委托 regions；jingjing_game.dart 加 abyssDepth 每帧计算+AnxietyAbyss 装配+奇数碎片沉渊
+- 产出: commit b5a98e6；analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新
+- 关键决策: 渊带定在 ny 0.80→0.93（星兽锚点 0.78 仍在海层不冲突）；同化目标频率=1/8s 与自动呼吸引导同周期（隐喻一致性）；星花绽放取附近乱星平均同化度而非全局值（局部一致性才开花）；同化缓升0.09/s、恢复0.012/s（乱易同心难）
