@@ -53,6 +53,35 @@ Offset starCardStarOffset(int index, Size size, {int total = 1}) {
   );
 }
 
+/// ── 预览等比缩放（第 48 轮）────────────────────────────────────
+///
+/// 「长按带走星图」全屏预览：把分享卡按比例缩进屏幕安全区内。
+/// 纯函数、确定性，可单测。
+
+/// 预览时卡片四周保留的最小留白（logical px）。
+const double starCardPreviewMargin = 24;
+
+/// 把 [card] 等比缩放进 [screen]（四边各留 [margin]）后的显示尺寸。
+/// 永远返回正数尺寸：屏幕或卡片的非法尺寸（≤ 0）时退回卡片原尺寸，
+/// 预览层宁可显示原大也不消失。
+Size fitCardToScreen(
+  Size screen,
+  Size card, {
+  double margin = starCardPreviewMargin,
+}) {
+  if (card.width <= 0 || card.height <= 0) return card;
+  final availW = screen.width - margin * 2;
+  final availH = screen.height - margin * 2;
+  if (availW <= 0 || availH <= 0) return card;
+  final scale = math.min(
+    availW / card.width,
+    availH / card.height,
+  );
+  // 不放大：卡片本来就小的时候按原大显示，克制。
+  if (scale >= 1) return card;
+  return Size(card.width * scale, card.height * scale);
+}
+
 /// 卡顶小字（克制留白的一行标题）。
 const String starCardTitle = '静境 · 我的平静星图';
 
