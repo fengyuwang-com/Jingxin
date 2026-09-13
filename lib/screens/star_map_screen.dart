@@ -1258,15 +1258,36 @@ class _MementoDrawerState extends State<_MementoDrawer> {
           ),
           const SizedBox(width: 14),
           for (int i = 0; i < kFlowerLedgerRegions; i++) ...[
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: kFlowerPalettes[i].petal.withValues(
-                  alpha: ledger[i] > 0 ? 0.9 : 0.28,
+            // 花开之地（第 59 轮）：某区花数 ≥ 10 时给色点加一枚极小
+            // 的金点角标——「此地花开成境」的静默记号。纯 UI，无动画，
+            // 不做任何引导。
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: kFlowerPalettes[i].petal.withValues(
+                      alpha: ledger[i] > 0 ? 0.9 : 0.28,
+                    ),
+                  ),
                 ),
-              ),
+                if (ledger[i] >= 10)
+                  Positioned(
+                    right: -1.5,
+                    top: -1.5,
+                    child: Container(
+                      width: 3,
+                      height: 3,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFFe6c87a),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 3),
             Text(

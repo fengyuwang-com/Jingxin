@@ -628,3 +628,9 @@
 - AI 行动: breath_flower.dart 追加 FlowerLedger/flowerLedgerNew/Encode/Decode/Bump（六区域计数、紧凑编码、脏数据容错、9999 封顶、bump 纯函数只增不减）；新建 lib/game/flower_ledger_store.dart（键 jingxin.flowerledger.v1，读一次+30s 节流写盘）；花园种花时按出生地心境 bump、update tick 节拍；star_map_screen.dart 拾忆抽屉加「花境」行（kFlowerPalettes 色点+花数，总数 0 整行隐藏，无动画）；新增 test/flower_ledger_test.dart 16 项。
 - 产出: commit d5c41b2（未 push）；analyze 19 条基线持平 0 error；test 278→294 全过；build web 成功；UPGRADE-LOG/FENGMEM/todo 已记。
 - 关键决策: 花只增不减花谢不扣账（像真实记忆，写死注释防误加减法入口）；账本是独立温和回顾，不与心镜碎片混排、不参与任何经济/进度（星花不给碎片不给分数既定设计的延伸）；节流写盘 30s + 花开本身约 40s 一次，平时几乎零 IO。
+
+## 2026-09-14 07:47 — 第 59 轮
+- 用户要求: 通宵自动升级第 59 轮：花开之地——图鉴的世界侧呼应（星花支线收束轮）：landmarkSpotFor 纯函数+LandmarkLayer 世界演出+图鉴数据联动+花境行金点角标+单测与管线测试，全门槛验证，不 push。
+- AI 行动: 新建 lib/game/breath_flower_landmark.dart（landmarkSpotFor/landmarkAlphaFor：Knuth 散列确定性偏移、regionAtPoint 归属校验回落锚点、账本 ≤0 恒隐、1 朵 0.04 起 10 朵封顶 0.08、0.02 量化、计数只改亮度不改位置）；jingjing_game.dart 新增 LandmarkLayer（星花层之下、双层静止光晕、每秒节拍刷、屏外剔除+3x3 镜像、长夜按 (1−nightAmount) 让位、零每帧分配），花园暴露 ledgerStore 供同账联动；star_map_screen.dart 花境行花数 ≥10 的色点加 3px 金点角标（无动画）；新增 test/flower_landmark_test.dart 14 项（含账本 0→N 单调不回跌且封顶的管线测试）。
+- 产出: analyze 19 条基线持平 0 error；test 294→308 全过；build web 成功；UPGRADE-LOG/FENGMEM/todo 已记；commit 未 push。
+- 关键决策: 余温不是目标不是提示不参与经济/进度（语义写死注释防误加引导）；计数只影响亮度不影响位置（余温留在原地随记忆清晰）；长夜让位复用 tideEffectiveAlpha 思路但不复用其 0.05 封顶（余温峰值 0.08）；静之径/惘无固定深度带几何，取固定确定性锚点不做 regionAtPoint 校验。

@@ -5,3 +5,4 @@
 
 - [x] 第 57 轮：花径——星花连缀成路（flowerPathAlpha/flowerPathCandidates 纯函数+每秒节拍缓存+径线渲染+12 条单测）——已完成，commit bfb23c5
 - [x] 第 58 轮：花境图鉴——跨越夜晚的花之账（FlowerLedger 纯逻辑+9999 封顶容错+jingxin.flowerledger.v1 节流写盘+拾忆抽屉「花境」行+16 条单测）——已完成，commit d5c41b2
+- [x] 第 59 轮：花开之地——图鉴余温落在世界上（landmarkSpotFor 纯函数+LandmarkLayer 每秒节拍+长夜让位+花境行金点角标+14 条单测含管线测试）——已完成
