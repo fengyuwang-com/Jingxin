@@ -103,6 +103,11 @@ class MistGuardian extends Component with HasGameReference<JingjingGame> {
   final List<_GuardianMote> _motes = [];
 
   /// 显形度 0..1（跟随雾沉降，升受限速 60s、落稍快）。
+  ///
+  /// 配平注（第 22 轮巡检）：雾沉降到满约 45s（mist_wood settle），
+  /// 显形限速 1/60s——因此完全显形需要约 60s 的持续平稳呼吸，
+  /// 恶意"蹭一下就走"永远到不了 reveal>0.85 的礼物/相会门槛；
+  /// 显形始终滞后于雾，是刻薄的温柔，不是 bug。
   double reveal = 0;
 
   /// 「相会」演出（第 18 轮）：星光亮起期间的凝望度（0..1），

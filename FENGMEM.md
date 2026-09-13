@@ -116,3 +116,9 @@
 - AI 行动: licenses 全签；修 JDK 25↔Gradle 8.14 不兼容（flutter config --jdk-dir + 项目 gradle.properties 固定 JDK21）；建独立 GRADLE_USER_HOME(.gradle-jingxin，junction 复用缓存) 绕开全局 gradle.properties 强制 JDK25；注释 ndkVersion 行但 AGP 仍自动装 NDK r27（dl.google.com 慢，下载中）；web/index.html title/description 改为《静境》；UPGRADE-LOG/todo/FENGMEM 更新
 - 产出: analyze 0 error（19 基线）/test 20 全过/build web 成功；APK 构建进行中未出结果；commit build: Android 构建链路验证与就绪 [auto-night-20]
 - 关键决策: 不动全局 ~/.gradle/gradle.properties（FlyGo 依赖它），用独立 GRADLE_USER_HOME 隔离；gradle 镜像暂不需要（依赖多命中缓存）；NDK 下载留到下轮，不强求本轮出 APK
+
+## 2026-09-13 — 第 21 轮
+- 用户要求: 通宵第 21 轮——腾讯镜像手动装 NDK → 拿到 APK（杀残留进程、核对镜像、后台下载、解压重命名数字版本、恢复 ndkVersion、build debug/release、质量门槛、记录与 commit）
+- AI 行动: 杀掉残留 sdkmanager/gradle daemon/kotlin daemon；删 Sdk/ndk 两个失败空壳；腾讯镜像下 android-ndk-r27c-windows.zip（781MB）解压为 Sdk/ndk/27.2.12479018；首次构建缺 build-tools;35.0.0 → 腾讯镜像 build-tools_r35_windows.zip 装入 Sdk/build-tools/35.0.0；build.gradle.kts 固定 ndkVersion=27.2.12479018；重跑构建成功；UPGRADE-LOG/todo/FENGMEM 更新
+- 产出: app-debug.apk 147.5MB、app-release.apk 49.0MB（debug 签名）于 build/app/outputs/flutter-apk/；analyze 0 error（19 基线）/test 20 全过/build web 成功；commit 5158f3b
+- 关键决策: NDK/build-tools 均手动从腾讯镜像装、绕开 dl.google.com；zip 解压后目录按 source.properties 的 Pkg.Revision 重命名为数字版本；下载缓存 .ndk-dl 已清理；下一步建议：真机验证 / split-per-abi 小包 / GitHub Pages（需确认 push）

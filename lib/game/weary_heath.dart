@@ -101,7 +101,7 @@ class WearyHeath extends Component with HasGameReference<JingjingGame> {
         b.fuel = (b.fuel + dt / 22.0).clamp(0.0, 1.0); // 约 2~3 个平稳循环
         if (b.fuel >= 1.0) b.lit = true;
       } else {
-        b.fuel = (b.fuel - dt * 0.01).clamp(b.fuel > 0 ? 0.08 : 0.0, 1.0);
+        b.fuel = decayBeaconFuel(b.fuel, dt);
       }
     }
   }
@@ -197,6 +197,19 @@ class WearyHeath extends Component with HasGameReference<JingjingGame> {
       b.render(canvas, p, _elapsed, depth);
     }
   }
+}
+
+/// 灯台余温衰减（供 update 与测试复用）。
+///
+/// 设计意图（第 22 轮配平巡检）：重燃进度离开火源后缓缓退去，
+/// 但只要曾燃到 0.08（暗烬里的余温线）以上，就不归零——留下一点
+/// 暖意，符合"过程平滑可倒退但不归零"的区域手感。原实现当进度
+/// 在 (0, 0.08) 之间衰减时会被 clamp 下界顶回 0.08（"越放越暖"
+/// 的微小漂移）；现改为：只有达到过余温线的进度才保底 0.08，
+/// 更小的初进度允许自然冷回 0。
+double decayBeaconFuel(double fuel, double dt) {
+  final floor = fuel >= 0.08 ? 0.08 : 0.0;
+  return (fuel - dt * 0.01).clamp(floor, 1.0);
 }
 
 /// 熄灭的灯台/星火堆：几根暗色枝柴的剪影。
