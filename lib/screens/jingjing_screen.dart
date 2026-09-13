@@ -10,6 +10,7 @@ import '../game/full_awake.dart';
 import '../game/jingjing_game.dart';
 import '../game/koans.dart';
 import '../game/long_night_farewell.dart';
+import '../game/long_night_whisper.dart';
 import '../game/quality.dart';
 import '../game/soundscape.dart';
 import '../game/voice.dart';
@@ -80,6 +81,16 @@ class _JingjingScreenState extends State<JingjingScreen>
 
   /// 长夜入睡引导的随机低频朗读计时器（90~150 秒一次）。
   Timer? _whisperTimer;
+
+  // ---- 星兽低语（第 32 轮）：长夜里星兽偶尔说一句梦话 ----
+  /// 调度器（间隔抖动/安静判定/每夜限额/偈语去重，纯逻辑）。
+  /// 以时间播种：每次会话的 5~8 分钟抖动各不相同。
+  final BeastWhisperCtl _beastWhisper = BeastWhisperCtl(
+    random: math.Random(DateTime.now().millisecondsSinceEpoch),
+  );
+
+  /// 星兽低语的调度计时器（一次性，触发后重排）。
+  Timer? _beastWhisperTimer;
 
   // ---- 晨光告别（第 26 轮）：长夜的收束不是"被退出"，而是"天亮" ----
   /// 演出进行中（晨光已开始漫入）。
@@ -173,6 +184,7 @@ class _JingjingScreenState extends State<JingjingScreen>
     _koanTimer?.cancel();
     _toastTimer?.cancel();
     _whisperTimer?.cancel();
+    _beastWhisperTimer?.cancel();
     _idleTimer?.cancel();
     _farewellTimer?.cancel();
     _farewellFinishTimer?.cancel();
@@ -271,6 +283,8 @@ class _JingjingScreenState extends State<JingjingScreen>
       unawaited(engine.start(fadeIn: 4.0));
       _syncWhisperTimer(); // 闻声：长夜里随机低频的入睡引导。
       _syncIdleTimer(); // 晨光告别：安静满 90 秒自动天亮。
+      _beastWhisper.beginNight(); // 星兽低语：新的一夜重新记账。
+      _syncBeastWhisperTimer();
     } else {
       // 结束长夜 = 晨光告别（第 26 轮）：长夜不该"被退出"，而该"天亮"。
       // 演出进行中再点月亮不做任何事（淡出已定，不打断也不重开）。
@@ -320,6 +334,7 @@ class _JingjingScreenState extends State<JingjingScreen>
     if (_game.fullAwake.active) return;
     _idleTimer?.cancel();
     _whisperTimer?.cancel();
+    _beastWhisperTimer?.cancel();
     _voice.cancelAll(); // 告别时刻：朗读也悄悄退场。
     _game.farewellPlaying = true; // 满醒演出的互斥判定。
     // 音频走既有 gain ramp 平滑淡出（20s），比视觉略长——
@@ -395,6 +410,7 @@ class _JingjingScreenState extends State<JingjingScreen>
     _game.setNight(false);
     _game.setFarewell(0.0); // 星兽缓缓重新睁眼（4s/只渐变）。
     _whisperTimer?.cancel();
+    _beastWhisperTimer?.cancel();
     _voice.cancelAll();
     // 若因跳过提前收尾而仍有残余声压，再补一次短淡出（幂等）。
     unawaited(_soundscape?.stop(fadeOut: 1.5));
@@ -410,6 +426,51 @@ class _JingjingScreenState extends State<JingjingScreen>
       _voice.speak(Koans.nextWhisper(), kind: VoiceKind.whisper);
       _syncWhisperTimer();
     });
+  }
+
+  /// 星兽低语调度：进入长夜后 5~8 分钟（随机抖动）查一次——玩家
+  /// 安静满 20s、未在演出中、每夜未满 3 句时，让较近的星兽极淡地
+  /// 说一句梦话（闻声开启则用极慢语速轻声念，音量比日常偈语更低）。
+  /// 每夜至多 3 句，之后星兽彻底安眠。
+  void _syncBeastWhisperTimer() {
+    _beastWhisperTimer?.cancel();
+    if (!_nightMode || _beastWhisper.exhausted) return;
+    _beastWhisperTimer = Timer(
+      Duration(
+        milliseconds:
+            (_beastWhisper.nextInterval() * 1000).round(),
+      ),
+      () {
+        if (!mounted || !_nightMode) return;
+        // 演出互斥：晨光告别 / 满醒终幕 / 开场引导进行中不触发。
+        final blocked =
+            _farewell || _game.fullAwake.active || _game.onboarding != null;
+        final quiet = DateTime.now()
+            .difference(_lastInteraction)
+            .inMilliseconds
+            .toDouble();
+        if (BeastWhisperCtl.shouldSpeak(
+          quietSecondsNow: quiet / 1000.0,
+          blocked: blocked,
+          spokenCount: _beastWhisper.count,
+        )) {
+          final koan = _beastWhisper.pickKoan(Koans.whisperPool);
+          _beastWhisper.record(koan);
+          _game.showBeastWhisper(koan);
+          // 闻声：极慢语速、更低音量轻声念（whisper 礼仪：触摸即取消；
+          // duck 机制经既有 onSpeakingStart 回调自动压低白噪音）。
+          if (_voiceOn) {
+            _voice.speak(
+              koan,
+              kind: VoiceKind.whisper,
+              rate: 0.7,
+              volume: 0.32,
+            );
+          }
+        }
+        _syncBeastWhisperTimer(); // 无论本回是否低语，都重排下一次。
+      },
+    );
   }
 
   /// 开/关「闻声」：持久化；关闭时停掉一切朗读与长夜计时器。

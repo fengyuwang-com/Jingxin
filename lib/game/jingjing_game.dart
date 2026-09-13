@@ -13,6 +13,7 @@ import 'awakening.dart';
 import 'full_awake.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
+import 'long_night_whisper.dart';
 import 'mist_guardian.dart';
 import 'morning_star.dart';
 import 'mist_wood.dart';
@@ -402,6 +403,28 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(morningStar);
   }
 
+  /// 「星兽低语」（第 32 轮）：长夜里距玩家较近的那只星兽身旁
+  /// 极淡地浮现一句入睡偈（UI 层调度触发；此处只选兽与渲染）。
+  /// 重复触发时旧低语直接退场（synth 只有一句，礼仪一致）。
+  void showBeastWhisper(String text) {
+    beastWhisper?.removeFromParent();
+    // 距玩家较近的那只星兽（环绕最短距离判定）。
+    final dSleep = _wrapDistance2(beast.pos, spiritPos);
+    final dWang = _wrapDistance2(mistGuardian.pos, spiritPos);
+    beastWhisper = BeastWhisperText(text: text, followMist: dWang < dSleep);
+    add(beastWhisper!);
+  }
+
+  /// 当前进行中的星兽低语（null = 无；触摸打断用）。
+  BeastWhisperText? beastWhisper;
+
+  /// 两点环绕最短距离的平方（复用 wrapDelta 的最短差约定）。
+  double _wrapDistance2(Vector2 a, Vector2 b) {
+    final d = a - b;
+    wrapDelta(d);
+    return d.length2;
+  }
+
   /// 用户开启随息麦克风时取消引导（零打扰原则）：立即退场并打上
   /// 已引导标记，之后永不再现。
   void cancelOnboarding() {
@@ -443,6 +466,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
         ..y = camPos.y + p.y - size.y / 2;
       morningStar.onTap(_tapWorldTmp);
     }
+
+    // 星兽低语（第 32 轮）：用户任何触摸立即淡出当前低语。
+    beastWhisper?.dismiss();
   }
 
   /// 点击命中检测用的复用缓冲（零分配）。
