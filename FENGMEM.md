@@ -188,3 +188,9 @@
 - AI 行动: 新增 lib/game/long_night_whisper.dart（BeastWhisperCtl 纯逻辑 + BeastWhisperText 渲染组件）；jingjing_game.dart 加 showBeastWhisper（环绕最近距离选兽）与 onTapDown dismiss；jingjing_screen.dart 加一次性调度计时器（触发后重排、beginNight 重记账）；voice.dart/voice_web/voice_stub 的 speak 加可选 rate/volume；koans.dart 暴露 whisperPool；新增 test/beast_whisper_test.dart 6 项。
 - 产出: commit 3a5bfbf（未 push）；analyze 19 条基线 0 error；test 67/67；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新。
 - 关键决策: 抖动播种在 UI 层（时间种子）保证每夜不同；限额/去重记账放 Ctl（record 时 count+1）而非触发侧，避免测试歧义；TTS 复用 whisper 礼仪（触摸取消）但 rate 0.7/volume 0.32 比日常偈语更低；未新增任何存储键。
+
+## 2026-09-13 — 第 33 轮（通宵自动升级）
+- 用户要求: 兽语签——低语完整走完 8s 包络（未被打断、未进演出）时该偈语成为一枚特殊碎片「兽语」，复用 shard/memento 机制与 jingxin.shards.v1，幂等去重，星图拾忆可看、色相沿星兽金、来源名「兽语」，jx-memo-v1 不破坏性变更、未知来源容错，计入已拾统计。
+- AI 行动: long_night_whisper.dart 加 WhisperGift 纯类（shouldGift: 夜仍在+未触摸+未演出）；jingjing_screen.dart 低语触发后挂 8s 一次性计时器，到点按 _lastInteraction 判定后走 mergeShards 幂等入账（region='兽语'，time=低语开始时刻），告别开始/收尾/dispose 作废待定签；memo_stats.dart regionDotColor 加「兽语」→星兽金；memento.dart 零改动（region 自由字符串天然容错）；新增 test/whisper_gift_test.dart 3 项。
+- 产出: commit 62e7824（未 push）；analyze 19 条基线 0 error；test 70/70；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新。
+- 关键决策: 不新增存储键与导出字段——兽语签只是 ShardRecord 的一种 region 取值，导出/合并/统计全部复用既有通路，幂等语义由 mergeShards 同时间戳+同偈语去重保证；打断判定复用屏幕层 _lastInteraction（触摸/呼吸活动统一记账），不在游戏层另行挂钩。

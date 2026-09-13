@@ -68,3 +68,7 @@
 ## 第 32 轮（2026-09-13）✅ 已完成
 - [x] 长夜「星兽低语」：long_night_whisper.dart 新增 BeastWhisperCtl（5~8 分钟随机抖动、≥20s 安静判定、每夜至多 3 句、偈语近期去重队列、alphaAt 8s 包络峰值 0.3）+ BeastWhisperText 渲染组件（跟随较近星兽，触摸 0.9s 快速淡出）；jingjing_screen 调度触发（演出互斥：告别/满醒/引导），闻声开启时 rate 0.7 / volume 0.32 轻声念（voice.speak 新增可选 rate/volume，whisper 礼仪与 duck 复用）；koans 暴露 whisperPool 只读视图。新增 test/beast_whisper_test.dart 6 项。analyze 19 基线 0 error，test 67/67，build web ✅，commit 3a5bfbf（未 push）。
 - 待办（第 33 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 星兽低语深化（低语时星兽轻眨眼或呼吸微增一拍；星图页"兽语"回忆签）。
+
+## 第 33 轮（2026-09-13）✅ 已完成
+- [x] 兽语签——听完的低语成为拾忆：WhisperGift 纯类（shouldGift 四态判定）+ jingjing_screen 8s"听完"判定（触摸/演出/天亮即作废）；记账复用 jingxin.shards.v1（region='兽语'，时间戳=低语开始时刻）走 mergeShards 幂等去重，零新存储键；星图拾忆列表/记忆卡/夜弧/统计自动纳入，来源色相新增「兽语」→星兽金；jx-memo-v1 导出导入不变且对未知来源容错。新增 test/whisper_gift_test.dart 3 项。analyze 19 基线 0 error，test 70/70，build web ✅，commit 62e7824（未 push）。
+- 待办（第 34 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 星兽低语深化（低语时星兽轻眨眼或呼吸微增一拍）。
