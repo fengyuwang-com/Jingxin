@@ -1,159 +1,77 @@
-# 静心 (JingXin) - 冥想引导应用
+# 静境 (JingJing) —— 用呼吸玩的平静游戏
 
-极简风格的移动端冥想应用，支持呼吸、正念、引导、放松四种冥想模式。
+> 你的呼吸，点亮这个世界。
+
+《静境》从冥想工具《静心》进化而来（旧版存档于 tag `v1.0-pre-jingjing`）。它不是把冥想包装成游戏，而是把游戏做成冥想：**呼吸是唯一的操作**，没有失败、没有分数、没有倒计时——唯一的进度，是世界的苏醒。
+
+## 玩法
+
+- **呼吸即操控**：按住屏幕 = 吸气（光灵扩张上浮），松开 = 呼气（凝聚滑行）；也可开启「随息」用麦克风真实呼吸驱动。呼吸越平稳，世界回应越美。
+- **世界苏醒度**：一次完整的平稳呼吸循环会点亮星空——星星更亮、背景泛起微光、光灵更舒展。停止呼吸世界只是缓缓变暗，永不惩罚。
+- **四个心境区域**（漫游即抵达，无地图无任务）：
+  - **失眠之海** —— 全域底景，7 座星岛随你的靠近与平稳呼吸逐颗点亮；
+  - **焦虑之渊** —— 海底深处，36 颗乱星（纷乱的念头）会被你的平稳呼吸逐渐同化成一致的脉动，同化处星花张开；
+  - **疲惫荒原** —— 高空旷野，熄灭的灯台等你用 2~3 次平稳循环重燃，地平线上有黎明前第一线微光；
+  - **纷心雾林** —— 世界接缝处，雾随呼吸沉降，雾透时守林者现身。
+- **两位星兽**：
+  - **眠**（海底巨魟）：你的每次平稳呼吸都在帮它睁眼，五眼全睁后它会游弋一阵再沉睡重来——循环而非终局；
+  - **惘**（雾林星座狐）：零累计零分档，雾透则兽现。完全显形时靠近完成一次循环，它低头送你一枚金色心镜。
+- **相会**：极稀有时刻——眠游弋、惘显形、你恰在两者之间完成一次平稳循环。会发生什么，不剧透。
+- **静之径**：一条从荒原沉入渊底的淡光旧迹，世界越醒它越清晰；走过的地方留下余温。
+- **心镜碎片与星图**：漫游中拾取碎片，获得一句禅语；「我的静境星图」里它们排成你专属的星座。「拾忆」可一键复制带走、换设备放回。
+- **长夜**：睡前章节。世界转入深夜，海潮/夜雨/篝火三种合成声景（零音频文件，纯 Web Audio 实时合成）接管，可选「闻声」轻声读一句禅语或入睡引导。世界睡了，你也可以睡了。
+
+## 设计支柱（不可变）
+
+1. 呼吸即唯一操作；2. 无失败无分数无倒计时；3. 程序生成的禅意心境星图；4. 收集心镜碎片拼成平静星图；5. 呼吸乱了世界只是安静变暗——温柔正反馈；6. 长夜白噪音收尾。视觉保持 CYBER-ZEN（星空、呼吸光球、玻璃拟态、MD3、克制动画）。
 
 > **官网**：https://fengyuwang.com/zh-cn/jingxin.html
 
 ## 快速开始
 
 ```bash
-# 安装依赖
-flutter pub get
-
-# 运行开发版本
-flutter run
-
-# 构建 Web 版本
-flutter build web
-
-# 构建 Android APK
-flutter build apk --debug
-
-# 构建 iOS
-flutter build ios
+flutter pub get          # 国内镜像建议设置 PUB_HOSTED_URL=https://pub.flutter-io.cn
+flutter run              # 开发运行
+flutter build web        # Web 构建（主要目标平台）
 ```
 
-## 项目架构
+- Flutter SDK ≥ 3.47 / Dart 3.13；Flame 1.38
+- 「随息」麦克风与「闻声」朗读需浏览器授权，被拒时静默回退，绝不弹错误框
+- 隐私：麦克风只算音量不录音；数据全部存本地，可随时「拾忆」带走
+
+## 架构
 
 ```
 lib/
-├── main.dart                     # 应用入口
-├── models/
-│   └── meditation_session.dart   # 数据模型
-├── providers/
-│   └── meditation_provider.dart  # 状态管理 (Provider)
-├── screens/
-│   ├── home_screen.dart          # 首页
-│   ├── meditation_screen.dart    # 冥想页面
-│   ├── history_screen.dart       # 历史记录
-│   └── settings_screen.dart       # 设置
-├── widgets/
-│   ├── breathing_circle.dart     # 呼吸动画组件
-│   └── mode_card.dart            # 模式选择卡片
-└── theme/
-    └── app_theme.dart            # 主题配置
+├── core/theme.dart            # ZenTheme 配色 + ZenMotion 转场规范
+├── game/
+│   ├── jingjing_game.dart     # FlameGame 主循环：装配、呼吸相位、漫游、环绕世界
+│   ├── awakening.dart         # 世界苏醒度（持久化）
+│   ├── regions.dart           # 心境区域抽象（深度带/接缝带几何）
+│   ├── insomnia_sea.dart      # 失眠之海：星潮 + 星岛
+│   ├── anxiety_abyss.dart     # 焦虑之渊：乱星同化 + 星花
+│   ├── weary_heath.dart       # 疲惫荒原：灯台重燃
+│   ├── mist_wood.dart         # 纷心雾林：雾沉降
+│   ├── still_path.dart        # 静之径：余温旅程线
+│   ├── star_beast.dart        # 星兽「眠」
+│   ├── mist_guardian.dart     # 星兽「惘」
+│   ├── reunion.dart           # 相会彩蛋（纯函数触发 + 状态机）
+│   ├── shard.dart / koans.dart / memento.dart   # 心镜碎片 / 禅语池 / 拾忆导出
+│   ├── soundscape*.dart       # 海潮/夜雨/篝火 合成声景（条件导入 web/stub）
+│   ├── breath_mic*.dart       # 随息：麦克风呼吸检测（条件导入）
+│   ├── voice*.dart            # 闻声：TTS 朗读（条件导入）
+│   ├── long_night.dart        # 长夜记忆
+│   └── quality*.dart          # 画质自适配（隐形档位）
+├── screens/                   # 首页 / 静境 / 星图回看
+└── ui/                        # 呼吸光球 / 玻璃拟态 / 星空（旧工具版组件）
 ```
 
-## 核心模块
+性能纪律：着色器/Path 按量化参数缓存、每帧零分配、屏外剔除、bbox 裁剪；低档设备自动保守削减粒子（无任何 UI 痕迹）。
 
-### 1. 数据模型 (models/)
+## 通宵升级史
 
-**MeditationSession** - 冥想记录
-- `id`: 唯一标识
-- `startTime`: 开始时间
-- `durationSeconds`: 持续秒数
-- `mode`: 冥想模式 (breathing/mindfulness/guided/relaxation)
-- `completed`: 是否完成
+18 轮自动增量升级，全程可构建，逐轮记录见 [UPGRADE-LOG.md](UPGRADE-LOG.md)。每轮一个完整功能增量，`flutter analyze` 0 error + `flutter test` 全过 + `flutter build web` 通过后才提交。
 
-### 2. 状态管理 (providers/)
+## 许可
 
-**MeditationProvider** - 全局状态管理
-- `_selectedDuration`: 用户选择的冥想时长
-- `_selectedMode`: 用户选择的冥想模式
-- `_sessions`: 冥想历史记录
-- `totalMinutes`: 累计冥想分钟数
-- `streakDays`: 连续打卡天数
-
-使用 Provider 模式，通过 `ChangeNotifier` 管理状态。
-
-### 3. 页面 (screens/)
-
-| 页面 | 功能 |
-|------|------|
-| HomeScreen | 首页，包含快速开始、时长选择、模式选择 |
-| MeditationScreen | 冥想进行页面，包含倒计时、动画、控制按钮 |
-| HistoryScreen | 历史记录，展示所有冥想记录 |
-| SettingsScreen | 设置页面 |
-
-### 4. 组件 (widgets/)
-
-| 组件 | 功能 |
-|------|------|
-| BreathingCircle | 呼吸动画圆环，4-7-8 呼吸法 |
-| ModeCard | 冥想模式选择卡片 |
-
-### 5. 主题 (theme/)
-
-**AppTheme** - 深色主题配置
-- 主背景: #0D1117 (深空黑)
-- 次背景: #161B22 (深灰)
-- 强调色: #58A6FF (宁静蓝)
-
-**AppColors** - 颜色常量
-**AppSpacing** - 间距常量
-**AppSizes** - 尺寸常量
-
-## 冥想模式
-
-1. **呼吸冥想 (Breathing)** - 4-7-8 呼吸法
-   - 吸气 4 秒
-   - 屏息 7 秒
-   - 呼气 8 秒
-
-2. **正念冥想 (Mindfulness)** - 身体扫描
-   - 依次感受脚趾、双脚、腿部、腹部、胸部、手臂、双手、肩膀、颈部、头部
-
-3. **引导冥想 (Guided)** - 步骤引导
-   - 10 个步骤的冥想引导
-
-4. **放松冥想 (Relaxation)** - 可视化场景
-   - 海浪动画 + 场景描述
-
-## 技术栈
-
-- **Flutter 3.x** - 跨平台框架
-- **Provider** - 状态管理
-- **shared_preferences** - 本地数据持久化
-- **intl** - 日期格式化
-
-## 数据持久化
-
-使用 `shared_preferences` 存储冥想记录为 JSON 格式。
-
-```dart
-// 保存
-await prefs.setString('meditation_sessions', sessionsJson);
-
-// 加载
-final sessionsJson = prefs.getString('meditation_sessions');
-```
-
-## 响应式设计
-
-- 使用 `LayoutBuilder` 适配不同屏幕尺寸
-- 呼吸动画圆环大小 = 屏幕宽度 * 0.7
-- 最小触摸区域 = 44px
-
-## 生命周期处理
-
-使用 `WidgetsBindingObserver` 处理应用生命周期：
-- 暂停时记录时间
-- 恢复时扣除后台时间
-- 确保冥想计时准确
-
-## 构建输出
-
-| 平台 | 命令 | 输出目录 |
-|------|------|----------|
-| Web | `flutter build web` | build/web/ |
-| Android | `flutter build apk --debug` | build/app/outputs/flutter-apk/ |
-| iOS | `flutter build ios` | build/ios/ |
-
-## 后续功能规划
-
-- [ ] ambient sounds - 环境音（雨声、海浪声、森林声）
-- [ ] haptic feedback - 呼吸切换时的触感反馈
-- [ ] streak animations - 连续打卡庆祝动画
-- [ ] 冥想数据统计图表
-- [ ] 自定义呼吸节奏
-- [ ] 多语言支持
+GPL v3
