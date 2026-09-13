@@ -546,3 +546,38 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒/纪念签/星兽低语/兽语签/带走星图全链路。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 分享卡深化：Web 端长按预览（Dialog 内先看一眼再下载）；或分享卡加「满醒 M 次」的一枚极小金印（复用 jingxin.fullawake.count.v1）。
+
+## 第 37 轮（2026-09-14）— 昼夜潮汐：世界随真实时刻明暗（接手第 36 轮中断的半成品）
+- 背景：第 36 轮子 Agent 做本功能时中途崩溃，留下未跟踪的 day_tide.dart / day_tide_test.dart 与 jingjing_game.dart 未提交改动（已 add DayTideLayer、import 就位）。
+- 接手评估：半成品设计质量高（纯函数曲线 + 量化缓存 + 长夜让位均已成稿），但缺 day_tide.dart → jingjing_game.dart 的 import（编译直接报错，即崩溃点）；测试文件用已废弃的 Color.red/green/blue，且一处峰值容差写错（19:00 非精确峰值 18:45）。
+- 最终实现（lib/game/day_tide.dart）：
+  - 纯函数：daylight = sin(π(m-360)/720)（正午+1/午夜-1，6:00/18:00 过零，环绕连续）；duskWarmth = 17:00–20:30 的 sin 窗（峰 18:45）；tideTintAt(分钟) → (颜色, alpha)：昼侧暖白提亮（峰 0.045）黄昏混入落日暖色，夜侧深黑蓝压暗（峰 0.05）黄昏混入余烬暖；tideEffectiveAlpha = alpha×(1-nightAmount)，长夜完全激活时归零。
+  - 渲染：DayTideLayer 单层全屏 tint，画在世界之上、声景天气层之下；缓存键 = 分钟×51 + 长夜量(0.02 量化)，Paint 复用每帧零分配，alpha<0.001 零绘制。
+- 测试（test/day_tide_test.dart，6 项）：正午/深夜/黄昏三段色相与 alpha、18:00 过零两侧连续性 + 环绕连续、全天逐 7 分钟 alpha 封顶 ≤0.05、长夜让位（含越界输入）。
+- 质量门槛：flutter analyze 19 条基线无新增、0 error；flutter test 84/84 全过（78→84）；flutter build web 成功。
+- commit：b62038d（feat(game): 昼夜潮汐——世界随真实时刻明暗 [auto-night-37]，未 push）。
+- 下一步建议（第 38 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 潮汐深化：星图分享卡角落加一枚当前时刻的昼夜小印记（复用 tideTintAt）；或黄昏/黎明的入静引导语随时刻微调一句。
+
+## 第 38 轮（2026-09-14）— 拾忆规模压力测试：星图在极端数量下依然优雅
+- 背景：adb devices 无真机连接，走主任务。假设玩家玩一年、碎片几百上千枚，对拾忆链路做 300 / 1000 / 3000 枚压测。
+- 发现的问题（3 处，全部修复）：
+  1. mergeShards 去重是 O(n·m)：每一枚来件都对存量全表 any 线性扫，3000×3000 约 900 万次比较。改为去重键（时间戳+\x1F+禅语）进 HashSet，O(n+m)，判定结果与旧实现完全一致（memento.dart）。
+  2. star_card 黄金角螺旋硬封顶导致外圈重叠：半径 min(30·√i, 最短边×0.42)，i≥57 后所有点挤在同一半径环带上，3000 枚时相邻星心近到完全重叠。改为「总数感知」系数 c = min(30, R/√N) 的向日葵（Vogel）式盘面：N ≤ 57 排布与旧版逐像素一致（补了回归断言），N 大时整盘均匀（star_card.dart）。
+  3. 星图屏 _starOffset 半径无封顶：26·√i 在碎片超过约 50 枚后把星点推 出屏幕外（3000 枚时半径 1424px）。同款总数感知系数 c = min(26, 最短边×0.42/√N)（star_map_screen.dart）。
+- 顺带的最小优化（不重写 UI）：
+  - 星图屏每颗星各挂一个 4s 循环 AnimationController，碎片多时开销线性放大且每帧 BoxShadow 模糊；超过 400 枚（_animatedStarLimit）改静亮（_StarWidget animated=false，无控制器零动画开销）。
+  - 拾忆抽屉 _memoryChips 里 groupNightsByDate 被重复调用两次，改为一次。
+- 压测数字（Windows 调试模式实测，test/stress_test.dart 13 项）：
+  - mergeShards 3000 存量 + 3000 全新来件：3ms（集合去重 + 排序）；全去重 3000×3000：125ms（首测 JIT 预热）；CI 断言放宽到 <2000ms（数量级，不 flaky）。幂等：merge(merged, merged) 新增 0；3000 旧 + 1500 旧 + 1500 新 = 只收 1500。
+  - groupNightsByDate / countNights 3000 枚：1000 夜分组正确（组序新→旧、组内新→旧、每夜 3 枚），busiestNight=3，nightArcSweep 正常。
+  - star_card 螺旋最小星心间距：300 枚 17.28px / 1000 枚 9.46px / 3000 枚 5.46px（星核直径 6.4，3000 枚时 5.46px 仍不吞没；断言下限 3.0px），全部画布内。
+  - 统计文案：N=0 空态 / N=1 / 999 / 3000 均纯数字直排无千位分隔符破版；starCardStatsLine 与 memorySummary 口径一致。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 97/97 全过（84→97）；flutter build web 成功。
+- commit：4579090（test(game): 拾忆规模压力测试与星图优化 [auto-night-38]，未 push）。
+- 下一步建议（第 39 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 潮汐深化：分享卡角落加当前时刻昼夜小印记（复用 tideTintAt）；或满醒纪念签加「满醒 M 次」金印。

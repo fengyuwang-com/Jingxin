@@ -208,3 +208,16 @@
 - 产出: commit [auto-night-35]（未 push）；analyze 19 条基线 0 error；test 78/78；build web 成功。
 - 关键决策: 螺旋半径封顶最短边×0.42 保证任意碎片数都在卡内（星图屏原版无封顶，大数量会越界）；统计行复用 memo_stats.countNights 不另造口径；出口层不直接持有 dart:ui Image，只收 Uint8List PNG 字节，方便平台实现替换；失败一律温柔文案，不暴露错误细节。
 - 下一步建议: Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 分享卡深化（Web 预览再下载、满醒次数金印）。
+
+## 2026-09-14 — 第 37 轮（通宵自动升级）
+- 用户要求: 接手第 36 轮崩溃留下的昼夜潮汐半成品，按原设计收尾（真实时刻驱动世界 tint：正午提亮 ~4.5%、黄昏暖色 ≤0.05、深夜压暗 5%，连续函数平滑、长夜让位、每帧零分配、纯函数可测），门槛 analyze/test/build + commit + 文档。
+- AI 行动: 评估半成品（设计完成度高，仅缺 jingjing_game.dart import 致编译失败）；补 import；测试改用 (c.r*255).round() 新 API 去 13 条 deprecated；修正 duskWarmth(19:00) 容差（窗峰 18:45 非正弦对称采样点）；跑全门槛后提交。
+- 产出: commit b62038d（未 push）；analyze 19 条基线 0 error；test 84/84（+6）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新。
+- 关键决策: 复用半成品不重写（曲线与缓存设计已达标）；测试容差按 sin 窗实际值 0.975 放宽到 0.03 而非改实现（实现正确，测试注释误导）。
+- 下一步建议: Android 真机全链路验证（多轮候选未做，建议优先）；GitHub Pages 部署需主人确认 push；潮汐深化可选。
+
+## 2026-09-14 — 第 38 轮（通宵自动升级）
+- 用户要求: 拾忆规模压力测试——300/1000/3000 枚碎片下 mergeShards 幂等与耗时、分组计数、star_card 螺旋 3000 点画布内无重叠；星图屏 O(n²) 抽查；统计文案极端数；发现问题修复+补测试；analyze/test/build 门槛；commit+三份日志。
+- AI 行动: adb 无真机走主任务。审查发现 3 处真问题并修复：mergeShards O(n·m)→HashSet（3000×3000 实测 3ms）；star_card 螺旋硬封顶致 3000 枚外圈完全重叠→总数感知 Vogel 盘面 c=min(30,R/√N)（300/1000/3000 最小星心距 17.28/9.46/5.46px，N≤57 与旧版逐像素一致）；星图屏 _starOffset 无封顶 3000 枚星点飞出屏 1424px→同款 c=min(26,R/√N)。顺带：>400 枚星点静亮（去每星 AnimationController）、_memoryChips 重复 groupNightsByDate 去重。新增 test/stress_test.dart 13 项。
+- 产出: commit 4579090（未 push）；analyze 19 基线 0 error；test 97/97；build web ✅；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 螺旋重叠不用调光点大小，改「总数感知」螺旋系数——小规模逐像素兼容旧版、大规模向日葵均匀盘面，压测断言放宽到数量级避免 CI flaky。

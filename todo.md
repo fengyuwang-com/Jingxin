@@ -77,3 +77,11 @@
 ## 第 35 轮（2026-09-13）✅ 已完成
 - [x] 星图分享卡：右上角「带走星图」入口 → 1080×1620 离屏 PNG（深空底色 + 同款黄金角螺旋星点（区域色相/兽语金）+ 满醒小晨星 + 标题/统计/日期），Web anchor download 导出，stub 仅记录；生成期间转圈禁用、失败温柔提示。新增 star_card.dart / star_card_saver(.dart/_stub/_web) + test/star_card_test.dart 5 项。analyze 19 基线 0 error，test 78/78，build web ✅，commit 见 UPGRADE-LOG。
 - 待办（第 36 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 分享卡深化（Web 预览再下载、满醒次数金印）。
+
+## 第 37 轮（2026-09-14）✅ 已完成
+- [x] 昼夜潮汐（接手第 36 轮中断半成品并收尾）：day_tide.dart 纯函数潮汐曲线（sin 昼夜 + 黄昏暖窗）+ DayTideLayer 单层量化缓存渲染 + 长夜让位；修复缺失 import / 废弃 Color API / 峰值容差三处问题；新增 test/day_tide_test.dart 6 项。analyze 19 基线 0 error，test 84/84，build web ✅，commit b62038d（未 push）。
+- 待办（第 38 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 潮汐深化（分享卡昼夜小印记、引导语随时辰微调）。
+
+## 第 38 轮（2026-09-14）✅ 已完成
+- [x] 拾忆规模压力测试：mergeShards O(n·m)→HashSet O(n+m)（3000×3000 实测 3ms）；star_card/星图屏螺旋改总数感知向日葵盘面（修复 3000 枚外圈重叠 + 星点出屏）；>400 枚星点静亮优化；_memoryChips 去重一次 groupNightsByDate 调用。新增 test/stress_test.dart 13 项。analyze 19 基线 0 error，test 97/97，build web ✅，commit 4579090（未 push）。
+- 待办（第 39 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 分享卡昼夜小印记或满醒金印。
