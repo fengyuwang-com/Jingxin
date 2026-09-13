@@ -201,3 +201,10 @@
 - 产出: commit 4234f7d（未 push）；analyze 19 条基线 0 error；test 73/73；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新。
 - 关键决策: 拾忆 records 不设上限是设计（星图素材+UI 限高+导出幂等），不改；Web 后台时 jingjing 长夜计时器不额外暂停（计时器节流无害且醒来路径已有 resumed 处理），只记录不改。
 - 下一步建议: 多轮次长会话压测（模拟整夜运行内存曲线）；拾忆条目极多时星图绘制性能抽查；考虑给 ShardCollection.save 失败加一次内存缓存重试。
+
+## 2026-09-13 — 第 35 轮（通宵自动升级）
+- 用户要求: 星图分享卡——星图屏右上角加「带走星图」入口，把当前星图渲染成 1080×1620 离屏 PNG（深空底色、同款黄金角螺旋星点（区域色相、兽语签星兽金）、满醒过中央小晨星、顶部「静境 · 我的平静星图」、底部统计+日期）；Web 用 anchor download（package:web/dart:js_interop 条件导入），非 web stub 只记日志；生成期间按钮转圈禁用、失败温柔 toast；门槛 analyze 0 error/19 基线、test 全过（抽纯函数加 2~4 项测试）、build web，commit 不 push。
+- AI 行动: 新增 lib/game/star_card.dart（renderStarCardImage + _StarCardPainter + 纯函数 starCardStarOffset/starCardStatsLine/starCardDateLine + 尺寸常量 540×810×2）；新增 lib/game/star_card_saver.dart 条件导出（web: Blob→ObjectURL→a.download；stub: print 日志，isSupported=false）；star_map_screen.dart 右上角改为「带走星图」+「拾忆」双图标 Row，_exportStarCard（busy 转圈、toByteData(png)、SnackBar 淡字反馈）；新增 test/star_card_test.dart 5 项；UPGRADE-LOG/todo/FENGMEM 已更新。
+- 产出: commit [auto-night-35]（未 push）；analyze 19 条基线 0 error；test 78/78；build web 成功。
+- 关键决策: 螺旋半径封顶最短边×0.42 保证任意碎片数都在卡内（星图屏原版无封顶，大数量会越界）；统计行复用 memo_stats.countNights 不另造口径；出口层不直接持有 dart:ui Image，只收 Uint8List PNG 字节，方便平台实现替换；失败一律温柔文案，不暴露错误细节。
+- 下一步建议: Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 分享卡深化（Web 预览再下载、满醒次数金印）。

@@ -13,6 +13,8 @@ import '../game/memento.dart';
 import '../game/memo_stats.dart';
 import '../game/shard.dart';
 import '../game/star_beast.dart';
+import '../game/star_card.dart';
+import '../game/star_card_saver.dart';
 
 /// 「我的静境星图」——静境星图回看（第 4 轮）。
 ///
@@ -38,6 +40,8 @@ class _StarMapScreenState extends State<StarMapScreen> {
   bool _beastSwimming = false;
   ShardRecord? _selected;
   bool _loaded = false;
+  // 「带走星图」（第 35 轮）：分享卡生成期间转圈禁用。
+  bool _exporting = false;
   // 「满醒纪念签」（第 31 轮）：演过满醒终幕才有的印记，未满醒零渲染。
   bool _fullAwakePlayed = false;
   FullAwakeCount _fullAwakeCount = const FullAwakeCount(count: 1);
@@ -85,6 +89,56 @@ class _StarMapScreenState extends State<StarMapScreen> {
             setState(() => _records = List<ShardRecord>.of(_collection.records));
           }
         },
+      ),
+    );
+  }
+
+  /// 「带走星图」（第 35 轮）：把当前星图渲染成一张 1080×1620 的
+  /// 离屏分享卡（深空底色 + 同款黄金角螺旋星点 + 中央小晨星 +
+  /// 统计行），Web 上经 anchor download 触发 PNG 下载。
+  /// 生成期间按钮转圈禁用；失败温柔提示，不惊扰。
+  Future<void> _exportStarCard() async {
+    if (_exporting || !_loaded) return;
+    setState(() => _exporting = true);
+    try {
+      final image = await renderStarCardImage(
+        records: _records,
+        fullAwakePlayed: _fullAwakePlayed,
+      );
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (data == null) {
+        throw StateError('toByteData returned null');
+      }
+      final saver = StarCardSaverImpl();
+      final ok = await saver.savePng(
+        data.buffer.asUint8List(),
+        'jingxin-star-map-${shardDateKey(DateTime.now())}.png',
+      );
+      if (!mounted) return;
+      _say(ok ? '星图已带走，收好' : '这张星图暂时带不走，晚点再来');
+    } catch (_) {
+      if (mounted) _say('这张星图暂时带不走，晚点再来');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// 一行淡字提示（底部 snackbar，温柔、用后即逝）。
+  void _say(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: TextStyle(
+            color: ZenTheme.textHigh.withValues(alpha: 0.85),
+            fontSize: 13,
+            letterSpacing: 2,
+          ),
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: ZenTheme.surfaceDim.withValues(alpha: 0.92),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -325,20 +379,46 @@ class _StarMapScreenState extends State<StarMapScreen> {
               ),
             ),
           ),
-          // 「拾忆」入口（第 15 轮）：右上角一枚极小的图标，克制不抢镜。
+          // 右上角双入口：「带走星图」（第 35 轮）+「拾忆」（第 15 轮）。
+          // 两枚极小的图标并排，克制不抢镜。
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: IconButton(
-                  tooltip: '拾忆',
-                  iconSize: 20,
-                  icon: Icon(
-                    Icons.auto_awesome_outlined,
-                    color: ZenTheme.textMuted.withValues(alpha: 0.6),
-                  ),
-                  onPressed: _showMementoDrawer,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: '带走星图',
+                      iconSize: 20,
+                      icon: _exporting
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.6,
+                                color: ZenTheme.nebulaCyan.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                            )
+                            : Icon(
+                              Icons.ios_share_rounded,
+                              color: ZenTheme.textMuted.withValues(alpha: 0.6),
+                            ),
+                      onPressed: _exporting ? null : _exportStarCard,
+                    ),
+                    IconButton(
+                      tooltip: '拾忆',
+                      iconSize: 20,
+                      icon: Icon(
+                        Icons.auto_awesome_outlined,
+                        color: ZenTheme.textMuted.withValues(alpha: 0.6),
+                      ),
+                      onPressed: _showMementoDrawer,
+                    ),
+                  ],
                 ),
               ),
             ),

@@ -73,3 +73,7 @@
 - [x] 兽语签——听完的低语成为拾忆：WhisperGift 纯类（shouldGift 四态判定）+ jingjing_screen 8s"听完"判定（触摸/演出/天亮即作废）；记账复用 jingxin.shards.v1（region='兽语'，时间戳=低语开始时刻）走 mergeShards 幂等去重，零新存储键；星图拾忆列表/记忆卡/夜弧/统计自动纳入，来源色相新增「兽语」→星兽金；jx-memo-v1 导出导入不变且对未知来源容错。新增 test/whisper_gift_test.dart 3 项。analyze 19 基线 0 error，test 70/70，build web ✅，commit 62e7824（未 push）。
 - 待办（第 34 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 星兽低语深化（低语时星兽轻眨眼或呼吸微增一拍）。
 - [x] 第 34 轮：长会话稳固性巡检（计时器/订阅/增长/兜底/生命周期）+ 修复冥想倒计时退出 LateInitializationError + Web 冒烟 + analyze/test/build 门槛（2026-09-13，commit 4234f7d）
+
+## 第 35 轮（2026-09-13）✅ 已完成
+- [x] 星图分享卡：右上角「带走星图」入口 → 1080×1620 离屏 PNG（深空底色 + 同款黄金角螺旋星点（区域色相/兽语金）+ 满醒小晨星 + 标题/统计/日期），Web anchor download 导出，stub 仅记录；生成期间转圈禁用、失败温柔提示。新增 star_card.dart / star_card_saver(.dart/_stub/_web) + test/star_card_test.dart 5 项。analyze 19 基线 0 error，test 78/78，build web ✅，commit 见 UPGRADE-LOG。
+- 待办（第 36 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 分享卡深化（Web 预览再下载、满醒次数金印）。
