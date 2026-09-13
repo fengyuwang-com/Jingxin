@@ -270,3 +270,10 @@
 - 产出: commit 2e1d105（未 push）；analyze 19 基线 0 error（顺带清掉 44 轮一个未用变量）；test 146/146（+6）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
 - 关键决策: 随息选方案 A（实时 ±15% 起伏）而非退化方案——micEngine.micEnvelope 是现成公开实时信号，代价仅一个纯函数；用"中点约定"（未开随息传 0.5 构造上=1.0）让两条路径共用同一纯函数免分支；礼让系数走独立 lullGain 节点，与音内包络/起停 ramp 正交互不干扰；恢复全量在晨光告别完成时一次 ramp（约 3 秒到位），不在演出中途动音量。
 - 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push；可选深化——极轻档随晨光渐涨回全量（现为告别收束时 ramp）。
+
+## 2026-09-14 — 第 46 轮
+- 用户要求: 通宵第 46 轮——GitHub Actions 部署流水线文件就绪（等授权 push 即上线），不执行 push。
+- AI 行动: 新建 .github/workflows/deploy-pages.yml（push master 自动 analyze→test→build web --base-href /Jingxin/→deploy-pages，官方 artifact+environment+concurrency 方式；与 ci.yml 合并为单文件）；核查 .gitignore 已忽略 build/、.dart_tool/；本地 MSYS_NO_PATHCONV=1 build web --base-href /Jingxin/ 成功，模拟 Pages 目录冒烟 /Jingxin/ 与 main.dart.js 均 200。
+- 产出: commit 0ec1dfa（ci: GitHub Pages 部署流水线就绪 [auto-night-46]，未 push）；analyze 19 条基线 0 error；test 146/146；build web 默认+base-href 均成功；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: ci.yml 与 deploy 校验步骤完全重复，合并单文件并在注释说明；Git Bash 下 /Jingxin/ 会被路径转换破坏，本地需 MSYS_NO_PATHCONV=1（CI Linux 不受影响）；analyze 用 --no-fatal-warnings 只挡 error 不挡既有 19 条 warning。
+- 下一步建议: 主人授权 push + Settings→Pages 选 "GitHub Actions"，验证首次自动部署（一键上线）；Android 真机验证；呼吸音随晨光渐涨深化。
