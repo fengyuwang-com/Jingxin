@@ -109,6 +109,32 @@ class BeastWhisperCtl {
   }
 }
 
+/// 兽语签（第 33 轮）：听完的低语成为拾忆。
+///
+/// 一句低语若完整走完 8s 包络——全程未被触摸打断、未进入任何
+/// 演出、长夜仍在——这句偈语就记为一枚特殊碎片「兽语」，落进
+/// 既有 `jingxin.shards.v1` 收集史（region='兽语'）。判定是纯
+/// 函数；记账由 jingjing_screen 在 8s 到点时执行，复用
+/// mergeShards 的"同时间戳+同偈语去重"保证幂等。
+class WhisperGift {
+  WhisperGift._();
+
+  /// 兽语碎片的收录区域名（导出/合并沿用 ShardRecord.region）。
+  static const String region = '兽语';
+
+  /// 低语走完后是否成签（纯函数）：
+  /// - 长夜仍在（已天亮则不算）；
+  /// - 未被触摸打断（触摸即快速淡出，梦话没被听完）；
+  /// - 未进入演出（晨光告别 / 满醒终幕 / 开场引导）。
+  static bool shouldGift({
+    required bool touchedSince,
+    required bool nightActive,
+    required bool blocked,
+  }) {
+    return nightActive && !blocked && !touchedSince;
+  }
+}
+
 /// 星兽低语的渲染组件：跟随触发时选定的那只星兽（眠或惘），
 /// 在其身旁极淡地浮现一句入睡偈，8s 缓慢淡入淡出；任何触摸
 /// 立即快速淡出（[dismiss]）。偈语未显示时零渲染成本。

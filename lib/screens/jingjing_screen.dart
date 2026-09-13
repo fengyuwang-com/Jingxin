@@ -11,7 +11,9 @@ import '../game/jingjing_game.dart';
 import '../game/koans.dart';
 import '../game/long_night_farewell.dart';
 import '../game/long_night_whisper.dart';
+import '../game/memento.dart';
 import '../game/quality.dart';
+import '../game/shard.dart';
 import '../game/soundscape.dart';
 import '../game/voice.dart';
 import 'star_map_screen.dart';
@@ -91,6 +93,52 @@ class _JingjingScreenState extends State<JingjingScreen>
 
   /// 星兽低语的调度计时器（一次性，触发后重排）。
   Timer? _beastWhisperTimer;
+
+  // ---- 兽语签（第 33 轮）：听完的低语成为拾忆 ----
+  /// 低语完整走完 8s 包络且未被打断时，把该偈语记为一枚「兽语」碎片。
+  Timer? _beastGiftTimer;
+  String? _giftKoan;
+  DateTime? _giftStart;
+
+  /// 低语浮出后挂一份 8s 的"听完"判定：到点时若长夜仍在、未进演出、
+  /// 且这 8s 里没有任何触摸，则该偈语成签（复用 mergeShards 去重幂等）。
+  void _scheduleWhisperGift(String koan) {
+    _beastGiftTimer?.cancel();
+    _giftKoan = koan;
+    _giftStart = DateTime.now();
+    _beastGiftTimer = Timer(
+      Duration(milliseconds: (BeastWhisperCtl.showSeconds * 1000).round()),
+      _grantWhisperGift,
+    );
+  }
+
+  void _grantWhisperGift() {
+    _beastGiftTimer = null;
+    final koan = _giftKoan;
+    final start = _giftStart;
+    _giftKoan = null;
+    _giftStart = null;
+    if (koan == null || start == null || !mounted) return;
+    // 演出互斥与触摸打断：梦话没被安静听完就不成签。
+    final blocked =
+        _farewell || _game.fullAwake.active || _game.onboarding != null;
+    final touched = _lastInteraction.isAfter(start);
+    if (!WhisperGift.shouldGift(
+      touchedSince: touched,
+      nightActive: _nightMode,
+      blocked: blocked,
+    )) {
+      return;
+    }
+    // 幂等入账：同时间戳+同偈语只记一枚（与拾忆导入同一套去重）。
+    final record = ShardRecord(time: start, text: koan, region: WhisperGift.region);
+    final (merged, added) = mergeShards(_game.shardCollection.records, [record]);
+    if (added == 0) return;
+    _game.shardCollection.records
+      ..clear()
+      ..addAll(merged);
+    unawaited(_game.shardCollection.save());
+  }
 
   // ---- 晨光告别（第 26 轮）：长夜的收束不是"被退出"，而是"天亮" ----
   /// 演出进行中（晨光已开始漫入）。
@@ -185,6 +233,7 @@ class _JingjingScreenState extends State<JingjingScreen>
     _toastTimer?.cancel();
     _whisperTimer?.cancel();
     _beastWhisperTimer?.cancel();
+    _beastGiftTimer?.cancel();
     _idleTimer?.cancel();
     _farewellTimer?.cancel();
     _farewellFinishTimer?.cancel();
@@ -335,6 +384,10 @@ class _JingjingScreenState extends State<JingjingScreen>
     _idleTimer?.cancel();
     _whisperTimer?.cancel();
     _beastWhisperTimer?.cancel();
+    // 兽语签作废：演出开始了，梦话没被听完。
+    _beastGiftTimer?.cancel();
+    _giftKoan = null;
+    _giftStart = null;
     _voice.cancelAll(); // 告别时刻：朗读也悄悄退场。
     _game.farewellPlaying = true; // 满醒演出的互斥判定。
     // 音频走既有 gain ramp 平滑淡出（20s），比视觉略长——
@@ -411,6 +464,10 @@ class _JingjingScreenState extends State<JingjingScreen>
     _game.setFarewell(0.0); // 星兽缓缓重新睁眼（4s/只渐变）。
     _whisperTimer?.cancel();
     _beastWhisperTimer?.cancel();
+    // 兽语签作废：梦话没被听完（天亮了）。
+    _beastGiftTimer?.cancel();
+    _giftKoan = null;
+    _giftStart = null;
     _voice.cancelAll();
     // 若因跳过提前收尾而仍有残余声压，再补一次短淡出（幂等）。
     unawaited(_soundscape?.stop(fadeOut: 1.5));
@@ -457,6 +514,9 @@ class _JingjingScreenState extends State<JingjingScreen>
           final koan = _beastWhisper.pickKoan(Koans.whisperPool);
           _beastWhisper.record(koan);
           _game.showBeastWhisper(koan);
+          // 兽语签：若这句梦话被安静听完（8s 内无触摸、未进演出），
+          // 就成为一枚「兽语」碎片落进拾忆。
+          _scheduleWhisperGift(koan);
           // 闻声：极慢语速、更低音量轻声念（whisper 礼仪：触摸即取消；
           // duck 机制经既有 onSpeakingStart 回调自动压低白噪音）。
           if (_voiceOn) {
