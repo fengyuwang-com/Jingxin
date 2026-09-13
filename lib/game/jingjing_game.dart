@@ -11,6 +11,7 @@ import 'breath_mic.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
+import 'mist_guardian.dart';
 import 'mist_wood.dart';
 import 'quality.dart';
 import 'regions.dart';
@@ -71,6 +72,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 星兽「眠」：失眠之海深处的长线存在（第 5 轮）。
   late final StarBeast beast;
+
+  /// 纷心雾林（第 13 轮）；雾沉降度由星兽「惘」读取（第 17 轮）。
+  late final MistWood mistWood;
 
   /// 已完成的平稳呼吸循环总数（星兽苏醒的独立事件源，不受碎片消费影响）。
   int cycleCount = 0;
@@ -233,7 +237,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(sea);
     add(WearyHeath());
     add(AnxietyAbyss());
-    add(MistWood());
+    mistWood = MistWood();
+    add(mistWood);
+    // 星兽「惘」：雾林接缝带的守林者（第 17 轮），显形跟随雾沉降。
+    add(MistGuardian());
     add(StillPath()); // 静之径：区域间的余温旅程线（第 14 轮）。
     beast = StarBeast();
     add(beast);

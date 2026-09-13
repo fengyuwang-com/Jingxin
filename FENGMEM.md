@@ -98,3 +98,9 @@
 - AI 行动: 逐文件静态审计 update/render；修复 camPos 分配、光灵/雾团/渊/荒原/星岛/星兽/碎片的每帧 Paint 与着色器重建（量化缓存/静态 Path/canvas 缩放）；新增 quality.dart 三档判定（UA+DPR+deviceMemory）低档星空减半等保守削减；chips 命中区 ≥44px；NoSleep 注释说明不做
 - 产出: commit 79575ff；analyze 0 error（19 基线）/test 14 全过/build web 41MB（引擎 37MB 应用 3MB）
 - 关键决策: 着色器按固定半径构建+canvas 缩放（径向渐变视觉等价）；档位只在构造时读、运行期零分支；低档只减数量不砍机制；长夜不做防休眠（违背入睡语义）
+
+## 2026-09-13 — 第 17 轮
+- 用户要求: 通宵第 17 轮——第二头星兽「惘」（雾林守林者）：星座狐形态、显形跟随雾沉降（非累计分档）、60s 最短显形渐进、完全显形+靠近+平稳循环→点头赠金色心镜碎片（3 句惘语）、质量门槛与 commit
+- AI 行动: 新建 lib/game/mist_guardian.dart（11 节点星座狐+5 节细尾，锚点 nx0.06/ny0.50 视差 0.80；显形度跟随 MistWood.settle、升限速 1/60 每秒；点头动画绕臀部 rotate；金色碎片经 MindShard gift 标记）；shard.dart 加 gift 标记与惘语取词；koans.dart 加 3 句惘语池；jingjing_game.dart 暴露 mistWood 引用并装配；UPGRADE-LOG/todo/FENGMEM 更新
+- 产出: commit feat(game): 星兽惘——雾林守林者与金色心镜 [auto-night-17]；analyze 0 error（19 基线）/test 14 全过/build web 成功
+- 关键决策: 与眠差异化=零持久化零分档，「雾透则兽现」直接复用雾林 settle；显形升 60s 限速/退稍快（显形难、退隐易）；每次显形期至多一礼，雾漫回 reveal<0.3 才重置；下一步建议：交付总结文档 / GitHub Pages（需主人确认 push）/ 双兽相会彩蛋
