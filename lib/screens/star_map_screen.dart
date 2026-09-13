@@ -417,6 +417,10 @@ class _MementoDrawerState extends State<_MementoDrawer> {
   bool _showFootprint = false;
   bool _showPaste = false;
   bool _showMemories = false; // 「重看那一夜」：碎片星点列（第 24 轮）。
+  // 「星河的章节」（第 25 轮）：收起的夜晚日期键集合。
+  // 默认只展开最近一夜，其余收起，避免列表过长。
+  Set<String> _collapsedNights = <String>{};
+  bool _nightsInitialized = false;
   String? _message; // 一行淡字，用后即逝。
   bool _busy = false;
 
@@ -478,11 +482,12 @@ class _MementoDrawerState extends State<_MementoDrawer> {
     _say('心镜归位了，共 $added 片');
   }
 
-  /// 「重看那一夜」的碎片星点：按时间排布的一串小星，
-  /// 颜色即来源区域。点选一枚，浮起那晚的记忆卡。
+  /// 「重看那一夜 · 星河的章节」（第 25 轮）：按夜晚分组的碎片星点。
+  /// 每个夜晚一行：行首一枚极小的日期签（可点折叠/展开，默认只展开
+  /// 最近一夜），后随该夜的星点；行右端一段细小的「夜弧」——完成度
+  /// 即这一夜的碎片数占历史单夜最多次数的比例，纯装饰、克制。
   Widget _memoryChips() {
-    final records = List<ShardRecord>.of(widget.collection.records)
-      ..sort((a, b) => a.time.compareTo(b.time));
+    final records = widget.collection.records;
     if (records.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(top: 10, bottom: 4),
@@ -497,6 +502,16 @@ class _MementoDrawerState extends State<_MementoDrawer> {
         ),
       );
     }
+    // 首次展开时初始化折叠状态：最近一夜展开，其余收起。
+    if (!_nightsInitialized) {
+      _nightsInitialized = true;
+      final groups = groupNightsByDate(records);
+      _collapsedNights = {
+        for (final g in groups.skip(1)) g.dateKey,
+      };
+    }
+    final groups = groupNightsByDate(records);
+    final maxCount = busiestNight(records);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -505,45 +520,106 @@ class _MementoDrawerState extends State<_MementoDrawer> {
         color: ZenTheme.voidBlack.withValues(alpha: 0.35),
         border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final rec in records)
+          for (final group in groups) ...[
+            // 行首日期签：点按折叠/展开该夜。
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _openMemoryCard(rec),
+              onTap: () => setState(() {
+                if (!_collapsedNights.remove(group.dateKey)) {
+                  _collapsedNights.add(group.dateKey);
+                }
+              }),
               child: Tooltip(
-                message: '${_formatDate(rec.time)} · ${rec.region}',
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: regionDotColor(rec.region).withValues(
-                          alpha: 0.35,
+                message: '点一下${_collapsedNights.contains(group.dateKey) ? '展开' : '收起'}这一夜',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _collapsedNights.contains(group.dateKey)
+                            ? Icons.chevron_right_rounded
+                            : Icons.expand_more_rounded,
+                        size: 14,
+                        color: ZenTheme.textMuted.withValues(alpha: 0.4),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          nightLabel(group.dateKey, group.records.length),
+                          style: TextStyle(
+                            color: ZenTheme.textMuted.withValues(alpha: 0.65),
+                            fontSize: 11,
+                            letterSpacing: 2,
+                          ),
                         ),
-                        blurRadius: 8,
-                        spreadRadius: 1,
+                      ),
+                      // 夜弧：完成度 = 该夜碎片数 / 历史单夜最多数。
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CustomPaint(
+                          painter: _NightArcPainter(
+                            sweep: nightArcSweep(group.records.length, maxCount),
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: regionDotColor(rec.region),
-                      ),
-                    ),
                   ),
                 ),
               ),
             ),
+            // 该夜的星点行（收起时不渲染）。
+            if (!_collapsedNights.contains(group.dateKey))
+              Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 6),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final rec in group.records) _memoryDot(rec),
+                  ],
+                ),
+              ),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// 单枚碎片星点：颜色即来源区域，点选浮起记忆卡。
+  Widget _memoryDot(ShardRecord rec) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openMemoryCard(rec),
+      child: Tooltip(
+        message: '${_formatDate(rec.time)} · ${rec.region}',
+        child: Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: regionDotColor(rec.region).withValues(alpha: 0.35),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: regionDotColor(rec.region),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -987,4 +1063,45 @@ class _BreathRipplePainter extends CustomPainter {
   @override
   bool shouldRepaint(_BreathRipplePainter old) =>
       old.phase != phase || old.color != color;
+}
+
+/// 「夜弧」（第 25 轮）：夜晚行右端一枚极小的弧形标记。
+/// 弧的完成度 = 该夜碎片数 / 历史单夜最多数（封顶整圆），
+/// 纯装饰、克制——只是这条轨迹被静过的程度的一瞥。
+class _NightArcPainter extends CustomPainter {
+  _NightArcPainter({required this.sweep});
+
+  /// 0..2π 的扫过角度。
+  final double sweep;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final r = size.shortestSide / 2 - 1.5;
+    final rect = Rect.fromCircle(center: center, radius: r);
+    // 底环：极淡的一整圈，像还没被走过的夜。
+    canvas.drawCircle(
+      center,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = Colors.white.withValues(alpha: 0.07),
+    );
+    // 夜弧：从正上方起，顺时针扫过。
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      sweep,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round
+        ..color = ZenTheme.nebulaCyan.withValues(alpha: 0.45),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_NightArcPainter old) => old.sweep != sweep;
 }
