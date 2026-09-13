@@ -23,7 +23,10 @@ class MeditationScreen extends StatefulWidget {
 
 class _MeditationScreenState extends State<MeditationScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
-  late Timer _timer;
+  /// 冥想主计时器（倒计时阶段也复用它，见 _startCountdown）。
+  /// 第 34 轮巡检修复：旧实现为 `late Timer`，3 秒倒计时中途退出时
+  /// dispose 里 cancel 未赋值的 late 会抛 LateInitializationError。
+  Timer? _timer;
   int _remainingSeconds = 0;
   bool _isPaused = false;
   bool _isCountingDown = true;
@@ -172,7 +175,9 @@ class _MeditationScreenState extends State<MeditationScreen>
   }
 
   void _startCountdown() {
-    Timer.periodic(const Duration(seconds: 1), (timer) {
+    // 倒计时自身也挂到 _timer：确保 dispose 任何时刻都持有一个
+    // 可取消的计时器实例（无论退出发生在倒计时中还是冥想中）。
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -215,7 +220,7 @@ class _MeditationScreenState extends State<MeditationScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _timer.cancel();
+    _timer?.cancel();
     _breathController.dispose();
     _smoothBreathController.dispose();
     super.dispose();
