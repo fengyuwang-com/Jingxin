@@ -9,6 +9,7 @@
 - [ ] （可选）装 Visual Studio C++ 工作负载以支持 Windows 桌面构建
 
 ## 已完成
+- [x] 第2轮：呼吸输入层+苏醒度雏形（TapCallbacks按住吸气/松开呼气，AwakeningState持久化+驱动星空/色温/光晕，顶端极细光线+呼吸提示词，analyze/build通过）
 - [x] 第1轮：Flame骨架（flame 1.38.2，游戏循环 + 光灵原型 + 静境入口，analyze/build 通过，commit ba43e63）
 - [x] Flutter 3.47.4 安装（C:\FengProj\flutter），pub 镜像 flutter-io.cn，PATH 永久配置
 - [x] tag v1.0-pre-jingjing 已推送 GitHub（重构前最终版）
