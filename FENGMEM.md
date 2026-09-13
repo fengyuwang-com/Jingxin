@@ -104,3 +104,9 @@
 - AI 行动: 新建 lib/game/mist_guardian.dart（11 节点星座狐+5 节细尾，锚点 nx0.06/ny0.50 视差 0.80；显形度跟随 MistWood.settle、升限速 1/60 每秒；点头动画绕臀部 rotate；金色碎片经 MindShard gift 标记）；shard.dart 加 gift 标记与惘语取词；koans.dart 加 3 句惘语池；jingjing_game.dart 暴露 mistWood 引用并装配；UPGRADE-LOG/todo/FENGMEM 更新
 - 产出: commit feat(game): 星兽惘——雾林守林者与金色心镜 [auto-night-17]；analyze 0 error（19 基线）/test 14 全过/build web 成功
 - 关键决策: 与眠差异化=零持久化零分档，「雾透则兽现」直接复用雾林 settle；显形升 60s 限速/退稍快（显形难、退隐易）；每次显形期至多一礼，雾漫回 reveal<0.3 才重置；下一步建议：交付总结文档 / GitHub Pages（需主人确认 push）/ 双兽相会彩蛋
+
+## 2026-09-13 — 第 18 轮
+- 用户要求: 通宵第 18 轮——「相会」双兽彩蛋：眠游弋期+惘完全显形+苏醒度>0.5+光灵在中点附近完成平稳循环时触发，26s 移近→星光细线+径回应+深海鸣涟漪→16s 退回；双星碎片「两兽之间」走全链路；演出用现有原语、触发逻辑纯函数可测
+- AI 行动: 新建 reunion.dart（ReunionTrigger 纯函数+ReunionEvent 状态机，nudge 向量注入两兽、still_path 加 reunionGlow/reunionGather、mist_guardian 加 gaze、shard 加 reunion 标记、koans 加相会偈语池 2 句、jingjing_game 具名装配）；UPGRADE-LOG/todo/FENGMEM 更新
+- 产出: commit e51c665；analyze 0 error（19 基线）/test 20 全过（+reunion_test 6 项）/build web 成功
+- 关键决策: 触发只在平稳循环瞬间评估保证稀有；以 swimUntilEpoch 记账每游弋周期至多一次；碎片放光灵身旁极近处靠下一次循环自然吸入（自动获得但不弹窗）；下一步建议：交付总结文档（README 重写为《静境》介绍）/ GitHub Pages（需确认 push）/ 数值配平巡检
