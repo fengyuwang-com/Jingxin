@@ -93,6 +93,7 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
     this.abyss = false,
     this.heath = false,
     this.mist = false,
+    this.gift = false,
   });
 
   /// 世界坐标（环绕周期内）。
@@ -109,12 +110,17 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
   /// 是否为「纷心雾林」碎片：用雾林偈语池与青灰色调（第 13 轮）。
   final bool mist;
 
+  /// 是否为星兽「惘」赠出的金色心镜碎片（第 17 轮）：惘语偈语池。
+  final bool gift;
+
   /// 0..1 被吸入进度；>=1 后由游戏层移除并回调禅语。
   double absorb = 0;
   bool _absorbing = false;
 
   /// 吸入完成后要浮现的偈语（预生成，按区域取池，避免吸入瞬间卡顿）。
-  late final String koan = abyss
+  late final String koan = gift
+      ? Koans.nextWang()
+      : abyss
       ? Koans.nextAbyss()
       : heath
       ? Koans.nextHeath()
