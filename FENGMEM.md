@@ -67,3 +67,9 @@
 - AI 行动: 读 UPGRADE-LOG/git log/全部 game+screens 源码后选定 5 点：①开场苏醒（introT 3.5s smoothstep：星按 revealDelay 错落亮起、光灵 intro 缓现、UI 淡字「你的呼吸，点亮这个世界」）；②光灵生命感（边缘 28 段正弦顶点微扰、速度反向尾迹 6 光尘、calmGlow 平静积累）；③相机呼吸微动（camPos 改 getter=_camBase+呼吸同相极小位移，各组件零改动）；④ZenMotion 统一转场 800ms easeOutCubic + WidgetsBindingObserver 后台停声景/回前台续长夜；⑤性能清理（预生成微粒参数、TextPainter 缓存、碎片逆序遍历、画笔复用+星云着色器量化缓存）+稀有眨眼事件（6% 平稳循环后星按平方亲和度同亮 0.9s）
 - 产出: commit c8d924c polish(game): 手感与视觉打磨 pass [auto-night-11]；analyze 0 error（19 条既有基线无新增）；flutter build web 成功；UPGRADE-LOG/todo 已更新
 - 关键决策: camPos 用「基准+微动」getter 而非改各组件投影（零侵入）；光灵边缘形变用顶点微扰不用贴图（CYBER-ZEN 克制）；眨眼无文字无音效纯视觉稀有事件（平方分布只少数星明显回应）；转场只统一不重做（500ms→800ms、easeOut→easeOutCubic）；下一步建议：TTS 朗读 / 第四区域 / 部署 GitHub Pages
+
+## 2026-09-13 03:50 — 第 12 轮
+- 用户要求: 通宵自动升级第 12 轮「闻声」——禅语轻声朗读与入睡引导（TTS）
+- AI 行动: 新增 voice.dart/voice_web.dart/voice_stub.dart（SpeechSynthesis，zh-CN 优先，rate0.85/pitch0.95/vol0.5，voices 异步探测）；koans.dart 加 10 句入睡引导池；soundscape 增 duck（0.5→0.3，1s/2s）；jingjing_screen 接入小喇叭开关（持久化默认关）、碎片禅语朗读、长夜 90~150s 随机 whisper、触摸取消 whisper/禅语读完、生命周期与退出 cancelAll；star_map_screen 增可选 onSpeakKoan
+- 产出: commit 451eb10；analyze 0 error（19 基线无新增）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
+- 关键决策: 朗读分两类礼仪（koan 不因触摸取消、whisper 触摸即停）；无可用声音时 UI 隐藏开关；lang 恒设 zh-CN 即便无中文声音
