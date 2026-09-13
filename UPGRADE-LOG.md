@@ -154,3 +154,17 @@
   1. 引导词 TTS 朗读：呼吸提示词与偈语的轻声朗读（Web Speech API，可开关，音量极低）
   2. 第四心境区域：如「回响洞窟」或「晨曦之岸」，延续区域架构（GameRegion 深度带 + 专属禅语池 + 独特机制）
   3. 部署到 GitHub Pages/静态托管：flutter build web 产物已就绪，让手机随时可玩（配合 PWA manifest 可加到主屏）
+
+## 2026-09-13 第12轮：闻声——禅语轻声朗读与入睡引导
+- 做了什么：
+  - TTS 引擎：新增 lib/game/voice.dart（VoiceEngine 门面 + 条件导出）——Web 实现 voice_web.dart 用 dart:js_interop + package:web 调浏览器原生 SpeechSynthesis（无新依赖、无网络请求、声音来自设备本地合成）：优先挑选 zh-CN 声音（getVoices 异步加载，onvoiceschanged + 最多 6 次 0.9s 间隔温和探测同步到 ValueListenable available）、其次任意 zh 声音；utterance.lang 恒为 'zh-CN'（即便没有专门中文声音也设置）；rate 0.85 / pitch 0.95 / volume 0.5——轻声慢速低音；非 Web 平台 voice_stub.dart 静音降级（isSupported=false → UI 直接隐藏开关）
+  - 触发点（全部克制、可选、默认关）：左下角玻璃拟态小喇叭开关（与随息/长夜同风格的角落图标，偏好持久化 key jingxin.voice.v1，默认 false）；浏览器无任何可用声音时（available=false）整个入口隐藏。开启后：(a) 心镜碎片禅语浮现时轻声读出该句；(b) 长夜模式下每 90~150 秒随机一次轻声读一句入睡引导（koans.dart 新增 10 句极短句池：「眼皮沉了。」「世界收灯了。」「不必想，只需要在。」等，睡眠接近感、勿鸡汤勿命令式，与碎片禅语池独立防重复）；(c) 星图回看点星时轻声读该星偈语（StarMapScreen 新增可选 onSpeakKoan 回调，仅当朗读开启才传入，不开启完全静默）
+  - 打断与礼仪规则：新朗读前先 synth.cancel() 旧 utterance；朗读分两类礼仪——禅语（koan）不因触摸取消、让它读完，入睡引导（whisper）在用户任何触摸交互时立即取消（GameWidget 外包一层 Listener onPointerDown）；退出长夜/声景淡出时 cancelAll；退出静境（dispose）cancelAll；切后台（AppLifecycle paused/hidden/inactive）cancelAll，绝不让声音从后台冒出来
+  - 音量尊重声景：SoundscapeEngine 新增 duck({required bool active})——朗读期间 Web 实现把 master gain 从 0.5 线性压到 0.3（约 1 秒过渡），onSpeakingEnd 后约 2 秒缓缓恢复；start 时也尊重 duck 状态；stub 空实现
+- 不回退：呼吸输入、随息、苏醒度、三大区域、星兽、长夜、声景、碎片星图全部保留（koans.dart 仅追加新池，soundscape 接口仅追加 duck 方法）
+- 质量门槛：flutter analyze 0 error（回到基线 19 条既有 warning/info，新改文件零告警）；flutter build web 成功
+- commit: 451eb10 feat(game): 闻声——禅语轻声朗读与入睡引导 [auto-night-12]
+- 下一步建议（第13轮）三选一：
+  1. 部署 GitHub Pages/静态托管：flutter build web 产物已就绪，让手机随时可玩（需主人确认 push；可配 PWA manifest 加到主屏）
+  2. 第四心境区域：如「回响洞窟」或「晨曦之岸」，延续 GameRegion 深度带架构 + 专属禅语池 + 独特机制
+  3. 数据导出：星图碎片收集史/苏醒度长线的本地导出（JSON/图片分享卡）
