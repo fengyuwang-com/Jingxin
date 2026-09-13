@@ -674,3 +674,19 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机全链路验证（连续多轮候选，最高优先）。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. Web 端分享卡长按预览；或呼吸之音深化：长夜入睡 10 分钟后呼吸音自行降到极轻半档（世界陪你睡，而不是叫你听）。
+
+## 第 45 轮（2026-09-14）— 呼吸音入睡礼让：夜越深，琴越轻
+- 理念：睡前开着呼吸之音的人，会在不知不觉中听到它退到世界背后——世界陪你睡，而不是叫你听。
+- 实现：
+  - 纯曲线（lib/game/breath_sound.dart）：breathNightFactor(seconds) 三段平台 1.0（0~10min）→ 0.6「半档」（10~20min）→ 0.35「极轻」（20min 后），两段边界各用 60 秒 smoothstep（3t²-2t³，两端导数为零）滑落，入睡者听不见任何"被调小"的动作；非长夜/负值恒 1.0。呼吸相位映射不变，只乘全局系数。
+  - 随息联动（选定方案 A，实时起伏而非再轻 10%）：breathWobbleFactor(envelope) 把 jingjing_game 已有的平滑呼吸包络 micEnvelope（0..1，公开字段，随息路径每帧更新）映射为 ±15% 起伏（0→0.85、1→1.15）；采用"中点约定"——未开随息传 0.5 构造上恰为 1.0，两条路径共用同一纯函数无需分支。选 A 的理由：micEngine 包络是现成的实时信号，代价仅一个纯函数 + 屏幕侧一次乘法，无需 mic 引擎新增暴露；且"气息饱满琴微扬、气息歇下琴轻收"比固定 -10% 更贴合"琴随呼吸呼吸"的原意。
+  - 引擎（soundscape.dart / _web / _stub）：接口新增 setBreathLullFactor(factor)；Web 实现在 _BreathVoice 的 toneGain 与 bus 之间插入独立 lullGain 节点（与音内包络、起停 ramp 正交），setTargetAtTime 时间常数 1s（约 3 秒到位）长 ramp 平滑推进，绝不跳变；stub 空实现。
+  - 接线（jingjing_screen.dart）：新 _nightStartAt（进入长夜记起点，_finishFarewell 清空并把系数 ramp 回 1.0——晨光里不会突然变响）；复用长夜闲置巡检的 1s 定时器，每秒 _syncBreathLull()：factor = breathNightFactor(夜深秒数) × breathWobbleFactor(_micOn ? micEnvelope : 0.5)，随息开/关的切换也随下一秒巡检自动生效。
+- 测试（test/breath_sound_test.dart 新增 6 项，140→146）：非长夜/负值恒 1.0、半档平台 0.6、极轻平台 0.35、边界 60 秒窗内单调滑落 + 中点恰为半程（600s→0.8、1200s→0.475）+ 两端接平、随息起伏端点/中点约定/越界钳制、礼让×起伏组合区间有地板（≥0.35×0.85）。
+- 顺带：清掉第 44 轮测试里一个未用变量（analyze 回到 19 条基线）。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 146/146；flutter build web 成功。
+- commit：2e1d105（feat(game): 呼吸音入睡礼让与随息联动 [auto-night-45]，未 push）。
+- 下一步建议（第 46 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. Web 端分享卡长按预览；或呼吸音深化：极轻档在晨光告别时随晨光一起缓缓涨回全量（现在是立即 ramp 回 1.0，可改为随 dawnSeconds 渐涨）。
