@@ -85,3 +85,11 @@
 ## 第 38 轮（2026-09-14）✅ 已完成
 - [x] 拾忆规模压力测试：mergeShards O(n·m)→HashSet O(n+m)（3000×3000 实测 3ms）；star_card/星图屏螺旋改总数感知向日葵盘面（修复 3000 枚外圈重叠 + 星点出屏）；>400 枚星点静亮优化；_memoryChips 去重一次 groupNightsByDate 调用。新增 test/stress_test.dart 13 项。analyze 19 基线 0 error，test 97/97，build web ✅，commit 4579090（未 push）。
 - 待办（第 39 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 分享卡昼夜小印记或满醒金印。
+
+## 第 39 轮（2026-09-14）✅ 已完成
+- [x] 分享卡昼夜印记与满醒金印：右下角日期行旁 28px 细环，环上按生成时刻昼夜相位放小点（24h→圆环一周，正午上/午夜下，复用 DayTide.duskWarmth 黄昏带极淡暖色）；左下角满醒金印（金点+细环，复用纪念签语言，非满醒无）；几何全抽纯函数（tideMarkAngle/tideMarkPoint/tideMarkDotColor/tideMarkCenter/fullAwakeSealCenter/marksWithinSafeArea）。新增测试 4 项。analyze 19 基线 0 error，test 101/101，build web ✅，commit 9730321（未 push）。
+- 待办（第 40 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览或时辰汉字（子时/午时）。
+
+## 第 40 轮（2026-09-14）✅ 已完成
+- [x] 时辰印记汉字化：shichenOf 纯函数（23-1 子时两小时制映射，桶公式跨午夜安全），印记环左侧 12px textMuted 极小汉字（子/丑/…/亥），小点仍按第 39 轮昼夜相位；低语面板 grep 检查无钟表时刻文案，不强加。新增测试 7 项。analyze 19 基线 0 error，test 108/108，build web ✅，commit 9325add（未 push）。
+- 待办（第 41 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览。

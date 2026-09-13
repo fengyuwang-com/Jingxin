@@ -221,3 +221,17 @@
 - AI 行动: adb 无真机走主任务。审查发现 3 处真问题并修复：mergeShards O(n·m)→HashSet（3000×3000 实测 3ms）；star_card 螺旋硬封顶致 3000 枚外圈完全重叠→总数感知 Vogel 盘面 c=min(30,R/√N)（300/1000/3000 最小星心距 17.28/9.46/5.46px，N≤57 与旧版逐像素一致）；星图屏 _starOffset 无封顶 3000 枚星点飞出屏 1424px→同款 c=min(26,R/√N)。顺带：>400 枚星点静亮（去每星 AnimationController）、_memoryChips 重复 groupNightsByDate 去重。新增 test/stress_test.dart 13 项。
 - 产出: commit 4579090（未 push）；analyze 19 基线 0 error；test 97/97；build web ✅；UPGRADE-LOG/todo/FENGMEM 已追加。
 - 关键决策: 螺旋重叠不用调光点大小，改「总数感知」螺旋系数——小规模逐像素兼容旧版、大规模向日葵均匀盘面，压测断言放宽到数量级避免 CI flaky。
+
+## 2026-09-14 — 第 39 轮（通宵自动升级）
+- 用户要求: 分享卡昼夜印记——卡上留下那一夜的时辰：右下角日期行旁 28px 细描边圆环 + 昼夜相位小点（正午上/午夜下，24h→圆环一周），黄昏点带极淡暖色；左下角满醒金印（复用纪念签语言）；几何抽纯函数 + 3~5 项测试；离屏渲染一次完成；analyze/test/build 门槛 + commit + 文档。
+- AI 行动: star_card.dart 新增 6 个纯函数（角度映射环绕连续、环上坐标、黄昏暖色复用 DayTide.duskWarmth、左右印记位置、出血区防御）与 _StarCardPainter 绘制（minutesOfDay 参数）；test/star_card_test.dart 增 4 项（角度/暖色/位置/出血）。
+- 产出: commit 9730321（未 push）；analyze 19 条基线 0 error；test 101/101（+4）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 暖色只混在小点上（克制的极淡暖意）而非整环；位置与日期行同行对齐形成左右呼应；marksWithinSafeArea 兼作防御性断言。
+- 下一步建议: Android 真机全链路验证（多轮候选未做，最高优先）；GitHub Pages 部署需主人确认 push。
+
+## 2026-09-14 — 第 40 轮（通宵自动升级）
+- 用户要求: 时辰印记汉字化——分享卡印记旁加极小时辰汉字（子丑寅…按两小时制映射），抽 shichenOf 纯函数 + 5~7 项边界测试；低语面板若有时刻文案则统一；确认离屏中文渲染无乱码；门槛 + commit + 文档。
+- AI 行动: star_card.dart 新增 shichenOf（((m+60)~/120)%12 桶公式）与 shichenTextOffset，_StarCardPainter 环左侧 _drawText 12px textMuted 60%；grep 确认低语/偈语无时刻文案，不强加；test/star_card_test.dart 增 7 项（跨午夜/正午/桶边界/齐备顺序/位置/越界）。
+- 产出: commit 9325add（未 push）；analyze 19 条基线 0 error；test 108/108（+7）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 汉字放环左侧而非环内（环径 28px 内放字太挤）；卡面中文用系统字体与第 35 轮同源，无乱码风险不额外处理；低语面板无时刻文案不强加。
+- 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。
