@@ -302,3 +302,16 @@
   1. Android 真机验证：adb install release APK，跑通触控/麦克风/声景/长夜全链路
   2. 拆 ABI 出小包：flutter build apk --split-per-abi（arm64 应可 <25MB）或 build appbundle
   3. GitHub Pages 部署 Web 版（需主人确认 push）
+
+## 第 22 轮（2026-09-13）— arm64 瘦身包与世界数值配平巡检
+- arm64 瘦身包：`flutter build apk --release --split-per-abi` 全成功——
+  **app-arm64-v8a-release.apk 17.3MB**（18,159,843 字节）；armeabi-v7a 14.9MB、x86_64 18.7MB。对比 fat 包 release 49MB / debug 147.5MB，单架构分发体积再降约 65%。
+- 配平巡检（代码级通读 awakening/star_beast/weary_heath/mist_wood/still_path/reunion/mist_guardian/regions）：
+  - 苏醒度 0→1：静呼吸 0.01/循环（约 8s）≈13 分钟，回落 0.002/s 远低于增速，无卡死点，符合 10~20 分钟目标——加注释固化设计意图。
+  - 星兽眠：近旁 0.012/循环 ≈11 分钟满档、远处 0.004、碎片 +0.02、游弋 150s 后归零循环——各档尺度错落合理，无改动。
+  - 惘显形：雾沉降 45s 到满但显形限速 1/60s，完全显形需约 60s 持续平稳呼吸——"显形始终滞后于雾"是刻意设计，加注释说明（>0.85 的礼物/相会门槛不可被短暂到访蹭过）。
+  - 相会：swimming ∧ reveal>0.85 ∧ awakening>0.5 ∧ 光灵近中点 <260 且需一次平稳循环——四条件各自可达、无永假分支，无改动。
+  - 真 bug 修复：weary_heath 灯台余温衰减原 `(fuel - dt*0.01).clamp(fuel>0 ? 0.08 : 0, 1)` 在 fuel∈(0,0.08) 时会被下界顶回 0.08（"越放越暖"漂移）。改为只有达到过余温线的进度保底 0.08，微小进度自然冷回 0——抽出可测函数 `decayBeaconFuel`。
+- 测试：新增 test/weary_heath_test.dart（4 项边界：保底 0.08、微进度冷回 0、零不生火、恰在余温线守住）。总计 24 项全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 24/24；flutter build web 成功。
+- commit：8b28d28（未 push）。
