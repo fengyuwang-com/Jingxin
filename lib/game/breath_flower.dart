@@ -256,6 +256,67 @@ double _wrapAxis(double d, double period) {
   return x.abs();
 }
 
+// ---- 花境图鉴（第 58 轮）：跨越夜晚的花之账 ----
+//
+// 花开是会话内的演出，关掉就没了。花境图鉴给花留一个温和的跨夜
+// 记忆：按六心境区域记一个只增不减的花开计数——**花只增不减，像
+// 真实记忆**；花谢不扣账。**图鉴是独立的温和回顾，不与心镜碎片
+// 混排、不参与任何经济/进度系统**（星花不给碎片不给分数是既定
+// 设计，此账本同样只是回忆，不是资源）。
+
+/// 花境账本的区域数（与 [FlowerMood] 一致）。
+const int kFlowerLedgerRegions = 6;
+
+/// 单区域计数的防御上限（脏数据/溢出封顶，防字符串无限膨胀）。
+const int kFlowerLedgerMaxPerRegion = 9999;
+
+/// 花境账本（六区域 int 计数，下标与 [FlowerMood] 顺序一致）。
+typedef FlowerLedger = List<int>;
+
+/// 空账本（全 0）。
+FlowerLedger flowerLedgerNew() => List<int>.filled(kFlowerLedgerRegions, 0);
+
+/// 编码（纯函数）：紧凑字符串 `"3|0|5|1|0|2"`。各计数先夹到
+/// 0..[kFlowerLedgerMaxPerRegion]，长度不足/超出按实际处理
+/// （编码端恒为六段，容错在解码端）。
+String flowerLedgerEncode(FlowerLedger ledger) {
+  final parts = <String>[];
+  for (int i = 0; i < kFlowerLedgerRegions && i < ledger.length; i++) {
+    parts.add(ledger[i].clamp(0, kFlowerLedgerMaxPerRegion).toString());
+  }
+  return parts.join('|');
+}
+
+/// 解码（纯函数，脏数据容错）：`"3|0|5|1|0|2"` → 计数。
+/// - 空串/完全不可解析 → 全 0；
+/// - 单个非法 token（非数字/负数）按 0 计（忽略）；
+/// - 超上限夹到 [kFlowerLedgerMaxPerRegion]；
+/// - 段数不足六段时缺省 0，多出的段忽略。
+FlowerLedger flowerLedgerDecode(String raw) {
+  final ledger = flowerLedgerNew();
+  final tokens = raw.split('|');
+  for (int i = 0;
+      i < kFlowerLedgerRegions && i < tokens.length;
+      i++) {
+    final v = int.tryParse(tokens[i].trim());
+    if (v == null || v < 0) continue; // 非法 token：该区记 0。
+    ledger[i] = v.clamp(0, kFlowerLedgerMaxPerRegion);
+  }
+  return ledger;
+}
+
+/// 记一笔花开（纯函数）：对应区域 +1（封顶 [kFlowerLedgerMaxPerRegion]），
+/// 返回新账本——**只增不减，花谢不扣账**。区域越界时原样返回副本。
+FlowerLedger flowerLedgerBump(FlowerLedger ledger, int region) {
+  if (region < 0 || region >= kFlowerLedgerRegions) {
+    return FlowerLedger.of(ledger);
+  }
+  final out = FlowerLedger.of(ledger);
+  out[region] =
+      (out[region] + 1).clamp(0, kFlowerLedgerMaxPerRegion);
+  return out;
+}
+
 /// 花径候选对（纯函数）：从池内所有满足条件（两端开度均过门槛、
 /// 环面 wrap 距离 < [kFlowerPathMaxDist]）的花对，返回 (i, j, dist)
 /// 列表（i < j）。调用方应每秒节拍算一次并缓存，绝不每帧算。

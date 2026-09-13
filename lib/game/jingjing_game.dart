@@ -13,6 +13,7 @@ import 'breath_mic.dart';
 import 'awakening.dart';
 import 'beast_gaze.dart';
 import 'breath_flower.dart';
+import 'flower_ledger_store.dart';
 import 'full_awake.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
@@ -1383,6 +1384,17 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
   final List<(_Flower, _Flower)> _paths = [];
   double _pathTimer = 1.0; // 首帧即先算一次。
 
+  // 花境图鉴（第 58 轮）：跨越夜晚的花之账。每次花开对应区域 +1，
+  // 节流写盘（30s 至多一次）。**只增不减，花谢不扣账；不参与任何
+  // 经济/进度系统**——星花不给碎片不给分数是既定设计，账本同样
+  // 只是回忆，不是资源。
+  final FlowerLedgerStore _ledgerStore = FlowerLedgerStore();
+
+  @override
+  Future<void> onLoad() async {
+    await _ledgerStore.load();
+  }
+
   /// 延迟若干帧的光灵旧位置（环形缓冲最旧一帧）。
   Vector2 get _delayedPos =>
       _trailFull ? _trail[_trailHead] : game.spiritPos;
@@ -1418,6 +1430,8 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
       ..rotPhase = (seed % 628) / 100.0 + phase
       ..position.setFrom(_delayedPos);
     _spawnCounter++;
+    // 花境图鉴：花记得它出生的地方，账也记在出生地上（只增不减）。
+    _ledgerStore.bump(mood.index);
   }
 
   /// 种花瞬间光灵旧位所处的心境（先惑星近旁，再静之径，最后深度带）。
@@ -1446,6 +1460,8 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
 
   @override
   void update(double dt) {
+    // 花境图鉴节拍：账本有新账且距上次落盘超 30s 才写一次盘。
+    _ledgerStore.tick(dt);
     final steady = game.breathSteady;
     final chaotic = game.breathJitterLevel >= 0.35;
 
