@@ -25,4 +25,7 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
   Future<void> select(SoundscapeScene scene, {double crossfade = 2.5}) async {
     _scene = scene;
   }
+
+  @override
+  void duck({required bool active}) {}
 }

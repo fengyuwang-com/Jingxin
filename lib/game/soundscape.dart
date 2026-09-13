@@ -45,6 +45,11 @@ abstract class SoundscapeEngine {
   /// 切换声景：旧声景在约 [crossfade] 秒内淡出、新声景淡入（交叉渐变）。
   /// 未播放时只记录选择，不发声。
   Future<void> select(SoundscapeScene scene, {double crossfade = 2.5});
+
+  /// 朗读 duck（第 12 轮「闻声」）：轻声朗读期间把 master gain 从
+  /// 0.5 轻压到 0.3（约 1 秒过渡），读完约 2 秒缓缓恢复——
+  /// 让引导词浮在声景之上，而不是和声景打架。
+  void duck({required bool active});
 }
 
 /// 声景选择持久化（shared_preferences，所有平台可用）。

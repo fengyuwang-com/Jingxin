@@ -13,7 +13,11 @@ import '../game/star_beast.dart';
 /// 呈现为一片属于个人的星座（是风景，不是列表，没有计数）。
 /// 点一颗星，浮现那晚的偈语与日期。玻璃拟态、克制、无分数感。
 class StarMapScreen extends StatefulWidget {
-  const StarMapScreen({super.key});
+  const StarMapScreen({super.key, this.onSpeakKoan});
+
+  /// 「闻声」（第 12 轮）：点星时轻声读出那句偈语的可选回调。
+  /// 由调用方传入（仅当用户开启了朗读）；null 则完全静默。
+  final void Function(String koan)? onSpeakKoan;
 
   @override
   State<StarMapScreen> createState() => _StarMapScreenState();
@@ -214,7 +218,11 @@ class _StarMapScreenState extends State<StarMapScreen> {
       height: 48,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => _selected = rec),
+        onTap: () {
+          setState(() => _selected = rec);
+          // 点星轻声读一句（可选、克制）：每次进入星图最多读点过的那句。
+          widget.onSpeakKoan?.call(rec.text);
+        },
         child: Center(
           child: _StarWidget(phase: twinklePhase, selected: isSelected),
         ),
