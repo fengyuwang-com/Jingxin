@@ -861,3 +861,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 星花支线可收束或深化：按区域统计已开花数做「花境图鉴」式温和回顾；或花径微光随呼吸相位缓慢流动（克制，不加引导）。
+
+## 第 58 轮（2026-09-14）—— 花境图鉴：跨越夜晚的花之账
+- 理念：花开是会话内演出，关掉就没了。本轮给花留一个温和的跨夜记忆：按六心境区域记一本只增不减的花之账——花谢不扣账，**花只增不减，像真实记忆**；拾忆抽屉里轻轻一行「花境」，六个色点与各自开过的花数。**图鉴是独立的温和回顾，不与心镜碎片混排、不参与任何经济/进度系统**（星花不给碎片不给分数是既定设计，账本同样只是回忆，不是资源——写死在代码注释里防误加）。
+- 实现：
+  - 纯逻辑（lib/game/breath_flower.dart 追加）：`FlowerLedger`（六区域 int 计数 typedef）+ `flowerLedgerNew/Encode/Decode/Bump`——编码为紧凑 `"3|0|5|1|0|2"`；解码脏数据容错（空串/不可解析→全 0、非法 token/负数该区记 0、段多忽略段少缺省、带空白容错）；bump 返回新账本不改原账（纯函数），单区 9999 封顶（kFlowerLedgerMaxPerRegion，防溢出防字符串膨胀），区域越界原样返回副本。
+  - 持久化（lib/game/flower_ledger_store.dart 新文件）：`FlowerLedgerStore`——键 `jingxin.flowerledger.v1`；初始化读一次；花开时 bump(mood.index)；帧节拍节流写盘（距上次落盘 ≥30s 且账本有变才写，花开约 40s 一次，平时几乎零 IO）。花园 BreathFlowerGarden onLoad 读账、update tick 节拍、_spawnFlower 按出生地心境记一笔。
+  - 回顾 UI（lib/screens/star_map_screen.dart）：拾忆抽屉顶部汇总之下加一行「花境」——六个区域用 kFlowerPalettes 同款色点（与游戏内花同色系）+ 各自花数；开过花的区域数字稍亮、未开过的极淡（0.28/0.35 alpha）；总数为 0 整行隐藏；MD3 克制样式，无任何数字跳动动画。
+- 测试（test/flower_ledger_test.dart 新增 16 项，278→294）：全 0/典型/上限值 roundtrip；编码格式六段竖线；空串/不可解析全 0、非法 token 忽略该区、负数按 0、段多段少容错、带空白、超上限夹 9999；bump 纯函数不改原账、只增不减（无减法入口）、单区 9999 封顶、越界原样、连续多区域计数。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 294/294；flutter build web 成功。
+- commit：d5c41b2（feat(game): 花境图鉴——跨越夜晚的花之账 [auto-night-58]，未 push）。
+- 下一步建议（第 59 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 星花支线四轮可收束：或花径微光随呼吸相位缓慢流动（克制不加引导）；或按图鉴数据在对应心境区域里给"花开过的角落"留一处极淡的常驻余光（跨夜记忆的世界侧呼应）。

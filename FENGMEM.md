@@ -622,3 +622,9 @@
 - AI 行动: breath_flower.dart 新增 flowerPathAlpha/flowerPathCandidates/flowerQuantize 收敛；jingjing_game.dart 花园每秒缓存候选对、花后画 1px screen 径线（3x3 环绕、实时开度/距离、确定性中间色）；新增 test/flower_path_test.dart 12 项
 - 产出: commit bfb23c5（未 push）；analyze 19 基线持平 0 error；test 278/278；build web 成功；UPGRADE-LOG/todo 已更新
 - 关键决策: 径线是回望的痕迹不是目标——不做任何提示/引导（写进注释防误加）；候选对每秒节拍算而非每帧；positions 用 (x,y) 记录规避 flame/vector_math 向量类型耦合；pubspec 加 dev 依赖 vector_math
+
+## 2026-09-14 07:25 — 第 58 轮
+- 用户要求: 通宵自动升级第 58 轮：花境图鉴——跨越夜晚的花之账（FlowerLedger 纯逻辑+持久化节流写盘+拾忆抽屉「花境」行+单测+全门槛验证），不 push。
+- AI 行动: breath_flower.dart 追加 FlowerLedger/flowerLedgerNew/Encode/Decode/Bump（六区域计数、紧凑编码、脏数据容错、9999 封顶、bump 纯函数只增不减）；新建 lib/game/flower_ledger_store.dart（键 jingxin.flowerledger.v1，读一次+30s 节流写盘）；花园种花时按出生地心境 bump、update tick 节拍；star_map_screen.dart 拾忆抽屉加「花境」行（kFlowerPalettes 色点+花数，总数 0 整行隐藏，无动画）；新增 test/flower_ledger_test.dart 16 项。
+- 产出: commit d5c41b2（未 push）；analyze 19 条基线持平 0 error；test 278→294 全过；build web 成功；UPGRADE-LOG/FENGMEM/todo 已记。
+- 关键决策: 花只增不减花谢不扣账（像真实记忆，写死注释防误加减法入口）；账本是独立温和回顾，不与心镜碎片混排、不参与任何经济/进度（星花不给碎片不给分数既定设计的延伸）；节流写盘 30s + 花开本身约 40s 一次，平时几乎零 IO。
