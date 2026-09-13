@@ -30,12 +30,111 @@ import 'star_beast.dart';
 /// 演出本体是一个小状态机（[FullAwakePhase]），方便测试。
 enum FullAwakeDecision { none, fullShow, lightRipple }
 
+/// 满醒计数快照（第 31 轮「星图纪念签」）：累计次数 + 最近一次满醒日期
+/// （老玩家无日期记录，日期为 null，纪念签只显示次数）。
+class FullAwakeCount {
+  const FullAwakeCount({required this.count, this.lastDate});
+
+  /// 累计满醒次数（最少 1）。
+  final int count;
+
+  /// 最近一次满醒的日期（仅日期，不含时刻）；无记录为 null。
+  final DateTime? lastDate;
+
+  /// 纪念签印记文案：「第 M 次满醒」；有日期时附「 · 于 M月D日」。
+  String get memorialText {
+    final base = '第 $count 次满醒';
+    final d = lastDate;
+    if (d == null) return base;
+    return '$base · 于 ${d.month}月${d.day}日';
+  }
+}
+
 /// 满醒演出的触发判定与一次性记账（纯逻辑，无 Flame 依赖）。
 class FullAwakeCtl {
   FullAwakeCtl._();
 
   /// 跨会话"已演过"标记（只演一次的核心）。
   static const String prefKey = 'jingxin.fullawake.v1';
+
+  /// 满醒计数键（第 31 轮「星图纪念签」——本轮唯一新增存储键）：
+  /// 格式 `次数|yyyyMMdd`（字符串键，一次满醒 +1）。
+  /// 向后兼容：无键 = 1（老玩家只满醒过一次，不补写日期）。
+  static const String countPrefKey = 'jingxin.fullawake.count.v1';
+
+  /// 满醒演出正在进行（星图纪念签在演出期间不可点——后到者让先）。
+  static bool performanceActive = false;
+
+  // ---- 纪念签节奏常数（纯逻辑，可测） ----
+  /// 纪念签小卡停留时长（到点开始淡出）。
+  static const double tokenCardDur = 5.0;
+
+  /// 纪念签点击冷却（自弹卡起算，含 5s 停留 + 10s 静默）。
+  static const double tokenCooldown = 15.0;
+
+  /// 纪念签自转周期（秒）——极缓，约 90s 一圈。
+  static const double tokenSpinPeriod = 90.0;
+
+  /// 纪念签自转角（弧度）：elapsed 秒对应的相位。
+  static double tokenAngle(double elapsed) =>
+      (elapsed / tokenSpinPeriod) * 2 * math.pi;
+
+  /// 纪念签可点判定：小卡显示中或冷却未满都不可再点。
+  static bool tokenTapAllowed({
+    required bool showing,
+    required double secondsSinceTap,
+  }) =>
+      !showing && secondsSinceTap >= tokenCooldown;
+
+  /// 解析满醒计数（纯函数）：无键 / 损坏 → 1 次且无日期（向后兼容）。
+  static FullAwakeCount parseCount(String? raw) {
+    if (raw == null) return const FullAwakeCount(count: 1);
+    final parts = raw.split('|');
+    final n = int.tryParse(parts[0]);
+    if (n == null || n < 1) return const FullAwakeCount(count: 1);
+    DateTime? date;
+    if (parts.length > 1 && parts[1].length == 8) {
+      final y = int.tryParse(parts[1].substring(0, 4));
+      final m = int.tryParse(parts[1].substring(4, 6));
+      final d = int.tryParse(parts[1].substring(6, 8));
+      if (y != null && m != null && d != null) {
+        date = DateTime(y, m, d);
+      }
+    }
+    return FullAwakeCount(count: n, lastDate: date);
+  }
+
+  /// 编码满醒计数：`次数|yyyyMMdd`。
+  static String encodeCount(int count, DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '$count|${date.year.toString().padLeft(4, '0')}$mm$dd';
+  }
+
+  /// 读取满醒计数（失败按无键处理：1 次、无日期）。
+  static Future<FullAwakeCount> loadCount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return parseCount(prefs.getString(countPrefKey));
+    } catch (_) {
+      return const FullAwakeCount(count: 1);
+    }
+  }
+
+  /// 满醒记账 +1（在满醒演出真正开演处调用；向后兼容：无键视为 0 → +1 = 1）。
+  static Future<void> bumpCount(DateTime now) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final prior = parseCount(prefs.getString(countPrefKey)).count;
+      // 无键时 prior 解析为 1，但那 1 次尚未记账——本次就是第 1 次；
+      // 有键时才是真正的 +1。
+      final hadKey = prefs.containsKey(countPrefKey);
+      final next = hadKey ? prior + 1 : 1;
+      await prefs.setString(countPrefKey, encodeCount(next, now));
+    } catch (_) {
+      // 持久化失败静默忽略：纪念签少一次计数，不影响演出本身。
+    }
+  }
 
   /// 回落深度：苏醒度跌破该值再回满，也只会是轻量波纹
   /// （满值演出一生只有一次，与回落深度无关——记账在先）。
@@ -212,8 +311,12 @@ class FullAwakeEvent extends Component with HasGameReference<JingjingGame> {
     }
     _phase = FullAwakePhase.show;
     _playedEver = true; // 跳过也照打：错过就是错过。
+    FullAwakeCtl.performanceActive = true; // 纪念签在演出期间不可点。
     // ignore: discarded_futures
     FullAwakeCtl.markPlayed();
+    // 满醒计数 +1（第 31 轮纪念签；本轮唯一新增存储键）。
+    // ignore: discarded_futures
+    FullAwakeCtl.bumpCount(DateTime.now());
   }
 
   /// 演出中任何触摸：跳过——立刻进入 0.9s 快速淡出（标记已照打）。
@@ -233,6 +336,7 @@ class FullAwakeEvent extends Component with HasGameReference<JingjingGame> {
 
   void _reset() {
     _phase = FullAwakePhase.idle;
+    FullAwakeCtl.performanceActive = false;
     _t = 0;
     _koanShown = false;
     _fadeSignaled = false;
