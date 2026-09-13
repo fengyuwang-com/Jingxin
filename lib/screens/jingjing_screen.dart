@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../game/jingjing_game.dart';
+import 'star_map_screen.dart';
 
 /// 静境游戏画面：全屏 Flame GameWidget 展示呼吸光灵，可返回首页。
 ///
@@ -19,15 +22,38 @@ class JingjingScreen extends StatefulWidget {
 
 class _JingjingScreenState extends State<JingjingScreen> {
   late final JingjingGame _game;
+  Timer? _koanTimer;
 
   @override
   void initState() {
     super.initState();
     _game = JingjingGame(seedColor: widget.seedColor);
+    _game.shardMessage.addListener(_onShardMessage);
   }
+
+  /// 碎片被吸入：禅语玻璃面板淡入，停留数秒后自行淡出。
+  /// 不打断漫游，也不需要玩家做任何操作。
+  void _onShardMessage() {
+    final koan = _game.shardMessage.value;
+    if (koan == null) return;
+    _koanTimer?.cancel();
+    _game.shardMessage.value = null;
+    _showKoan(koan);
+  }
+
+  void _showKoan(String koan) {
+    setState(() => _koanText = koan);
+    _koanTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _koanText = null);
+    });
+  }
+
+  String? _koanText;
 
   @override
   void dispose() {
+    _game.shardMessage.removeListener(_onShardMessage);
+    _koanTimer?.cancel();
     _game.awakening.save();
     super.dispose();
   }
@@ -38,9 +64,7 @@ class _JingjingScreenState extends State<JingjingScreen> {
       backgroundColor: ZenTheme.voidBlack,
       body: Stack(
         children: [
-          Positioned.fill(
-            child: GameWidget(game: _game),
-          ),
+          Positioned.fill(child: GameWidget(game: _game)),
           // 顶端极细渐变光线：苏醒度的无声表达。
           Positioned(
             top: 0,
@@ -104,6 +128,59 @@ class _JingjingScreenState extends State<JingjingScreen> {
               ),
             ),
           ),
+          // 心镜碎片禅语：玻璃拟态面板，淡入-停留-淡出，不可交互不打断漫游。
+          Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 72),
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _koanText == null ? 0 : 1,
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOut,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 600),
+                    child: _koanText == null
+                        ? const SizedBox.shrink()
+                        : _KoanGlassPanel(text: _koanText!),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // 左下角极小的星图入口：克制、半透明，像风景里的一扇小窗。
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: IconButton(
+                  tooltip: '我的静境星图',
+                  icon: Icon(
+                    Icons.auto_awesome_outlined,
+                    size: 20,
+                    color: ZenTheme.textMuted.withValues(alpha: 0.5),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      PageRouteBuilder<void>(
+                        transitionDuration: const Duration(milliseconds: 800),
+                        pageBuilder: (_, _, _) => const StarMapScreen(),
+                        transitionsBuilder: (_, animation, _, child) =>
+                            FadeTransition(
+                              opacity: CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOut,
+                              ),
+                              child: child,
+                            ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Align(
               alignment: Alignment.topLeft,
@@ -121,6 +198,40 @@ class _JingjingScreenState extends State<JingjingScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 禅语玻璃面板：毛玻璃 + 细边微光，呈现碎片上的句子。
+class _KoanGlassPanel extends StatelessWidget {
+  const _KoanGlassPanel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: ZenTheme.surfaceDim.withValues(alpha: 0.5),
+          border: Border.all(
+            color: ZenTheme.nebulaCyan.withValues(alpha: 0.16),
+          ),
+        ),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: ZenTheme.textHigh,
+            fontSize: 15,
+            height: 1.7,
+            letterSpacing: 3,
+          ),
+        ),
       ),
     );
   }

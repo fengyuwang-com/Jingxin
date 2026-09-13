@@ -8,6 +8,7 @@ import 'package:flutter/material.dart' hide Draggable;
 import '../core/theme.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
+import 'shard.dart';
 
 /// 静境（Jingjing）游戏循环。
 ///
@@ -17,9 +18,10 @@ import 'insomnia_sea.dart';
 /// 闪烁密度、背景色温与光灵光晕。
 class JingjingGame extends FlameGame with TapCallbacks {
   JingjingGame({this.seedColor = ZenTheme.nebulaCyan})
-      : awakening = AwakeningState(),
-        breathHint = ValueNotifier<String?>(null),
-        awakeningValue = ValueNotifier(0);
+    : awakening = AwakeningState(),
+      breathHint = ValueNotifier<String?>(null),
+      awakeningValue = ValueNotifier(0),
+      shardMessage = ValueNotifier<String?>(null);
 
   final Color seedColor;
   final AwakeningState awakening;
@@ -29,6 +31,15 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 苏醒度镜像，供 UI 层（极细光线/边缘光晕）监听。
   final ValueNotifier<double> awakeningValue;
+
+  /// 刚被吸入的心镜碎片浮现的禅语（null=无），供 UI 玻璃面板监听。
+  final ValueNotifier<String?> shardMessage;
+
+  /// 心镜碎片收集史（持久化），星图回读用。
+  final ShardCollection shardCollection = ShardCollection();
+
+  /// 本轮程序放置的碎片（2~4 片，极稀疏）。
+  final List<MindShard> shards = [];
 
   final math.Random _random = math.Random(42);
   late final LightSpirit _spirit;
@@ -67,8 +78,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
   double _breathJitter = 0;
 
   /// 当前是否处于平稳呼吸（供星岛苏醒判定）。
-  bool get breathSteady =>
-      _breathJitter > 0.004 && _breathJitter < 0.35;
+  bool get breathSteady => _breathJitter > 0.004 && _breathJitter < 0.35;
 
   /// 游戏运行秒数（供组件做微光动画）。
   double get time => _time;
@@ -85,16 +95,14 @@ class JingjingGame extends FlameGame with TapCallbacks {
   @override
   Future<void> onLoad() async {
     await awakening.load();
+    await shardCollection.load();
     awakeningValue.value = awakening.value;
 
     final stars = <_Star>[];
     for (int i = 0; i < 90; i++) {
       stars.add(
         _Star(
-          position: Vector2(
-            _random.nextDouble(),
-            _random.nextDouble(),
-          ),
+          position: Vector2(_random.nextDouble(), _random.nextDouble()),
           radius: 0.4 + _random.nextDouble() * 1.2,
           twinklePhase: _random.nextDouble() * math.pi * 2,
           twinkleSpeed: 0.5 + _random.nextDouble() * 1.5,
@@ -124,7 +132,36 @@ class JingjingGame extends FlameGame with TapCallbacks {
       );
     }
     add(_spirit);
+
+    // 心镜碎片：本轮漫游程序放置 2~4 片，散布在世界中（远离光灵起点）。
+    final shardRng = math.Random(DateTime.now().millisecondsSinceEpoch);
+    final count = 2 + shardRng.nextInt(3);
+    for (int i = 0; i < count; i++) {
+      final pos = Vector2(
+        (0.06 + 0.88 * shardRng.nextDouble()) * worldPeriod.x,
+        (0.06 + 0.88 * shardRng.nextDouble()) * worldPeriod.y,
+      );
+      final shard = MindShard(
+        position: pos,
+        phase: shardRng.nextDouble() * math.pi * 2,
+        tint: i.isOdd ? const Color(0xFF34d399) : ZenTheme.nebulaCyan,
+      );
+      shards.add(shard);
+      add(shard);
+    }
   }
+
+  /// 刚完成一次平稳呼吸循环且尚未被碎片消费——供 MindShard 吸入判定。
+  /// 被消费即返回 true 并清除（一次循环最多吸入一片）。
+  bool consumeCycleEvent() {
+    if (_pendingCycleEvent) {
+      _pendingCycleEvent = false;
+      return true;
+    }
+    return false;
+  }
+
+  bool _pendingCycleEvent = false;
 
   // 呼吸输入：按住=吸气，松开=呼气。
   @override
@@ -154,6 +191,24 @@ class JingjingGame extends FlameGame with TapCallbacks {
     _updateBreath(dt);
     _updateAwakening(dt);
     _updateDrift(dt);
+    _updateShards(dt);
+  }
+
+  /// 碎片吸入完成：记录收集史 + 通知 UI 浮现禅语。不打断漫游。
+  void _updateShards(double dt) {
+    for (final shard in List<MindShard>.of(shards)) {
+      if (!shard.isAbsorbed) continue;
+      shards.remove(shard);
+      remove(shard);
+      shardCollection.add(
+        ShardRecord(
+          time: DateTime.now(),
+          text: shard.koan,
+          region: regionNameFor(spiritPos),
+        ),
+      );
+      shardMessage.value = shard.koan;
+    }
   }
 
   /// 呼吸即移动：吸气蓄力——光灵缓缓朝触点上浮；
@@ -170,11 +225,15 @@ class JingjingGame extends FlameGame with TapCallbacks {
       );
       final target = _touchPoint;
       if (target != null) {
-        final dir = Vector2(target.x - spiritScreen.x, target.y - spiritScreen.y);
+        final dir = Vector2(
+          target.x - spiritScreen.x,
+          target.y - spiritScreen.y,
+        );
         final len = dir.length;
         if (len > 12) {
           dir.scale(1.0 / len);
-          _spiritVelocity += dir * (46.0 * (0.35 + 0.65 * _breathProgress)) * dt;
+          _spiritVelocity +=
+              dir * (46.0 * (0.35 + 0.65 * _breathProgress)) * dt;
         }
       }
       // 吸气浮力：微微向上。
@@ -219,12 +278,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     // 平滑向目标推进：跟随输入速度，从不瞬跳、不惩罚过快。
     if (_pressing) {
-      _breathProgress =
-          (_breathProgress + dt / inhaleDuration).clamp(0.0, 1.0);
+      _breathProgress = (_breathProgress + dt / inhaleDuration).clamp(0.0, 1.0);
       _idleTime = 0;
     } else {
-      _breathProgress =
-          (_breathProgress - dt / exhaleDuration).clamp(0.0, 1.0);
+      _breathProgress = (_breathProgress - dt / exhaleDuration).clamp(0.0, 1.0);
       // 完全呼尽且继续无输入，才逐渐进入空闲自动节奏。
       if (_breathProgress <= 0.001) {
         _idleTime += dt;
@@ -257,6 +314,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
         _breathProgress <= 0.12) {
       if (_cycleTime >= steadyCycleMinTime) {
         _lastCompletedCycle = true;
+        _pendingCycleEvent = true;
       }
       _cyclePeakReached = false;
       _cycleTime = 0;
@@ -300,8 +358,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
 /// 星空背景层，把归一化坐标铺满视口。
 /// 亮度、闪烁密度与背景色温随苏醒度渐变。
-class _Starfield extends Component
-    with HasGameReference<JingjingGame> {
+class _Starfield extends Component with HasGameReference<JingjingGame> {
   _Starfield(this.stars);
 
   final List<_Star> stars;
@@ -321,10 +378,7 @@ class _Starfield extends Component
       const Color(0xFF101828),
       0.35 * aw,
     )!;
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.x, size.y),
-      Paint()..color = bg,
-    );
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), Paint()..color = bg);
 
     // 中央星云微光：随苏醒度扩散、色温偏暖。
     final nebulaInner = Color.lerp(
@@ -333,30 +387,28 @@ class _Starfield extends Component
       0.4 * aw,
     )!;
     final nebulaPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          nebulaInner.withValues(alpha: 0.85 + 0.15 * aw),
-          bg,
-        ],
-      ).createShader(
-        Rect.fromCircle(
-          center: Offset(size.x / 2, size.y / 2),
-          radius: size.length / (1.6 - 0.2 * aw),
-        ),
-      );
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.x, size.y),
-      nebulaPaint,
-    );
+      ..shader =
+          RadialGradient(
+            colors: [
+              nebulaInner.withValues(alpha: 0.85 + 0.15 * aw),
+              bg,
+            ],
+          ).createShader(
+            Rect.fromCircle(
+              center: Offset(size.x / 2, size.y / 2),
+              radius: size.length / (1.6 - 0.2 * aw),
+            ),
+          );
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), nebulaPaint);
 
     for (final star in stars) {
       final twinkle =
-          0.55 + 0.45 * math.sin(_elapsed * star.twinkleSpeed * 2 + star.twinklePhase);
+          0.55 +
+          0.45 * math.sin(_elapsed * star.twinkleSpeed * 2 + star.twinklePhase);
       // 亮度与闪烁幅度随苏醒度增强；高苏醒时更多星星参与闪烁。
       final active = star.twinkleSpeed > 1.6 - 1.1 * aw || aw > 0.85;
       final twinkleAmp = active ? 0.25 + 0.5 * aw : 0.0;
-      final brightness =
-          (0.22 + 0.35 * aw) + twinkleAmp * twinkle;
+      final brightness = (0.22 + 0.35 * aw) + twinkleAmp * twinkle;
       final paint = Paint()
         ..color = ZenTheme.starWhite.withValues(
           alpha: brightness.clamp(0.0, 1.0),
@@ -455,10 +507,10 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     final rng = math.Random(42);
     const particleCount = 18;
     for (int i = 0; i < particleCount; i++) {
-      final angle =
-          (i / particleCount) * math.pi * 2 + rng.nextDouble() * 0.5;
+      final angle = (i / particleCount) * math.pi * 2 + rng.nextDouble() * 0.5;
       final distance =
-          radius * 1.25 + breatheProgress * radius * 0.9 * (0.5 + rng.nextDouble() * 0.5);
+          radius * 1.25 +
+          breatheProgress * radius * 0.9 * (0.5 + rng.nextDouble() * 0.5);
       final p = Offset(
         orbCenter.dx + math.cos(angle) * distance,
         orbCenter.dy + math.sin(angle) * distance,
@@ -477,7 +529,9 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
       text: TextSpan(
         text: '光灵 · 随呼吸起伏',
         style: TextStyle(
-          color: ZenTheme.textMuted.withValues(alpha: (0.55 + 0.3 * glow).clamp(0.0, 1.0)),
+          color: ZenTheme.textMuted.withValues(
+            alpha: (0.55 + 0.3 * glow).clamp(0.0, 1.0),
+          ),
           fontSize: 13,
           letterSpacing: 4,
         ),
@@ -486,10 +540,7 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     )..layout();
     textPainter.paint(
       canvas,
-      Offset(
-        orbCenter.dx - textPainter.width / 2,
-        orbCenter.dy + radius + 42,
-      ),
+      Offset(orbCenter.dx - textPainter.width / 2, orbCenter.dy + radius + 42),
     );
   }
 }
