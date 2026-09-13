@@ -146,6 +146,20 @@ class Koans {
     '你走的那些夜，都停在这颗星里。',
   ];
 
+  /// 「久别重逢」（第 42 轮）：几天没来再进静境时的一句——
+  /// 世界像老朋友一样醒来。主题：被记得、不追问去向。克制、留白。
+  static const List<String> _longAbsencePool = [
+    '你不在的日子，星星替你呼吸。',
+    '走了这么远，世界还认得你的气息。',
+    '回来了就好，夜还是原来那片夜。',
+  ];
+
+  static final List<int> _longAbsenceRecent = [];
+
+  /// 「久别重逢」偈语（第 42 轮）。
+  static String nextLongAbsence() =>
+      _draw(_longAbsencePool, _longAbsenceRecent);
+
   /// 「满醒」终幕偈语（第 28 轮）。
   static String nextFullAwake() => _draw(_fullAwakePool, _fullAwakeRecent);
 

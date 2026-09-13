@@ -727,6 +727,39 @@ class _JingjingScreenState extends State<JingjingScreen>
               ),
             ),
           ),
+          // 久别重逢（第 42 轮）：久别偈——几天没来，世界醒来说的一句。
+          // 到点由演出组件置入 notifier，约 10s 后置 null 自然淡出；
+          // 不挡操作，与满醒偈错位排布（更低、更安静）。
+          ValueListenableBuilder<String?>(
+            valueListenable: _game.longAbsenceKoan,
+            builder: (context, koan, _) => Positioned.fill(
+              child: IgnorePointer(
+                child: Align(
+                  alignment: const Alignment(0, 0.12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: AnimatedOpacity(
+                      opacity: koan == null ? 0 : 1,
+                      duration: Duration(
+                        milliseconds: koan == null ? 1800 : 2200,
+                      ),
+                      curve: Curves.easeOut,
+                      child: Text(
+                        koan ?? ' ',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: ZenTheme.starWhite.withValues(alpha: 0.58),
+                          fontSize: 14,
+                          letterSpacing: 4,
+                          height: 1.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           // 顶端极细渐变光线：苏醒度的无声表达。
           Positioned(
             top: 0,

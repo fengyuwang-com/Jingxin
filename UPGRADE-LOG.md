@@ -625,3 +625,20 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机全链路验证（连续多轮候选，最高优先）。
   2. GitHub Pages 部署 Web 版（需主人确认 push）；部署后用真浏览器（Lighthouse）验证安装横幅与离线二次打开。
   3. Web 端分享卡长按预览（Dialog 内先看一眼再下载）。
+
+## 第 42 轮（2026-09-14）— 久别重逢：离开多日，世界记得你
+- 理念：几天没来，世界不会怪你，而是像老朋友一样醒来。
+- 存储：新键 `jingxin.lastvisit.v1`（yyyyMMddHHmm 本地时刻字符串，本轮唯一新键；每次进入静境 onLoad 读出上一次时刻后写回本次）。距上次 ≥72 小时再进时触发演出。
+- 实现（新增 lib/game/long_absence.dart）：
+  - 判定纯函数 LongAbsenceJudgement：parseStamp（严格 12 位数字 + 真实日期校验，13 月/32 日/61 分等溢出回卷一律 null——损坏串视作从未记录，宁可演出不响也不在错误时刻打扰）、formatStamp、evaluate（返回 triggered + days 完整天数；=72h 整点边界触发；负间隔=时钟回拨不触发）。
+  - LongAbsenceEvent 演出组件：进入后 2.5s（让开场苏醒起个头）判定，命中→星兽「眠」wakeOverride=1 缓缓睁眼望向你（复用 4s/只既有渐变，结束归 0 缓缓合回）+ 1s 后久别偈置入 notifier（新池 3 句：「你不在的日子，星星替你呼吸。」「走了这么远，世界还认得你的气息。」「回来了就好，夜还是原来那片夜。」）+ 10s 后偈语淡出收束；未命中/互斥时零渲染成本，每 2.5s 重评直至命中或让过。
+  - 互斥（后到者让先的既有约定）：开场引导在场（首次进入优先引导）/ 满醒终幕 / 晨光告别 / 相会演出进行中不触发，本轮机会让过。
+  - 苏醒回礼方案：选「仅演出时视觉提升」——演出期间 awakeningValue 镜像临时 +0.10（封顶 1.0），不改 AwakeningState 持久化数值。理由：苏醒度是"呼吸攒出来的旅程值"，一次性 +0.05 永久奖励会让它变成可交易的货币、稀释"平静积累"的语义；回礼是情感不是数值，世界醒来给你看的星光是演出的一部分，谢幕即归位。
+- UI（lib/screens/jingjing_screen.dart）：满醒偈下方错位（Alignment(0, 0.12)、alpha 0.58 更安静）的久别偈 AnimatedOpacity（淡入 2.2s / 淡出 1.8s），IgnorePointer 不挡操作。
+- 测试：test/long_absence_test.dart 新增 13 项——null/空串、长度与非数字、溢出回卷（13 月/32 日/2 月 30 日/61 分）、合法解析与 formatStamp 往返补零、无键首次不触发、<72h、=72h 边界（days=3）、超 72h 天数取整、跨月（31 天月触发/非闰年 2 月不触发）、跨年、损坏串兜底、未来时刻不触发。108→121 全过。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 121/121；flutter build web 成功。
+- commit：feat(game): 久别重逢演出 [auto-night-42]（未 push）。
+- 下一步建议（第 43 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. Web 端分享卡长按预览（Dialog 内先看一眼再下载）；或久别重逢深化（星兽睁眼时远处几颗星依次亮起呼应）。

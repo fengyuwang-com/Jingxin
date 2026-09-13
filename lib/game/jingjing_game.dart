@@ -14,6 +14,7 @@ import 'awakening.dart';
 import 'full_awake.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
+import 'long_absence.dart';
 import 'long_night_whisper.dart';
 import 'mist_guardian.dart';
 import 'morning_star.dart';
@@ -61,6 +62,12 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 长夜记忆：是否进入过长夜（只存不用，供后续睡前章节统计）。
   final LongNightMemory longNight = LongNightMemory();
+
+  /// 久别记忆（第 42 轮）：上次进入静境的时刻（jingxin.lastvisit.v1）。
+  final LongAbsenceMemory longAbsence = LongAbsenceMemory();
+
+  /// 久别偈（演出到点浮现的一句，约 10s 后由演出组件置 null 淡出）。
+  final ValueNotifier<String?> longAbsenceKoan = ValueNotifier(null);
 
   /// 长夜程度（0..1）：setNight 后极缓滑向目标，驱动深夜色调/星亮/光晕收拢。
   double nightAmount = 0;
@@ -271,6 +278,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
     await awakening.load();
     await shardCollection.load();
     await longNight.load();
+    await longAbsence.load();
+    // 久别重逢（第 42 轮）：先读上一次时刻再写回本次（读到的那份才算"上次"）。
+    unawaitedLongAbsenceMark();
     awakeningValue.value = awakening.value;
 
     final stars = <_Star>[];
@@ -406,6 +416,16 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 未满醒过时零渲染成本；画在演出层之上，不与演出争光（互斥在点击侧）。
     morningStar = MorningStar();
     add(morningStar);
+
+    // 「久别重逢」演出（第 42 轮）：最后装配，进入初期只做一次判定，
+    // 未命中零渲染成本。
+    add(LongAbsenceEvent());
+  }
+
+  /// 久别时刻写回（fire-and-forget，失败静默——演出不依赖它成功）。
+  void unawaitedLongAbsenceMark() {
+    // ignore: discarded_futures
+    longAbsence.markVisitNow(DateTime.now());
   }
 
   /// 「星兽低语」（第 32 轮）：长夜里距玩家较近的那只星兽身旁
@@ -799,8 +819,17 @@ class JingjingGame extends FlameGame with TapCallbacks {
   void _updateAwakening(double dt) {
     awakening.update(dt, completedCycle: _lastCompletedCycle);
     _lastCompletedCycle = false;
-    awakeningValue.value = awakening.value;
+    var value = awakening.value;
+    // 久别回礼（第 42 轮）：演出期间世界提前 10% 苏醒——仅视觉，
+    // 不碰 AwakeningState 的持久化数值（回礼是情感，不是货币）。
+    if (longAbsenceActive) {
+      value = (value + LongAbsenceEvent.awakeningGift).clamp(0.0, 1.0);
+    }
+    awakeningValue.value = value;
   }
+
+  /// 「久别重逢」演出是否进行中（由 LongAbsenceEvent 置位，游戏侧镜像）。
+  bool longAbsenceActive = false;
 
   void _setHint(String? hint) {
     if (breathHint.value != hint) {
