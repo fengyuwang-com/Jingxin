@@ -115,5 +115,13 @@ void main() {
       final k = ctl.pickKoan(Koans.whisperPool);
       expect(Koans.whisperPool.contains(k), isTrue);
     });
+
+    test('入睡偈语池足量且无重复（第 54 轮扩充后 ≥12 句）', () {
+      final pool = Koans.whisperPool;
+      expect(pool.length, greaterThanOrEqualTo(12));
+      expect(pool.toSet().length, pool.length, reason: '偈语池不应有重复句');
+      // 去重队列（recentKeep=4）远小于池：连续取句必有新鲜句可选。
+      expect(pool.length, greaterThan(BeastWhisperCtl.recentKeep));
+    });
   });
 }

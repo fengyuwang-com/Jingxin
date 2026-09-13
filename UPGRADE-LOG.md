@@ -806,3 +806,18 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 雾痕深化：雾痕淡出末段偶发一次极淡的余光脉冲（如花火般"道别"）；或惘语偈语池扩充 / 注视深化。
+
+## 第 54 轮（2026-09-14）—— 雾痕道别：淡出末段的余光脉冲（惑星线收束）
+- 理念：雾痕生命的最后 45 秒里，以 seed 决定的某一刻极轻地亮一下——比雾痕本体还淡的 3.5s sin 包络余光，像花火般一闪而过的"道别"。三轮惑星线深化（通达→雾痕→道别）到此收束封笔。
+- 实现：
+  - 纯函数（lib/game/perplex_insight.dart 追加）：mistFarewellPulse(elapsedMs, {seed})——窗口为雾痕生命最后 45s（kMistFarewellWindowMs=45000），seed 经 Knuth 乘法散列（纯整数运算，确定性）取 0..1 分数，脉冲起点在窗口内且整段 3.5s（kMistFarewellPulseMs）完整落在生命尽头之前；sin 包络 × 峰值 kMistFarewellPeakAlpha=0.10（恰 5 个 0.02 量化步，比雾痕本体 0.14 还淡），窗口外恒 0。
+  - 收束整理（不改变行为）：mistTraceAlpha / mistTraceBreath / 道别脉冲三处同款 0.02 量化收敛为单一 _quantize 助手；perplex 线到此封笔。
+  - 渲染（perplex_planet.dart）：_renderMistTrace 把脉冲 alpha 叠加到雾痕 alpha（clamp 0.3 封顶）；脉冲期间从雾痕散出 8 粒极小灰紫光尘（0xFF9b8fb8，0.7~1.3px，角度/距离系数构造期预生成定长池 _farewellAngles/_farewellFactors，触发只置相位 _farewellT，3.5s 走完归位）——零每帧分配。alpha 归零 removeFromParent 逻辑不变。
+  - 偈语池扩充（long_night_whisper 用的入睡池，koans.dart _whisperPool）：主题"夜是一间亮着灯的房间"追加 5 句（10→15 句），纯数据追加。
+- 测试（mist_trace_test.dart 新增 7 项、beast_whisper_test.dart 新增 1 项，226→234）：窗口外恒 0（早段全扫 + 生命尽头之后）、同 seed 同曲线确定性、端点起止归零 + 全生命周期细采样"只闪一次且仅一段连续非零区间"（8 seed）、峰值上限 + 0.02 量化（64 seed × 17ms 步长全扫）、25ms 步长连续性、触发时刻确实落在末段窗口内且 32 seed 铺开 ≥8 种不同秒级时机、常量对齐（峰值=5 步）；偈语池 ≥12 句、无重复、远大于去重队列。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 234/234；flutter build web 成功。
+- commit：feat(game): 雾痕道别——淡出末段的余光脉冲 [auto-night-54]（未 push）。
+- 下一步建议（第 55 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 惑星线已收束，可转注：晨光泛音深化 / 惘语偈语池扩充 / 或开新支线。
