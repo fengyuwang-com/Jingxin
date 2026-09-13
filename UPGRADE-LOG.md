@@ -704,3 +704,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先，一键上线）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 呼吸音深化：极轻档随晨光渐涨回全量；或 Web 端分享卡长按预览。
+
+## 第 47 轮（2026-09-14）—— 呼吸音晨光回涨：天亮了，琴缓缓涨回来
+- 理念：极轻档不再在告别瞬间被拉回全量，而是随晨光一起、以太阳的速度涨回来——天亮前是夜的系数，日 出后琴随光醒。
+- 实现：
+  - 纯曲线（lib/game/breath_sound.dart）：breathDawnProgress(daylight) 把 DayTide.daylight（6:00 过零上行）映射为 0..1 回涨进度，daylight ≤ 0 恒 0（天没亮不回涨）、≥ kBreathDawnFullDaylight=0.5（约上午 9:00）恒 1，中间 smoothstep（两端导数为零，6:00 处恰好从零斜率起步）；复合函数 breathDawnFactor(daylight, nightFactor) = nightFactor + (1-nightFactor)×progress——天亮前严格等于夜间礼让系数，回涨完成后恒 1.0，非长夜恒 1.0。零分配、可单测。
+  - 接线（lib/screens/jingjing_screen.dart 的 _syncBreathLull）：复用长夜闲置巡检的每秒校准，night = breathNightFactor(夜深秒数)，factor = breathDawnFactor(DayTide.daylight(当前分钟), night)，再乘随息起伏 breathWobbleFactor——跨过 6:00 的长夜，呼吸音随晨光从 0.35 极轻档平滑涨回全量，无需等告别演出；_finishFarewell 的 ramp 回 1.0 收尾保持不变（幂等）。
+  - Web 发声零改动：走第 45 轮既有的 setBreathLullFactor → _BreathVoice.lullGain → setTargetAtTime（1s 时间常数）路径，每秒小步推进天然平滑，不碰白噪音总线；Android 无对应音量逻辑（soundscape_stub 空实现），不强加。
+- 测试（test/breath_sound_test.dart 新增 4 项，146→150）：晨光进度端点/单调/smoothstep 中点半程；复合端点（天未亮=夜间系数、daylight≥0.5=全量、非长夜恒 1.0）；整夜逐分钟连续性（23:00 起采样到 11:00，相邻分钟 |Δ|<0.02 且全程夹在 [0.35,1.0]）；日出后 6:00~9:30 回涨单调不回跌且终点归一。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 150/150；flutter build web 成功。
+- commit：e76ee55（feat(game): 呼吸音晨光回涨——清晨增益平滑涨回全量 [auto-night-47]，未 push）。
+- 下一步建议（第 48 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. Web 端分享卡长按预览；或晨光深化：满醒日印当天的晨光回涨带一点极轻的高八度泛音（世界醒来的第一声更亮）。
