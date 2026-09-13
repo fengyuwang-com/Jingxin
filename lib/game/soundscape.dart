@@ -68,6 +68,12 @@ abstract class SoundscapeEngine {
     required bool inhaling,
     required bool steady,
   });
+
+  /// 入睡礼让（第 45 轮）：呼吸音的全局增益系数（0..1+，1.0=全量）。
+  /// 长夜 10 分钟后 0.6、20 分钟后 0.35（breathNightFactor），退出
+  /// 长夜/晨光告别后调回 1.0。Web 实现用独立增益节点长 ramp 平滑
+  /// 过渡（数秒尺度），绝不跳变；相位映射不受影响。
+  void setBreathLullFactor(double factor);
 }
 
 /// 声景选择持久化（shared_preferences，所有平台可用）。

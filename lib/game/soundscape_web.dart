@@ -198,6 +198,28 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
     _breath?.apply(phase: phase, inhaling: inhaling, steady: steady);
   }
 
+  /// 入睡礼让（第 45 轮）：长夜渐深时把呼吸音缓缓压轻（半档/极轻），
+  /// 退出长夜调回 1.0。走独立 lull 增益节点、setTargetAtTime 长时间
+  /// 常数（约 3 秒）平滑推进——入睡的人听不见任何"被调小"的动作。
+  @override
+  void setBreathLullFactor(double factor) {
+    final ctx = _ctx;
+    final voice = _breath;
+    if (ctx == null || voice == null || !voice.built) {
+      return; // 未构建：构建时取默认 1.0。
+    }
+    try {
+      final now = ctx.currentTime;
+      voice.lullGain.gain.setTargetAtTime(
+        factor <= 0 ? 0.0001 : factor,
+        now,
+        1.0, // 时间常数 1s → 约 3 秒基本到位，长 ramp 无跳变。
+      );
+    } catch (_) {
+      // 礼让失败无伤大雅：呼吸音保持原音量。
+    }
+  }
+
   /// start/开关变更时按当前状态起停呼吸之音。
   void _startOrStopBreath({required double fadeIn}) {
     if (_breathEnabled && _playing) {
@@ -587,6 +609,10 @@ class _BreathVoice {
 
   late final web.OscillatorNode osc;
   late final web.GainNode toneGain;
+
+  /// 入睡礼让（第 45 轮）：toneGain 与 bus 之间的独立全局系数节点，
+  /// 长夜越深越轻（breathNightFactor），与音内包络/起停 ramp 相互正交。
+  late final web.GainNode lullGain;
   late final web.GainNode bus;
   bool built = false;
 
@@ -607,8 +633,11 @@ class _BreathVoice {
     osc.frequency.value = kBreathPentatonic.first;
     toneGain = ctx.createGain();
     toneGain.gain.value = 0.0001;
+    lullGain = ctx.createGain();
+    lullGain.gain.value = 1.0; // 构建时默认全量，礼让由屏幕侧按夜深推进。
     osc.connect(toneGain);
-    toneGain.connect(bus);
+    toneGain.connect(lullGain);
+    lullGain.connect(bus);
     osc.start();
     built = true;
   }
