@@ -200,3 +200,16 @@
   1. 星图数据导出/导入：碎片收集史的 JSON 导出与导入（分享卡/换机迁移，克制呈现）
   2. 部署 GitHub Pages/静态托管：flutter build web 产物已就绪（需主人确认 push；可配 PWA manifest 加到主屏）
   3. 整体性能 profile：DevTools 实测帧率/内存，针对四区域+静之径等新增层做一次数据驱动的收敛与移动端适配 pass
+
+## 2026-09-13 第15轮：拾忆——心镜导出与带回
+- 做了什么：
+  - 编解码层：新增 lib/game/memento.dart——MementoCodec 把全部收集史（碎片时间戳+禅语+区域）与苏醒度/星兽状态打包为 `jx-memo-v1:<base64(utf8(json))>`（格式版本 v1，schema 写在文件头注释里便于将来导入兼容；base64 轻混淆仅避免被一眼读出，非加密）。tryDecode 容忍粘贴时混入的说明文字与空白，任何异常（前缀/版本/字段/base64 坏）一律静默返回 null。mergeShards 纯函数合并：同片 = 同时间戳+同禅语（不覆盖现有，保留现有实例对象），按时间升序返回新增片数。
+  - UI（star_map_screen）：右上角一枚极小的 auto_awesome 图标（tooltip 拾忆）→ 玻璃拟态底部抽屉（ClipRRect + BackdropFilter，ZenMotion.page/pageCurve 入场上浮淡入，与点选偈语卡同语言），三件小事：「带我的心境走」（导出到剪贴板，淡字「已复制，收好」）、「看一眼足迹」（极简纯文本回顾：共 X 片、第一次/最近一次的日期+区域+禅语，淡入展开）、「放回心镜」（粘贴文本框 + 「归位」按钮，失败淡字「这段记忆读不出来」，成功淡字「心镜归位了，共 N 片」并刷新星图）。无文件选择器、无表格、无设置页感。
+  - star_beast.dart 仅追加 swimUntilEpoch 只读 getter（导出用）。
+- 不回退：呼吸输入、随息、苏醒度、四区域、星兽、静之径、星图回看、长夜声景、闻声全部保留；导入不改写任何既有 key 格式。
+- 质量门槛：flutter analyze 0 error（回到基线 19 条既有 warning/info，新文件零告警）；flutter test 9 项全部通过（新增 test/shard_merge_test.dart 8 项：往返/容错/坏输入/版本不符/去重合并/不覆盖/幂等）；flutter build web 成功。
+- commit: 5fe9009 feat(game): 拾忆——心镜导出与带回 [auto-night-15]
+- 下一步建议（第16轮）三选一：
+  1. 整体性能 profile 与移动端适配 pass：DevTools 实测帧率/内存，四区域+静之径+拾忆后做一次数据驱动的收敛与触屏手感调校
+  2. 部署 GitHub Pages/静态托管：flutter build web 产物已就绪（需主人确认 push；可配 PWA manifest 加到主屏）
+  3. 新的世界级彩蛋：如「百年一遇的流星雨」或拾忆文本的隐藏彩语（极低概率、无提示，让世界偶尔神秘地眨眼）
