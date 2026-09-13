@@ -581,3 +581,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机全链路验证（连续多轮候选，最高优先）。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 潮汐深化：分享卡角落加当前时刻昼夜小印记（复用 tideTintAt）；或满醒纪念签加「满醒 M 次」金印。
+
+## 第 39 轮（2026-09-14）— 分享卡昼夜印记：卡上留下那一夜的时辰
+- 理念：每一张带走的星图，都该记得它是哪个时辰画的。
+- 实现（lib/game/star_card.dart）：
+  - 时辰印记：右下角日期行旁一枚细描边圆环（直径 28px，0.8 描边，textMuted 30%），环上按生成时刻的昼夜相位放一枚 2px 小点——24h 映射到圆环一周（正午在上 -π/2、午夜在下 +π/2，时钟反向、0:00 环绕连续），与 day_tide 的昼夜曲线同源；黄昏（17:00–20:30，复用 DayTide.duskWarmth）小点按暖度混入落日暖色（极淡 75% alpha）。
+  - 满醒金印：卡面满醒过才在左下角加一枚小金点（2.4px 星兽金 80%）+ 细环（星兽金 25%），复用纪念签视觉语言，与右下时辰印记同行对齐；非满醒玩家无此元素。
+  - 纯函数可测：tideMarkAngle（分钟→角度，环绕连续）、tideMarkPoint（环上坐标）、tideMarkDotColor（黄昏暖色）、tideMarkCenter / fullAwakeSealCenter（位置）、marksWithinSafeArea（出血区防御）。渲染仍一次离屏完成（PictureRecorder → toImage），painter 新增 minutesOfDay 参数（默认取 DateTime.now()）。
+- 测试：test/star_card_test.dart 新增 4 项（正午/午夜角度与环上位置、黄昏暖色方向、左右印记位置对齐、印记不出 12px 出血区），97→101 项全过。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 101/101；flutter build web 成功。
+- commit：feat(game): 分享卡时辰印记与满醒金印 [auto-night-39]（未 push）。
+- 下一步建议（第 40 轮候选）：
+  1. Android 真机全链路验证（连续多轮候选，最高优先）。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 分享卡深化：Web 端长按预览（Dialog 内先看一眼再下载）；或时辰印记旁加极小的时辰汉字（子时/午时）。

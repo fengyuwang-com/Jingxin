@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import 'day_tide.dart';
 import 'memo_stats.dart';
 import 'shard.dart';
 
@@ -65,6 +66,76 @@ String starCardStatsLine(List<ShardRecord> records) {
 String starCardDateLine(DateTime now) =>
     '${now.year}年${now.month}月${now.day}日';
 
+/// ── 时辰印记（第 39 轮）────────────────────────────────────────
+///
+/// 每一张带走的星图都记得它是哪个时辰画的：日期行旁一枚细描边
+/// 圆环，环上按生成时刻的昼夜相位放一枚小点——把 24 小时映射到
+/// 圆环一周，正午在上（-π/2）、午夜在下（+π/2），与 [DayTide]
+/// 的昼夜曲线同源。黄昏时刻小点带极淡暖色。直径约 28px，克制。
+
+/// 时辰印记圆环半径（直径 28px）。
+const double tideMarkRingRadius = 14;
+
+/// 环上小点的半径。
+const double tideMarkDotRadius = 2;
+
+/// 昼夜相位 → 圆环角度（弧度，屏幕坐标系 y 向下）。
+/// 24h 映射到圆环一周：正午在上（-π/2），午夜在下（+π/2），
+/// 与时钟反向（午后往左、清晨往右），环过 0:00 环绕连续。
+/// 纯函数：tideMarkAngle(720) = -π/2（上），tideMarkAngle(0) = +π/2（下）。
+double tideMarkAngle(int minutes) {
+  final frac = ((minutes - 720) / 1440) % 1.0;
+  return -math.pi / 2 + 2 * math.pi * frac;
+}
+
+/// 时辰印记小点在圆环上的位置：[center] 为环心，[radius] 为环半径。
+/// 纯函数、确定性。
+Offset tideMarkPoint(int minutes, Offset center, double radius) {
+  final a = tideMarkAngle(minutes);
+  return Offset(
+    center.dx + math.cos(a) * radius,
+    center.dy + math.sin(a) * radius,
+  );
+}
+
+/// 时辰印记小点的颜色：日常是极淡的星白，黄昏（17:00–20:30，
+/// 与 [DayTide.duskWarmth] 同窗）按暖度混入落日暖色——极淡，
+/// 只在点上一瞬的暖意。纯函数。
+Color tideMarkDotColor(int minutes) {
+  final g = DayTide.duskWarmth(minutes);
+  return Color.lerp(ZenTheme.starWhite, DayTide.duskWarmTint, g)!;
+}
+
+/// 时辰印记环心位置：右下角日期行旁。
+Offset tideMarkCenter(Size size) => Offset(size.width - 48, size.height - 58);
+
+/// 满醒金印位置：左下角，与右下的时辰印记对齐。
+/// 仅满醒过的玩家可见（卡面另有中央小晨星）。
+Offset fullAwakeSealCenter(Size size) => Offset(48, size.height - 58);
+
+/// 印记安全区：任何印记（环 + 点）都必须完整落在卡内、且不越过
+/// 边缘出血线 [bleed]。纯函数，用于测试与防御。
+bool marksWithinSafeArea(Size size, {double bleed = 12}) {
+  final safe = Rect.fromLTRB(
+    bleed,
+    bleed,
+    size.width - bleed,
+    size.height - bleed,
+  );
+  final centers = [
+    tideMarkCenter(size),
+    fullAwakeSealCenter(size),
+  ];
+  const reach = tideMarkRingRadius + tideMarkDotRadius;
+  return centers.every(
+    (c) =>
+        c.dx - reach >= safe.left &&
+        c.dx + reach <= safe.right &&
+        c.dy - reach >= safe.top &&
+        c.dy + reach <= safe.bottom,
+  );
+}
+
 /// 把当前星图渲染成一张离屏分享卡 [ui.Image]
 /// （1080×1620 PNG 前身）。UI 线程一次完成，无 isolate。
 Future<ui.Image> renderStarCardImage({
@@ -73,9 +144,11 @@ Future<ui.Image> renderStarCardImage({
 }) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
+  final now = DateTime.now();
   _StarCardPainter(
     records: records,
     fullAwakePlayed: fullAwakePlayed,
+    minutesOfDay: now.hour * 60 + now.minute,
   ).paint(canvas, starCardSize);
   final picture = recorder.endRecording();
   final image = picture.toImage(
@@ -89,10 +162,17 @@ Future<ui.Image> renderStarCardImage({
 /// 分享卡画笔：深空底色 + 黄金角螺旋星点（区域色相）+ 中央小晨星
 /// （满醒过才有）+ 顶部小字 + 底部统计与日期。克制留白，系统字体。
 class _StarCardPainter extends CustomPainter {
-  _StarCardPainter({required this.records, required this.fullAwakePlayed});
+  _StarCardPainter({
+    required this.records,
+    required this.fullAwakePlayed,
+    required this.minutesOfDay,
+  });
 
   final List<ShardRecord> records;
   final bool fullAwakePlayed;
+
+  /// 生成时刻（分钟数 0..1439），供时辰印记定位与暖色。
+  final int minutesOfDay;
 
   static const Color _beastGold = Color(0xFFe8c473);
 
@@ -197,6 +277,42 @@ class _StarCardPainter extends CustomPainter {
       color: ZenTheme.textMuted.withValues(alpha: 0.42),
       letterSpacing: 2,
     );
+
+    // 时辰印记（第 39 轮）：右下角日期行旁一枚细描边圆环，
+    // 环上按昼夜相位放一枚小点——这一夜是哪个时辰，卡自己记得。
+    final ringC = tideMarkCenter(size);
+    canvas.drawCircle(
+      ringC,
+      tideMarkRingRadius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8
+        ..color = ZenTheme.textMuted.withValues(alpha: 0.30),
+    );
+    canvas.drawCircle(
+      tideMarkPoint(minutesOfDay, ringC, tideMarkRingRadius),
+      tideMarkDotRadius,
+      Paint()..color = tideMarkDotColor(minutesOfDay).withValues(alpha: 0.75),
+    );
+
+    // 满醒金印（第 39 轮）：左下角一枚小金点 + 细环，
+    // 与纪念签同款视觉语言；非满醒玩家无此元素。
+    if (fullAwakePlayed) {
+      final sealC = fullAwakeSealCenter(size);
+      canvas.drawCircle(
+        sealC,
+        tideMarkRingRadius,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8
+          ..color = _beastGold.withValues(alpha: 0.25),
+      );
+      canvas.drawCircle(
+        sealC,
+        2.4,
+        Paint()..color = _beastGold.withValues(alpha: 0.8),
+      );
+    }
   }
 
   @override
