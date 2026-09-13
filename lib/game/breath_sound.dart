@@ -34,6 +34,78 @@ const double kBreathToneMaxGain = 0.06;
 /// 呼吸紊乱（不平稳）时的增益衰减系数：用更少的音回应，不是静默。
 const double kBreathUnsteadyGainFactor = 0.35;
 
+// ---- 入睡礼让（第 45 轮）：夜越深，琴越轻 ----
+
+/// 进入长夜后呼吸音降到「半档」（60%）的时刻（秒）。
+const double kBreathLullHalfSeconds = 600;
+
+/// 进入长夜后呼吸音降到「极轻」（35%）的时刻（秒）。
+const double kBreathLullDeepSeconds = 1200;
+
+/// 「半档」系数。
+const double kBreathLullHalfFactor = 0.6;
+
+/// 「极轻」系数。
+const double kBreathLullDeepFactor = 0.35;
+
+/// 两段边界前后各 [kBreathLullRampSeconds/2] 秒的平滑过渡窗总宽（秒）：
+/// 用 smoothstep 在 60 秒里缓缓滑下去，绝不跳变。
+const double kBreathLullRampSeconds = 60;
+
+/// 随息（麦克风）联动：呼吸音随气息包络起伏的幅度（±15%）。
+const double kBreathWobbleDepth = 0.15;
+
+/// 长夜已持续 [seconds] 秒时，呼吸音的全局增益系数（纯函数）。
+///
+/// 三段平台：0~10 分钟全量 1.0 → 10~20 分钟「半档」0.6 → 20 分钟后
+/// 「极轻」0.35；两段边界各用 60 秒 smoothstep 缓缓滑落（入睡的人
+/// 不该听见任何"被调小"的动作）。呼吸相位映射不变，只乘这一系数；
+/// 退出长夜时调用方把系数平滑 ramp 回 1.0。
+double breathNightFactor(double seconds) {
+  if (seconds <= 0) return 1.0;
+  double f = 1.0;
+  f = _lullStep(
+    seconds,
+    boundary: kBreathLullHalfSeconds,
+    lowFactor: kBreathLullHalfFactor,
+    incoming: f,
+  );
+  f = _lullStep(
+    seconds,
+    boundary: kBreathLullDeepSeconds,
+    lowFactor: kBreathLullDeepFactor,
+    incoming: f,
+  );
+  return f;
+}
+
+/// 单段礼让：边界前保持 [incoming]，边界后落到 [lowFactor]，
+/// 边界前后各半窗用 smoothstep（3t²-2t³，两端导数为零）过渡。
+double _lullStep(
+  double seconds, {
+  required double boundary,
+  required double lowFactor,
+  required double incoming,
+}) {
+  final half = kBreathLullRampSeconds / 2;
+  if (seconds <= boundary - half) return incoming;
+  if (seconds >= boundary + half) return lowFactor;
+  final t = (seconds - (boundary - half)) / kBreathLullRampSeconds;
+  final s = t * t * (3 - 2 * t);
+  return incoming + (lowFactor - incoming) * s;
+}
+
+/// 随息（麦克风）联动（纯函数）：把平滑呼吸包络（0..1，见
+/// jingjing_game.micEnvelope）映射成 ±15% 的音量起伏系数——
+/// 气息饱满时琴声微微扬起、气息歇下时轻轻收回，像琴随呼吸呼吸。
+///
+/// 未开随息时调用方传 0.5（构造上恰为 1.0，呼吸音保持原档位）：
+/// 这个"以中点为零"的约定让两条路径共用同一个纯函数，无需分支。
+double breathWobbleFactor(double envelope) {
+  final e = envelope.clamp(0.0, 1.0).toDouble();
+  return (1.0 - kBreathWobbleDepth) + 2 * kBreathWobbleDepth * e;
+}
+
 /// 一次呼吸取音的结果：正弦振荡器此刻应走向的频率与增益。
 class BreathTone {
   const BreathTone({required this.frequency, required this.gain});

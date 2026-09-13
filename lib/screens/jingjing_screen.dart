@@ -57,6 +57,9 @@ class _JingjingScreenState extends State<JingjingScreen>
   /// 长夜模式：true 时世界缓缓入夜，声景极缓淡入。
   bool _nightMode = false;
 
+  /// 长夜开始时刻（第 45 轮入睡礼让）：呼吸音随夜深缓缓变轻的计时起点。
+  DateTime? _nightStartAt;
+
   // ---- 麦克风呼吸（第 9 轮）：完全可选、默认关闭、不持久化 ----
   /// 麦克风引擎（懒创建，只在用户点击手势内 start）。
   BreathMicEngine? _micEngine;
@@ -339,6 +342,7 @@ class _JingjingScreenState extends State<JingjingScreen>
       setState(() => _nightMode = true);
       _game.setNight(true);
       _lastInteraction = DateTime.now();
+      _nightStartAt = DateTime.now(); // 入睡礼让：从这一刻起夜越来越深。
       await _game.longNight.markVisited();
       final engine = _soundscape ??= SoundscapeEngineImpl();
       await engine.select(_scene); // 未播放时只记录选择
@@ -380,6 +384,7 @@ class _JingjingScreenState extends State<JingjingScreen>
           .difference(_lastInteraction)
           .inMilliseconds
           .toDouble();
+      _syncBreathLull(); // 入睡礼让：夜越深，琴越轻（每秒校一次）。
       if (LongNightFarewell.shouldBegin(
         idleSeconds: idle / 1000.0,
         manuallyEnded: false,
@@ -387,6 +392,24 @@ class _JingjingScreenState extends State<JingjingScreen>
         _beginFarewell();
       }
     });
+  }
+
+  /// 入睡礼让（第 45 轮）：按长夜已持续的秒数把呼吸音全局系数
+  /// 缓缓压轻（10 分钟半档、20 分钟极轻，见 breathNightFactor）；
+  /// 随息开着时叠一层 ±15% 的气息起伏（breathWobbleFactor）。
+  /// 退出长夜由 [_finishFarewell] 把系数调回 1.0（引擎侧长 ramp）。
+  void _syncBreathLull() {
+    if (!_breathSoundOn || !_nightMode || _farewell) return;
+    final start = _nightStartAt;
+    if (start == null) return;
+    final nightSeconds =
+        DateTime.now().difference(start).inMilliseconds / 1000.0;
+    // 随息包络（0..1）直接当起伏源；未开随息传 0.5（构造上恰为 1.0，
+    // 呼吸音保持原档位，见 breathWobbleFactor 的中点约定）。
+    final envelope = _micOn ? _game.micEnvelope : 0.5;
+    _soundscape?.setBreathLullFactor(
+      breathNightFactor(nightSeconds) * breathWobbleFactor(envelope),
+    );
   }
 
   /// 开始晨光告别：暖金晨光 15s 漫入、星兽眯眼、白噪音 20s 平滑淡出、
@@ -476,6 +499,10 @@ class _JingjingScreenState extends State<JingjingScreen>
     _game.farewellPlaying = false;
     _game.setNight(false);
     _game.setFarewell(0.0); // 星兽缓缓重新睁眼（4s/只渐变）。
+    // 入睡礼让收束：夜过去了，把呼吸音系数平滑 ramp 回全量
+    // （引擎侧约 3 秒长 ramp，晨光里不会突然变响）。
+    _nightStartAt = null;
+    _soundscape?.setBreathLullFactor(1.0);
     _whisperTimer?.cancel();
     _beastWhisperTimer?.cancel();
     // 兽语签作废：梦话没被听完（天亮了）。

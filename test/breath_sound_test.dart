@@ -1,4 +1,5 @@
 // 呼吸之音（第 44 轮）测试：相位→音高/增益的纯映射 + 开关持久化。
+// 第 45 轮追加：入睡礼让曲线（breathNightFactor）与随息起伏（breathWobbleFactor）。
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jingxin_meditation/game/breath_sound.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,7 +31,6 @@ void main() {
     test('呼气与吸气镜像：同相位呼气频率 = 吸气在补相位的频率', () {
       for (int i = 0; i <= 100; i++) {
         final p = i / 100;
-        final inhale = breathToneFor(phase: p, inhaling: true, steady: true);
         final exhale = breathToneFor(phase: p, inhaling: false, steady: true);
         final mirrored = breathToneFor(
           phase: 1.0 - p, inhaling: true, steady: true);
@@ -109,6 +109,74 @@ void main() {
       final again = BreathSoundPreference();
       await again.load();
       expect(again.enabled, isFalse);
+    });
+  });
+
+  group('入睡礼让曲线（第 45 轮 breathNightFactor）', () {
+    test('非长夜 / 负值 / 刚入夜：系数恒为全量 1.0', () {
+      for (final s in [-100.0, 0.0, 1.0, 300.0, 569.0]) {
+        expect(breathNightFactor(s), 1.0, reason: 'seconds=$s 应仍是全量');
+      }
+    });
+
+    test('半档平台：10~20 分钟稳定在 0.6', () {
+      // 过渡窗为边界前后各 30 秒，630 之后应完全落到半档。
+      for (final s in [630.0, 900.0, 1140.0, 1169.9]) {
+        expect(breathNightFactor(s), closeTo(kBreathLullHalfFactor, 1e-9),
+            reason: 'seconds=$s 应处于半档平台');
+      }
+    });
+
+    test('极轻平台：20 分钟后稳定在 0.35', () {
+      for (final s in [1230.0, 1800.0, 3600.0, 7200.0]) {
+        expect(breathNightFactor(s), closeTo(kBreathLullDeepFactor, 1e-9),
+            reason: 'seconds=$s 应处于极轻平台');
+      }
+    });
+
+    test('边界过渡平滑：60 秒窗内单调滑落、中点恰为半程、两端接平', () {
+      // 第一段边界 600s：570 处仍 1.0，630 处已 0.6。
+      expect(breathNightFactor(570.0), closeTo(1.0, 1e-9));
+      expect(breathNightFactor(600.0), closeTo(0.8, 1e-9)); // smoothstep 半程
+      expect(breathNightFactor(630.0), closeTo(0.6, 1e-9));
+      // 窗内严格单调下降，且始终夹在两平台之间。
+      double prev = 1.0;
+      for (int i = 571; i <= 629; i++) {
+        final f = breathNightFactor(i.toDouble());
+        expect(f, lessThan(prev), reason: 'i=$i 应继续下滑（无回弹）');
+        expect(f, lessThan(1.0));
+        expect(f, greaterThan(kBreathLullHalfFactor));
+        prev = f;
+      }
+      // 第二段边界 1200s 同样平滑：1170 仍 0.6，1230 已 0.35。
+      expect(breathNightFactor(1170.0), closeTo(kBreathLullHalfFactor, 1e-9));
+      expect(breathNightFactor(1200.0),
+          closeTo((kBreathLullHalfFactor + kBreathLullDeepFactor) / 2, 1e-9));
+      expect(breathNightFactor(1230.0), closeTo(kBreathLullDeepFactor, 1e-9));
+    });
+
+    test('随息起伏（breathWobbleFactor）：气息满扬起 +15%、歇下收回 -15%', () {
+      expect(breathWobbleFactor(1.0), closeTo(1.15, 1e-9));
+      expect(breathWobbleFactor(0.0), closeTo(0.85, 1e-9));
+      // 中点约定：未开随息时传 0.5 → 恰为 1.0，原档位不变。
+      expect(breathWobbleFactor(0.5), closeTo(1.0, 1e-9));
+      // 越界钳制，绝不放大到 ±15% 之外。
+      expect(breathWobbleFactor(-3.0), closeTo(0.85, 1e-9));
+      expect(breathWobbleFactor(7.0), closeTo(1.15, 1e-9));
+    });
+
+    test('礼让 × 起伏组合：极轻夜里的音量仍被双重压低且下有地板', () {
+      final deepest =
+          breathNightFactor(3600.0) * breathWobbleFactor(0.0);
+      expect(deepest, closeTo(kBreathLullDeepFactor * 0.85, 1e-9));
+      // 任何组合都落在 [极轻×0.85, 全量×1.15] 的温和区间内。
+      for (final s in [0.0, 300.0, 600.0, 900.0, 1200.0, 2400.0]) {
+        for (final e in [0.0, 0.5, 1.0]) {
+          final f = breathNightFactor(s) * breathWobbleFactor(e);
+          expect(f, lessThanOrEqualTo(1.15));
+          expect(f, greaterThanOrEqualTo(kBreathLullDeepFactor * 0.85 - 1e-9));
+        }
+      }
     });
   });
 }
