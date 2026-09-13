@@ -92,3 +92,9 @@
 - AI 行动: 新建 lib/game/memento.dart（MementoCodec encode/tryDecode + mergeShards 纯函数，schema 注释入档）；star_map_screen 加右上角小图标 + _MementoDrawer 玻璃抽屉（BackdropFilter + ZenMotion 上浮淡入 + 三动作 + 一行淡字反馈）；star_beast.dart 加 swimUntilEpoch getter；新增 test/shard_merge_test.dart（8 项）；UPGRADE-LOG/todo/FENGMEM 更新
 - 产出: commit 5fe9009 [auto-night-15]；analyze 0 error（19 基线无新增）；flutter test 9 项全通过；flutter build web 成功
 - 关键决策: 导出格式 `jx-memo-v1:<base64(utf8(json))>`（字段 v/at/awa/beast{v,swim}/shards[{t,text,region}]）；解析容错：容忍前后杂文字与空白、任何异常静默 null；去重标准=同时间戳+同禅语（不覆盖现有、保留现有实例）；UI 无文件选择器纯剪贴板（web 简单可靠）；下一步建议：性能 profile 与移动端适配 / 部署 GitHub Pages（需主人确认 push）/ 世界级彩蛋
+
+## 2026-09-13 ~03:00 — 第 16 轮
+- 用户要求: 通宵第 16 轮——全量性能审计 + 画质档位自适配 + 移动端触控适配 + 构建体积粗查
+- AI 行动: 逐文件静态审计 update/render；修复 camPos 分配、光灵/雾团/渊/荒原/星岛/星兽/碎片的每帧 Paint 与着色器重建（量化缓存/静态 Path/canvas 缩放）；新增 quality.dart 三档判定（UA+DPR+deviceMemory）低档星空减半等保守削减；chips 命中区 ≥44px；NoSleep 注释说明不做
+- 产出: commit 79575ff；analyze 0 error（19 基线）/test 14 全过/build web 41MB（引擎 37MB 应用 3MB）
+- 关键决策: 着色器按固定半径构建+canvas 缩放（径向渐变视觉等价）；档位只在构造时读、运行期零分支；低档只减数量不砍机制；长夜不做防休眠（违背入睡语义）
