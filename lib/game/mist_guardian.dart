@@ -105,6 +105,16 @@ class MistGuardian extends Component with HasGameReference<JingjingGame> {
   /// 显形度 0..1（跟随雾沉降，升受限速 60s、落稍快）。
   double reveal = 0;
 
+  /// 「相会」演出（第 18 轮）：星光亮起期间的凝望度（0..1），
+  /// 让眼中柔光与轮廓微微更亮，像竖起耳朵在望。
+  double gaze = 0;
+
+  /// 「相会」演出注入的位移向量（ReunionEvent 每帧赋值，只读叠加）。
+  final Vector2 reunionNudge = Vector2.zero();
+
+  /// 当前世界坐标（含 nudge，供相会演出读取端点）。
+  Vector2 get pos => _pos;
+
   double _time = 0;
   int _lastCycleCount = 0;
   final Vector2 _pos = anchor.clone();
@@ -176,6 +186,9 @@ class MistGuardian extends Component with HasGameReference<JingjingGame> {
       ..setFrom(anchor)
       ..x += stepX + math.sin(_time * 0.11) * 24
       ..y += stepY + math.cos(_time * 0.083) * 11;
+    game.wrap(_pos);
+    // 相会演出位移（平时为零向量，零成本）。
+    _pos.add(reunionNudge);
     game.wrap(_pos);
   }
 
@@ -274,8 +287,9 @@ class MistGuardian extends Component with HasGameReference<JingjingGame> {
       );
     }
 
-    // 眼：显形越深越亮的一只柔光（着色器按量化显形度缓存）。
-    final eyeA = 0.30 * rv;
+    // 眼：显形越深越亮的一只柔光（着色器按量化显形度缓存）；
+    // 相会凝望时微微更亮（gaze 0..1，演出期才有值）。
+    final eyeA = (0.30 * rv * (1.0 + 0.5 * gaze)).clamp(0.0, 0.45);
     final eyeQ = (rv * 50).round();
     if (eyeQ != _eyeShaderKey) {
       _eyeShaderKey = eyeQ;
