@@ -50,6 +50,11 @@ abstract class SoundscapeEngine {
   /// 0.5 轻压到 0.3（约 1 秒过渡），读完约 2 秒缓缓恢复——
   /// 让引导词浮在声景之上，而不是和声景打架。
   void duck({required bool active});
+
+  /// 快速静音（第 26 轮「晨光告别」跳过用）：对仍在发声的层重跑
+  /// 既有 gain ramp，在 [seconds] 秒内平滑归零——绝不瞬间断音。
+  /// 与 [stop] 的区别：即便 stop 的长淡出已在进行中也能重新压快。
+  void silence({double seconds = 1.0});
 }
 
 /// 声景选择持久化（shared_preferences，所有平台可用）。

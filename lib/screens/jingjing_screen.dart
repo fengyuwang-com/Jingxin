@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../game/breath_mic.dart';
 import '../game/jingjing_game.dart';
 import '../game/koans.dart';
+import '../game/long_night_farewell.dart';
 import '../game/quality.dart';
 import '../game/soundscape.dart';
 import '../game/voice.dart';
@@ -79,6 +80,34 @@ class _JingjingScreenState extends State<JingjingScreen>
   /// 长夜入睡引导的随机低频朗读计时器（90~150 秒一次）。
   Timer? _whisperTimer;
 
+  // ---- 晨光告别（第 26 轮）：长夜的收束不是"被退出"，而是"天亮" ----
+  /// 演出进行中（晨光已开始漫入）。
+  bool _farewell = false;
+
+  /// 演出收尾中：整体淡出回普通世界态。
+  bool _farewellEnding = false;
+
+  /// 用户触摸跳过（快速淡出）。
+  bool _farewellSkip = false;
+
+  /// 本场告别偈语。
+  String? _farewellKoan;
+
+  /// 最近一次触摸/呼吸活动的时刻（长夜中闲置判定用）。
+  DateTime _lastInteraction = DateTime.now();
+
+  /// 上次记录活动时的呼吸循环数（随息开启时呼吸也算活动）。
+  int _lastIdleCycle = 0;
+
+  /// 长夜闲置巡检计时器（每秒查一次是否该开始晨光告别）。
+  Timer? _idleTimer;
+
+  /// 偈语收尾计时器（停留期满开始整体淡出）。
+  Timer? _farewellTimer;
+
+  /// 演出完成计时器（淡出完毕回普通世界态）。
+  Timer? _farewellFinishTimer;
+
   @override
   void initState() {
     super.initState();
@@ -143,6 +172,9 @@ class _JingjingScreenState extends State<JingjingScreen>
     _koanTimer?.cancel();
     _toastTimer?.cancel();
     _whisperTimer?.cancel();
+    _idleTimer?.cancel();
+    _farewellTimer?.cancel();
+    _farewellFinishTimer?.cancel();
     _soundscape?.stop(fadeOut: 1.5);
     _voice.cancelAll(); // 退出静境：一切朗读停止。
     unawaited(_micEngine?.stop()); // 彻底释放麦克风流与轨道。
@@ -159,7 +191,10 @@ class _JingjingScreenState extends State<JingjingScreen>
         state == AppLifecycleState.inactive) {
       unawaited(_soundscape?.stop(fadeOut: 0.8));
       _voice.cancelAll(); // 切后台：朗读立即停止，绝不从后台冒出声音。
-    } else if (state == AppLifecycleState.resumed && _nightMode) {
+    } else if (state == AppLifecycleState.resumed &&
+        _nightMode &&
+        !_farewell) {
+      // 晨光告别进行中不重新浮起声音——声音已经在淡出，不回头。
       final engine = _soundscape ??= SoundscapeEngineImpl();
       unawaited(engine.start(fadeIn: 3.0));
     }
@@ -223,19 +258,137 @@ class _JingjingScreenState extends State<JingjingScreen>
   /// 用户锁屏即自然休眠——这是设计，不是缺失。
   Future<void> _toggleNight() async {
     final entering = !_nightMode;
-    setState(() => _nightMode = entering);
-    _game.setNight(entering);
     if (entering) {
+      setState(() => _nightMode = true);
+      _game.setNight(true);
+      _lastInteraction = DateTime.now();
       await _game.longNight.markVisited();
       final engine = _soundscape ??= SoundscapeEngineImpl();
       await engine.select(_scene); // 未播放时只记录选择
       unawaited(engine.start(fadeIn: 4.0));
       _syncWhisperTimer(); // 闻声：长夜里随机低频的入睡引导。
+      _syncIdleTimer(); // 晨光告别：安静满 90 秒自动天亮。
     } else {
-      _whisperTimer?.cancel();
-      _voice.cancelAll(); // 退出长夜：声景淡出的同时朗读也停。
-      unawaited(_soundscape?.stop(fadeOut: 3.0));
+      // 结束长夜 = 晨光告别（第 26 轮）：长夜不该"被退出"，而该"天亮"。
+      // 演出进行中再点月亮不做任何事（淡出已定，不打断也不重开）。
+      if (_farewell) return;
+      if (LongNightFarewell.shouldBegin(
+        idleSeconds: 0,
+        manuallyEnded: true,
+      )) {
+        _beginFarewell();
+      }
     }
+  }
+
+  /// 长夜闲置巡检：每秒查一次，安静满阈值（且未在演出中）即开始
+  /// 晨光告别。随息开启时，呼吸循环也算"活动"——还在呼吸的人
+  /// 还醒着，不催天亮。
+  void _syncIdleTimer() {
+    _idleTimer?.cancel();
+    if (!_nightMode) return;
+    _idleTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || !_nightMode || _farewell) return;
+      if (_micOn && _game.cycleCount != _lastIdleCycle) {
+        _lastIdleCycle = _game.cycleCount;
+        _lastInteraction = DateTime.now();
+        return;
+      }
+      final idle = DateTime.now()
+          .difference(_lastInteraction)
+          .inMilliseconds
+          .toDouble();
+      if (LongNightFarewell.shouldBegin(
+        idleSeconds: idle / 1000.0,
+        manuallyEnded: false,
+      )) {
+        _beginFarewell();
+      }
+    });
+  }
+
+  /// 开始晨光告别：暖金晨光 15s 漫入、星兽眯眼、白噪音 20s 平滑淡出、
+  /// 告别偈语淡入停留 10s，然后整体 5s 淡出，回到普通世界态。
+  void _beginFarewell() {
+    if (_farewell || !_nightMode) return;
+    _idleTimer?.cancel();
+    _whisperTimer?.cancel();
+    _voice.cancelAll(); // 告别时刻：朗读也悄悄退场。
+    // 音频走既有 gain ramp 平滑淡出（20s），比视觉略长——
+    // 光先亮，声后歇，绝不爆音。
+    unawaited(_soundscape?.stop(fadeOut: LongNightFarewell.audioFadeSeconds));
+    setState(() {
+      _farewell = true;
+      _farewellEnding = false;
+      _farewellSkip = false;
+      _farewellKoan = Koans.nextFarewell();
+    });
+    _game.setFarewell(1.0); // 星兽缓缓眯眼（沿用睁眼层级渐变）。
+    // 偈语淡入(2s)+停留(10s)后开始整体淡出。
+    _farewellTimer = Timer(
+      Duration(
+        milliseconds: ((LongNightFarewell.koanFadeSeconds +
+                    LongNightFarewell.koanHoldSeconds) *
+                1000)
+            .round(),
+      ),
+      () {
+        if (mounted) setState(() => _farewellEnding = true);
+      },
+    );
+    // 整体淡出(5s)完毕：清除长夜标记，回到普通世界态。
+    _farewellFinishTimer = Timer(
+      Duration(
+        milliseconds:
+            ((LongNightFarewell.koanFadeSeconds +
+                        LongNightFarewell.koanHoldSeconds +
+                        LongNightFarewell.fadeSeconds) *
+                    1000)
+                .round(),
+      ),
+      _finishFarewell,
+    );
+  }
+
+  /// 演出中任何触摸：跳过——立即进入快速淡出（0.9s），无突兀。
+  void _skipFarewell() {
+    if (!_farewell) return;
+    _farewellTimer?.cancel();
+    _farewellFinishTimer?.cancel();
+    // 跳过时把仍在淡出中的声景快速压静（重跑 gain ramp，不瞬断）。
+    unawaited(
+      Future<void>.sync(() => _soundscape?.silence(
+            seconds: LongNightFarewell.skipSeconds,
+          )),
+    );
+    setState(() {
+      _farewellEnding = true;
+      _farewellSkip = true;
+    });
+    _farewellFinishTimer = Timer(
+      Duration(
+        milliseconds: (LongNightFarewell.skipSeconds * 1000).round(),
+      ),
+      _finishFarewell,
+    );
+  }
+
+  /// 演出完成：长夜标记正常清除（沿用既有退出路径的收尾逻辑）。
+  void _finishFarewell() {
+    if (!mounted) return;
+    setState(() {
+      _farewell = false;
+      _farewellEnding = false;
+      _farewellSkip = false;
+      _farewellKoan = null;
+      _nightMode = false;
+    });
+    _game.setNight(false);
+    _game.setFarewell(0.0); // 星兽缓缓重新睁眼（4s/只渐变）。
+    _whisperTimer?.cancel();
+    _voice.cancelAll();
+    // 若因跳过提前收尾而仍有残余声压，再补一次短淡出（幂等）。
+    unawaited(_soundscape?.stop(fadeOut: 1.5));
   }
 
   /// 长夜入睡引导：每 90~150 秒随机一次，轻声读一句极短句。
@@ -266,7 +419,7 @@ class _JingjingScreenState extends State<JingjingScreen>
 
   /// 切换声景：交叉渐变（旧淡出/新淡入）+ 视听联动 + 持久化。
   Future<void> _selectScene(SoundscapeScene scene) async {
-    if (scene == _scene) return;
+    if (scene == _scene || _farewell) return;
     setState(() => _scene = scene);
     _game.setSoundscapeScene(scene);
     await _pref.save(scene);
@@ -282,10 +435,20 @@ class _JingjingScreenState extends State<JingjingScreen>
       body: Stack(
         children: [
           // 游戏本体：包一层 Listener——用户任何触摸交互时，若正在
-          // 朗读入睡引导则立即取消（禅语朗读不受影响，让它读完）。
+          // 朗读入睡引导则立即取消（禅语朗读不受影响，让它读完）；
+          // 晨光告别进行中，任何触摸都是"跳过"。
           Positioned.fill(
             child: Listener(
-              onPointerDown: (_) => _voice.cancelWhisper(),
+              onPointerDown: (_) {
+                _lastInteraction = DateTime.now();
+                if (_farewell) {
+                  _skipFarewell();
+                  return;
+                }
+                _voice.cancelWhisper();
+              },
+              onPointerMove: (_) => _lastInteraction = DateTime.now(),
+              onPointerUp: (_) => _lastInteraction = DateTime.now(),
               child: GameWidget(game: _game),
             ),
           ),
@@ -301,6 +464,93 @@ class _JingjingScreenState extends State<JingjingScreen>
               ),
             ),
           ),
+          // 晨光告别（第 26 轮）：暖金晨光自下而上极缓漫入 + 告别偈语。
+          // 低饱和、低透明度、15s 级渐变；不挡操作，任何触摸即跳过。
+          if (_farewell)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _farewellEnding ? 0 : 1,
+                  duration: _farewellSkip
+                      ? Duration(
+                          milliseconds:
+                              (LongNightFarewell.skipSeconds * 1000).round(),
+                        )
+                      : Duration(
+                          milliseconds:
+                              (LongNightFarewell.fadeSeconds * 1000).round(),
+                        ),
+                  curve: Curves.easeOut,
+                  child: Stack(
+                    children: [
+                      // 晨光：自屏底漫入，停在低饱和暖金、极低透明度。
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 1),
+                        duration: Duration(
+                          milliseconds:
+                              (LongNightFarewell.dawnSeconds * 1000).round(),
+                        ),
+                        curve: Curves.easeInOut,
+                        builder: (context, t, _) {
+                          final dawn = const Color(0xFFcfa96b);
+                          final stop = (t * 0.62).clamp(0.0, 1.0);
+                          return DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                stops: [
+                                  0,
+                                  stop,
+                                  (stop + 0.3).clamp(0.0, 1.0),
+                                  1,
+                                ],
+                                colors: [
+                                  dawn.withValues(alpha: 0.16),
+                                  dawn.withValues(alpha: 0.09),
+                                  dawn.withValues(alpha: 0.0),
+                                  dawn.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      // 告别偈语：随晨光浮现的一句道别，停留后随整体淡出。
+                      Align(
+                        alignment: const Alignment(0, -0.08),
+                        child: AnimatedOpacity(
+                          opacity: _farewellEnding ? 0 : 1,
+                          duration: Duration(
+                            milliseconds:
+                                (LongNightFarewell.koanFadeSeconds * 1000)
+                                    .round(),
+                          ),
+                          curve: Curves.easeOut,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 40,
+                            ),
+                            child: Text(
+                              _farewellKoan ?? ' ',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: const Color(
+                                  0xFFe8c473,
+                                ).withValues(alpha: 0.55),
+                                fontSize: 14,
+                                letterSpacing: 4,
+                                height: 1.8,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           // 顶端极细渐变光线：苏醒度的无声表达。
           Positioned(
             top: 0,

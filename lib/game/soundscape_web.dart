@@ -110,6 +110,29 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
   }
 
   @override
+  void silence({double seconds = 1.0}) {
+    final ctx = _ctx;
+    if (ctx == null) return;
+    _playing = false;
+    try {
+      for (final layer in _layers.values) {
+        if (!layer.audible) continue;
+        layer.setAudible(false);
+        layer.fadeTo(0.0001, seconds);
+      }
+      // 静音完成后挂起上下文（与 stop 相同的收尾，省电可复用）。
+      unawaited(
+        Future<void>.delayed(
+          Duration(milliseconds: (seconds * 1000).ceil()),
+          () async {
+            if (!_playing) await ctx.suspend().toDart;
+          },
+        ),
+      );
+    } catch (_) {}
+  }
+
+  @override
   void duck({required bool active}) {
     _ducked = active;
     final ctx = _ctx;
