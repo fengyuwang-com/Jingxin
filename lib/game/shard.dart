@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/theme.dart';
 import 'jingjing_game.dart';
 import 'koans.dart';
+import 'regions.dart';
 
 /// 心镜碎片收集史（第 4 轮）。
 ///
@@ -85,19 +86,27 @@ class ShardRecord {
 /// 光灵漂近且光灵刚完成一次平稳呼吸循环时，碎片被"轻轻吸入"
 /// （柔和收拢动画），同时浮现一句禅语。不打断漫游。
 class MindShard extends Component with HasGameReference<JingjingGame> {
-  MindShard({required this.position, required this.phase, required this.tint});
+  MindShard({
+    required this.position,
+    required this.phase,
+    required this.tint,
+    this.abyss = false,
+  });
 
   /// 世界坐标（环绕周期内）。
   Vector2 position;
   final double phase;
   final Color tint;
 
+  /// 是否为「焦虑之渊」碎片：用渊的偈语池与冷紫色调。
+  final bool abyss;
+
   /// 0..1 被吸入进度；>=1 后由游戏层移除并回调禅语。
   double absorb = 0;
   bool _absorbing = false;
 
-  /// 吸入完成后要浮现的禅语（预生成，避免吸入瞬间卡顿）。
-  late final String koan = Koans.next();
+  /// 吸入完成后要浮现的偈语（预生成，按区域取池，避免吸入瞬间卡顿）。
+  late final String koan = abyss ? Koans.nextAbyss() : Koans.next();
 
   bool get isAbsorbed => absorb >= 1;
 
@@ -206,15 +215,9 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
   }
 }
 
-/// 所获区域命名：按世界坐标所在的九宫格给出诗意地名。
-/// 本轮世界只有「失眠之海」，区域名用作星图里的回忆坐标。
+/// 所获区域命名：按世界坐标所在的区域 + 九宫格给出诗意地名。
+/// 区域是轻量抽象（regions.dart）：海是底层全域，渊在海的更深处。
 String regionNameFor(Vector2 worldPos) {
-  final nx = (worldPos.x / 2400).clamp(0.0, 0.999);
-  final ny = (worldPos.y / 1800).clamp(0.0, 0.999);
-  const cols = ['西湾', '中洋', '东渚'];
-  const rows = ['北渊', '心湖', '南汀'];
-  final col = (nx * 3).floor().clamp(0, 2);
-  final row = (ny * 3).floor().clamp(0, 2);
-  final name = row == 1 && col == 1 ? '心湖' : '${rows[row]}·${cols[col]}';
-  return '失眠之海·$name';
+  final region = GameRegion.regionAt(worldPos);
+  return region.fullName(worldPos);
 }

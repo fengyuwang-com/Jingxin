@@ -6,9 +6,11 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart' hide Draggable;
 
 import '../core/theme.dart';
+import 'anxiety_abyss.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
+import 'regions.dart';
 import 'shard.dart';
 import 'star_beast.dart';
 
@@ -89,6 +91,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
   Vector2 _spiritVelocity = Vector2.zero();
   Vector2? _touchPoint;
 
+  /// 光灵当前在「焦虑之渊」的深度（0..1，按区域深度带随漫游自然过渡）。
+  double abyssDepth = 0;
+
   /// 呼吸平稳度：|Δprogress| 的低通值，低于阈值视为"平稳呼吸"。
   double _breathJitter = 0;
 
@@ -130,9 +135,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     _spirit = LightSpirit(tint: seedColor);
 
-    // 失眠之海：星潮背景 -> 星兽 -> 星岛 -> 光灵（渲染顺序）。
+    // 失眠之海：星潮背景 -> 焦虑之渊（海的更深处）-> 星兽 -> 星岛 -> 光灵。
     final sea = InsomniaSea();
     add(sea);
+    add(AnxietyAbyss());
     beast = StarBeast();
     add(beast);
     final rng = math.Random(42);
@@ -152,17 +158,27 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(_spirit);
 
     // 心镜碎片：本轮漫游程序放置 2~4 片，散布在世界中（远离光灵起点）。
+    // 奇数序号的碎片有意沉入「焦虑之渊」深度带（区域感知的偈语池）。
     final shardRng = math.Random(DateTime.now().millisecondsSinceEpoch);
     final count = 2 + shardRng.nextInt(3);
+    final abyssBand = GameRegion.anxietyAbyss;
     for (int i = 0; i < count; i++) {
+      final inAbyss = i.isOdd;
+      final ny = inAbyss
+          ? abyssBand.depthStart +
+                0.02 + shardRng.nextDouble() * (0.98 - abyssBand.depthStart)
+          : 0.06 + 0.88 * shardRng.nextDouble();
       final pos = Vector2(
         (0.06 + 0.88 * shardRng.nextDouble()) * worldPeriod.x,
-        (0.06 + 0.88 * shardRng.nextDouble()) * worldPeriod.y,
+        ny * worldPeriod.y,
       );
       final shard = MindShard(
         position: pos,
         phase: shardRng.nextDouble() * math.pi * 2,
-        tint: i.isOdd ? const Color(0xFF34d399) : ZenTheme.nebulaCyan,
+        tint: inAbyss
+            ? const Color(0xFFc9a0b8)
+            : (i.isOdd ? const Color(0xFF34d399) : ZenTheme.nebulaCyan),
+        abyss: inAbyss,
       );
       shards.add(shard);
       add(shard);
@@ -277,6 +293,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     spiritPos += _spiritVelocity * dt;
     wrap(spiritPos);
+
+    // 区域深度：按光灵所在归一化 y 平滑过渡（渊在海的更深处）。
+    abyssDepth = GameRegion.anxietyAbyss.depthAt(
+      spiritPos.y / worldPeriod.y,
+    );
 
     // 相机极缓跟随：光灵在屏幕上只做小幅游移，世界在四周流动。
     final camDelta = spiritPos - camPos;

@@ -34,15 +34,36 @@ class Koans {
 
   static final List<int> _recent = [];
 
+  /// 「焦虑之渊」专属偈语池（第 7 轮）：纷乱念头随呼吸归于一致的隐喻。
+  static const List<String> _abyssPool = [
+    '念头如乱星，闪烁不必追逐。',
+    '数息之间，繁星渐次同明。',
+    '渊底无声，心跳自有其灯。',
+    '一呼一吸，万念归一。',
+    '念头来了，让它像星一样自己暗下去。',
+    '不必点亮深渊，陪你呼吸就好。',
+    '花在无光处开，也在你呼气时开。',
+    '乱，只是尚未被呼吸抚平的序。',
+    '深渊不催促任何人，它只等你慢下来。',
+    '心跳在渊底亮着，你也在。',
+  ];
+
+  static final List<int> _abyssRecent = [];
+
   /// 随机取一句，保证与最近取过的几句不重复。
-  static String next() {
-    if (_recent.length >= _pool.length - 3) _recent.clear();
+  static String next() => _draw(_pool, _recent);
+
+  /// 「焦虑之渊」碎片偈语。
+  static String nextAbyss() => _draw(_abyssPool, _abyssRecent);
+
+  static String _draw(List<String> pool, List<int> recent) {
+    if (recent.length >= pool.length - 3) recent.clear();
     int i;
     do {
-      i = math.Random().nextInt(_pool.length);
-    } while (_recent.contains(i) && _pool.length > _recent.length);
-    _recent.add(i);
-    if (_recent.length > 4) _recent.removeAt(0);
-    return _pool[i];
+      i = math.Random().nextInt(pool.length);
+    } while (recent.contains(i) && pool.length > recent.length);
+    recent.add(i);
+    if (recent.length > 4) recent.removeAt(0);
+    return pool[i];
   }
 }
