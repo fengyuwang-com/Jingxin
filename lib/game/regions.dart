@@ -140,10 +140,19 @@ class GameRegion {
   }
 
   /// 世界坐标所属区域：按深度带从两端向中间匹配，海是默认底层。
-  static GameRegion regionAt(Vector2 worldPos) {
+  static GameRegion regionAt(Vector2 worldPos) =>
+      regionAtPoint(worldPos.x, worldPos.y);
+
+  /// 点在哪个区域（纯函数，便于测试）：世界坐标 (x, y)。
+  ///
+  /// 世界是环绕环面：坐标先对周期取模（Dart 的 % 恒非负，负坐标 /
+  /// 超界坐标自动落回 0..period），再按深度带从两端向中间匹配；
+  /// 雾林水平带在 x 接缝两侧（含跨缝环绕点）与纵向门带内命中；
+  /// 都不命中则回落到底层的失眠之海。
+  static GameRegion regionAtPoint(double x, double y) {
     final period = JingjingGame.worldPeriod;
-    final ny = (worldPos.y / period.y) % 1.0;
-    final nx = (worldPos.x / period.x) % 1.0;
+    final ny = (y / period.y) % 1.0;
+    final nx = (x / period.x) % 1.0;
     for (final region in all) {
       if (region.xFull >= 0) {
         // 水平边缘带：靠近 x 接缝且在纵向门带内。

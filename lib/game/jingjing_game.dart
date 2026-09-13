@@ -1389,17 +1389,50 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
         ..active = true
         ..t = 0
         ..pos.setFrom(f.position)
-        ..colorIndex = f.colorIndex;
+        ..petalColor = f.petalColor;
     }
     final seed = _spawnCounter * 7 + 3;
+    // 星花映境（第 56 轮）：花记得它出生的地方——按种花瞬间光灵
+    // （延迟轨迹的旧位）所处的心境区域取一组调色/瓣形，此后花不再
+    // 随光灵移动换色；同区之内再以确定性 seed 做亮度/相位微差，
+    // 避免同一片心境里的花整齐划一。
+    final mood = _moodForSpawn();
+    final palette = flowerPaletteFor(mood);
+    final (brighten, phase) = flowerKinVariance(seed);
+    final petal = Color.lerp(palette.petal, palette.core, 1 - brighten)!;
     f
       ..alive = true
       ..seed = seed
-      ..petals = flowerPetalCount(seed)
-      ..colorIndex = flowerColorIndex(seed)
-      ..rotPhase = (seed % 628) / 100.0
+      ..petals = (flowerPetalCount(seed) + palette.petalAdjust).clamp(4, 8)
+      ..petalColor = petal
+      ..coreColor = palette.core
+      ..rotPhase = (seed % 628) / 100.0 + phase
       ..position.setFrom(_delayedPos);
     _spawnCounter++;
+  }
+
+  /// 种花瞬间光灵旧位所处的心境（先惑星近旁，再静之径，最后深度带）。
+  FlowerMood _moodForSpawn() {
+    final p = _delayedPos;
+    for (final c in game.children) {
+      if (c is PerplexPlanet &&
+          (c.machine.phase == PerplexPhase.drifting ||
+              c.machine.phase == PerplexPhase.dissolving)) {
+        final d = regionWrapDelta(p, c.pos);
+        if (d.length < 120) return FlowerMood.perplex;
+      }
+    }
+    if (game.stillPath.distanceToPoint(p) < StillPath.onPathDistance) {
+      return FlowerMood.stillPath;
+    }
+    return _moodOfRegion(GameRegion.regionAt(p));
+  }
+
+  static FlowerMood _moodOfRegion(GameRegion r) {
+    if (identical(r, GameRegion.anxietyAbyss)) return FlowerMood.anxietyAbyss;
+    if (identical(r, GameRegion.wearyHeath)) return FlowerMood.wearyHeath;
+    if (identical(r, GameRegion.mistWood)) return FlowerMood.mistWood;
+    return FlowerMood.insomniaSea;
   }
 
   @override
@@ -1459,9 +1492,9 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
       if (!f.alive) continue;
       final (open, glow) = flowerVisual(1.0, wither, night: night);
       if (open <= 0.001) continue; // 闭合入眠：不消失，只是不画。
-      final alpha = _q(open * 0.55 * intro);
-      if (alpha <= 0) continue;
-      final color = _flowerColor(f.colorIndex);
+          final alpha = _q(open * 0.55 * intro);
+          if (alpha <= 0) continue;
+          final color = f.petalColor;
       // 环绕绘制（世界锁定的 1.0 视差 + 3x3 镜像，同星岛约定）。
       for (int ox = -1; ox <= 1; ox++) {
         for (int oy = -1; oy <= 1; oy++) {
@@ -1487,7 +1520,7 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
       if (a <= 0) continue;
       final r = 6 + 26 * t;
       _dustPaint
-        ..color = _flowerColor(d.colorIndex).withValues(alpha: a)
+        ..color = d.petalColor.withValues(alpha: a)
         ..blendMode = BlendMode.screen;
       for (int ox = -1; ox <= 1; ox++) {
         for (int oy = -1; oy <= 1; oy++) {
@@ -1534,39 +1567,32 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
     }
     // 花心：再暗也留一点芯光——变暗但不消失。
     _corePaint
-      ..color = ZenTheme.starWhite.withValues(alpha: _q(glow * 0.5))
+      ..color = f.coreColor.withValues(alpha: _q(glow * 0.5))
       ..blendMode = BlendMode.screen;
     canvas.drawCircle(center, 2.2, _corePaint);
-  }
-
-  static Color _flowerColor(int index) {
-    switch (index % 3) {
-      case 0:
-        return ZenTheme.nebulaCyan; // 青
-      case 1:
-        return ZenTheme.nebulaPurple; // 淡紫
-      default:
-        return ZenTheme.starWhite; // 月白
-    }
   }
 
   static double _q(double v) => (v.clamp(0.0, 1.0) * 50).round() / 50.0;
 }
 
 /// 一朵星花（定长池成员，字段复用，零每帧分配）。
+///
+/// petalColor/coreColor 在种花瞬间按出生地心境一次性确定——花记得
+/// 它出生的地方，之后不随光灵移动换色。
 class _Flower {
   final Vector2 position = Vector2.zero();
   bool alive = false;
   int seed = 0;
   int petals = 5;
-  int colorIndex = 0;
+  Color petalColor = const Color(0xFF9fd8e8);
+  Color coreColor = const Color(0xFFe6f5f9);
   double rotPhase = 0;
 }
 
-/// 谢幕光尘（定长槽复用）。
+/// 谢幕光尘（定长槽复用）：沿用谢幕之花出生地的花瓣色。
 class _FlowerDust {
   final Vector2 pos = Vector2.zero();
   bool active = false;
   double t = 0;
-  int colorIndex = 0;
+  Color petalColor = const Color(0xFF9fd8e8);
 }

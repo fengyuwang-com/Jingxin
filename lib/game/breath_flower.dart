@@ -17,6 +17,8 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+
 /// 注满一次花开所需的有效平稳秒数（约 40s）。
 const double kFlowerBloomSeconds = 40.0;
 
@@ -139,4 +141,65 @@ int flowerColorIndex(int seed) => ((seed * 2654435761) >>> 27) % 3;
 double flowerBreathSway(double breathPhase) {
   final t = breathPhase.clamp(0.0, 1.0);
   return 0.9 + 0.1 * (0.5 - 0.5 * math.cos(t * math.pi * 2));
+}
+
+// ---- 星花映境（第 56 轮）：花随心境区域而异 ----
+//
+// 花记得它出生的地方：种花瞬间按光灵当时所处的心境取一组
+// 确定性调色/瓣形微调，之后花不再随光灵移动换色——出生地
+// 写进花本身。全部低饱和 CYBER-ZEN 冷色/雾色，绝不刺眼。
+
+/// 花的心境（六区域）：四个深度带区域 + 静之径（径上）+ 惘（惑星近旁）。
+enum FlowerMood {
+  insomniaSea, // 失眠之海
+  anxietyAbyss, // 焦虑之渊
+  wearyHeath, // 疲惫荒原
+  mistWood, // 纷心雾林
+  stillPath, // 静之径
+  perplex, // 惘（惑星近旁）
+}
+
+/// 一组花的调色（不可变小结构）：花瓣色、花心色、瓣形微调。
+///
+/// [petalAdjust] 加到基础花瓣数（5..7）上再夹到 4..8——不同心境
+/// 的花在瓣形上有极轻的差异（渊更深瓣更多、荒原疏朗瓣更少）。
+class FlowerPalette {
+  const FlowerPalette(this.petal, this.core, this.petalAdjust);
+
+  final Color petal;
+  final Color core;
+  final int petalAdjust;
+}
+
+/// 六心境的确定性调色表（索引与 [FlowerMood] 顺序一致）。
+const List<FlowerPalette> kFlowerPalettes = [
+  // 失眠之海：月白蓝（海的底色稍柔）。
+  FlowerPalette(Color(0xFF9fd8e8), Color(0xFFe6f5f9), 0),
+  // 焦虑之渊：深青（压暗、收拢的冷）。
+  FlowerPalette(Color(0xFF5f8fa8), Color(0xFFa9c8d6), 1),
+  // 疲惫荒原：暖沙金（旷野的余温，仍然低饱和）。
+  FlowerPalette(Color(0xFFd8c098), Color(0xFFefe4c8), -1),
+  // 纷心雾林：灰青绿（雾林自身的色调）。
+  FlowerPalette(Color(0xFF8fc4b0), Color(0xFFd2e8de), 0),
+  // 静之径：淡金白（旧迹的雪上微光）。
+  FlowerPalette(Color(0xFFddd6c2), Color(0xFFf2eee0), -1),
+  // 惘：灰紫（惑星的雾紫，温柔而不艳）。
+  FlowerPalette(Color(0xFF9b8fb8), Color(0xFFd0c9e2), 1),
+];
+
+/// 心境调色（纯函数）：确定性，六区域互不相同。
+FlowerPalette flowerPaletteFor(FlowerMood mood) {
+  return kFlowerPalettes[mood.index.clamp(0, kFlowerPalettes.length - 1)];
+}
+
+/// 同区微差（纯函数，确定性 seed）：同一心境里开的花用同色系，
+/// 但亮度/相位有极轻的差别，避免整齐划一。
+///
+/// 返回 (brighten, phase)：brighten 0.84..1.0（向花心色微调的系数），
+/// phase 0..2π（旋转相位偏移）。
+(double brighten, double phase) flowerKinVariance(int seed) {
+  final h = (seed * 2654435761) >>> 0;
+  final brighten = 0.84 + 0.16 * ((h >>> 24) & 0xFF) / 255.0;
+  final phase = ((h >>> 8) & 0xFFFF) / 65536.0 * math.pi * 2;
+  return (brighten, phase);
 }
