@@ -5,6 +5,7 @@ import '../providers/meditation_provider.dart';
 import '../ui/glass_panel.dart';
 import '../ui/starfield.dart';
 import 'meditation_screen.dart';
+import 'jingjing_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -57,6 +58,53 @@ class _HomeScreenState extends State<HomeScreen> {
           return FadeTransition(opacity: animation, child: child);
         },
         transitionDuration: const Duration(milliseconds: 500),
+      ),
+    );
+  }
+
+  void _enterJingjing() {
+    final provider = context.read<MeditationProvider>();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) =>
+            JingjingScreen(seedColor: provider.seedColor),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 500),
+      ),
+    );
+  }
+
+  /// "进入静境"入口卡片：不破坏现有布局，融入 CYBER-ZEN 风格。
+  Widget _buildJingjingEntry(Color primaryColor, bool isDarkMode) {
+    return Center(
+      child: GestureDetector(
+        onTap: _enterJingjing,
+        child: GlassPanel(
+          isDarkMode: isDarkMode,
+          opacity: isDarkMode ? 0.18 : 0.95,
+          tint: isDarkMode ? ZenTheme.surfaceDim : Colors.grey.shade50,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.auto_awesome_rounded,
+                  color: primaryColor, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                '进入静境',
+                style: TextStyle(
+                  color: isDarkMode ? ZenTheme.textHigh : Colors.black87,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -621,6 +669,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const Spacer(),
+          _buildJingjingEntry(primaryColor, isDarkMode),
+          const Spacer(),
           _buildStartButton(primaryColor, isDarkMode),
           const SizedBox(height: 40),
         ],
@@ -685,7 +735,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 20),
-          Expanded(child: _buildStartButton(primaryColor, isDarkMode)),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildStartButton(primaryColor, isDarkMode),
+                const SizedBox(height: 24),
+                _buildJingjingEntry(primaryColor, isDarkMode),
+              ],
+            ),
+          ),
         ],
       ),
     );
