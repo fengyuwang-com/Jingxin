@@ -125,10 +125,52 @@ class JingjingGame extends FlameGame with TapCallbacks {
   static const double maxDriftSpeed = 55;
 
   /// 光灵世界坐标与相机坐标（相机缓慢跟随光灵）。
+  /// 相机坐标 = 基准跟随位置 + 极缓的呼吸微动（第 11 轮：与呼吸相位
+  /// 同相，幅度仅约 2 逻辑像素，整个世界随之极轻地"一起呼吸"）。
   Vector2 spiritPos = Vector2.zero();
-  Vector2 camPos = Vector2.zero();
-  Vector2 _spiritVelocity = Vector2.zero();
+  final Vector2 _camBase = Vector2.zero();  Vector2 _spiritVelocity = Vector2.zero();
   Vector2? _touchPoint;
+
+  /// 光灵当前速度（供尾迹微粒等生命感细节读取）。
+  Vector2 get spiritVelocity => _spiritVelocity;
+
+  /// 相机呼吸微动：与呼吸相位同相的极小位移。
+  Vector2 get _camBreath {
+    final phase = _breathProgress * math.pi * 2 - math.pi / 2;
+    return Vector2(math.cos(phase) * 1.4, math.sin(phase) * 2.2);
+  }
+
+  /// 渲染用相机坐标（基准 + 呼吸微动）。基准由漫游跟随逐帧更新，
+  /// 这里用一个可变缓冲承载，避免暴露可变状态。
+  Vector2 get camPos => (_camBase + _camBreath);
+
+  // ---- 开场苏醒（第 11 轮）：每次进入静境，世界从纯黑缓缓亮起 ----
+  /// 开场进度（0..1，约 3.5 秒走完）。
+  double introT = 0;
+
+  /// 开场的平滑缓动（smoothstep），供星空/光灵按各自节奏苏醒。
+  double get introEase {
+    final t = introT.clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
+  // ---- 平静的积累（第 11 轮）：长 time 平稳呼吸后光灵更亮更舒展 ----
+  /// 本次会话累计的平稳循环数（只增不减，封顶在 calmGlow 内取用）。
+  int _calmCycles = 0;
+
+  /// 平静积累度（0..1，约 10 个平稳循环满）：体现在光灵的亮度与舒展上。
+  double get calmGlow => (_calmCycles / 10).clamp(0.0, 1.0);
+
+  // ---- 世界的回应（第 11 轮）：稀有、无声——远处的星同时眨了一下眼 ----
+  double _blinkT = -1;
+  double _lastBlinkTime = -999;
+
+  /// 眨眼强度（0..1，约 0.9 秒一次柔和的起落），绝无提示文字。
+  double get blinkStrength {
+    if (_blinkT < 0) return 0;
+    final t = (_blinkT / 0.9).clamp(0.0, 1.0);
+    return math.sin(math.pi * t);
+  }
 
   /// 光灵当前在「焦虑之渊」的深度（0..1，按区域深度带随漫游自然过渡）。
   double abyssDepth = 0;
@@ -163,12 +205,14 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     final stars = <_Star>[];
     for (int i = 0; i < 90; i++) {
+      final r = _random.nextDouble();
       stars.add(
         _Star(
           position: Vector2(_random.nextDouble(), _random.nextDouble()),
           radius: 0.4 + _random.nextDouble() * 1.2,
           twinklePhase: _random.nextDouble() * math.pi * 2,
           twinkleSpeed: 0.5 + _random.nextDouble() * 1.5,
+          random: r,
         ),
       );
     }
@@ -283,6 +327,15 @@ class JingjingGame extends FlameGame with TapCallbacks {
     super.update(dt);
     _time += dt;
 
+    // 开场苏醒：约 3.5 秒从纯黑缓缓亮起（每次进入，克制而快）。
+    if (introT < 1) introT = (introT + dt / 3.5).clamp(0.0, 1.0);
+
+    // 世界的回应：眨眼的起落（约 0.9 秒，极柔）。
+    if (_blinkT >= 0) {
+      _blinkT += dt;
+      if (_blinkT > 0.9) _blinkT = -1;
+    }
+
     _updateBreath(dt);
     _updateAwakening(dt);
     _updateDrift(dt);
@@ -309,9 +362,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 碎片吸入完成：记录收集史 + 通知 UI 浮现禅语。不打断漫游。
   void _updateShards(double dt) {
-    for (final shard in List<MindShard>.of(shards)) {
+    // 逆序遍历：避免每帧复制列表（减少 GC 压力）。
+    for (var i = shards.length - 1; i >= 0; i--) {
+      final shard = shards[i];
       if (!shard.isAbsorbed) continue;
-      shards.remove(shard);
+      shards.removeAt(i);
       remove(shard);
       shardCollection.add(
         ShardRecord(
@@ -370,12 +425,12 @@ class JingjingGame extends FlameGame with TapCallbacks {
     heathDepth = GameRegion.wearyHeath.depthAt(ny);
 
     // 相机极缓跟随：光灵在屏幕上只做小幅游移，世界在四周流动。
-    final camDelta = spiritPos - camPos;
+    final camDelta = spiritPos - _camBase;
     wrapDelta(camDelta);
-    camPos += camDelta * math.min(1.0, dt * 1.1);
+    _camBase.add(camDelta * math.min(1.0, dt * 1.1));
     // 相机与光灵保持在同一环绕单元，避免周期折叠时的坐标跳变。
-    camPos.x = spiritPos.x + (camPos.x - spiritPos.x) % worldPeriod.x;
-    camPos.y = spiritPos.y + (camPos.y - spiritPos.y) % worldPeriod.y;
+    _camBase.x = spiritPos.x + (_camBase.x - spiritPos.x) % worldPeriod.x;
+    _camBase.y = spiritPos.y + (_camBase.y - spiritPos.y) % worldPeriod.y;
   }
 
   /// 按环绕周期把坐标折回世界单元（供星兽等组件复用）。
@@ -463,6 +518,13 @@ class JingjingGame extends FlameGame with TapCallbacks {
         _lastCompletedCycle = true;
         _pendingCycleEvent = true;
         cycleCount++;
+        _calmCycles++;
+        // 稀有的"世界回应"：约 6% 的平稳循环后，远处的星同时眨一下眼。
+        // 无文字无音效，只是世界活着的一次轻颤。
+        if (_random.nextDouble() < 0.06 && _time - _lastBlinkTime > 40) {
+          _blinkT = 0;
+          _lastBlinkTime = _time;
+        }
       }
       _cyclePeakReached = false;
       _cycleTime = 0;
@@ -516,10 +578,17 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
   /// 0..1 世界苏醒度，由游戏循环同步。
   double awakening = 0;
 
+  // 复用的画笔与缓存的星云着色器（减少每帧分配）。
+  final Paint _starPaint = Paint();
+  final Paint _nebulaPaint = Paint();
+  Shader? _nebulaShader;
+  int _nebulaKey = -1;
+
   @override
   void render(Canvas canvas) {
     final size = game.size;
     final aw = awakening;
+    final intro = game.introEase;
 
     // 深空底色：苏醒度越高，背景色温越暖亮（黑 -> 靛蓝微光）。
     final bg = Color.lerp(
@@ -532,28 +601,37 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
     final deepBg = Color.lerp(bg, const Color(0xFF030711), 0.85 * night)!;
     canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), Paint()..color = deepBg);
 
-    // 中央星云微光：随苏醒度扩散、色温偏暖。
-    final nebulaInner = Color.lerp(
-      ZenTheme.deepSpace,
-      ZenTheme.nebulaCyan.withValues(alpha: 0.55),
-      0.4 * aw,
-    )!;
-    final nebulaPaint = Paint()
-      ..shader =
-          RadialGradient(
-            colors: [
-              nebulaInner.withValues(alpha: 0.85 + 0.15 * aw),
-              deepBg,
-            ],
-          ).createShader(
-            Rect.fromCircle(
-              center: Offset(size.x / 2, size.y / 2),
-              radius: size.length / (1.6 - 0.2 * aw),
-            ),
-          );
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), nebulaPaint);
+    // 中央星云微光：随苏醒度扩散、色温偏暖（着色器按量化参数缓存）。
+    final lenQ = (size.length / 8).round();
+    final key =
+        ((aw * 50).round() * 10000 + (night * 50).round()) * 100000 + lenQ;
+    if (key != _nebulaKey || _nebulaShader == null) {
+      _nebulaKey = key;
+      final nebulaInner = Color.lerp(
+        ZenTheme.deepSpace,
+        ZenTheme.nebulaCyan.withValues(alpha: 0.55),
+        0.4 * aw,
+      )!;
+      _nebulaShader = RadialGradient(
+        colors: [nebulaInner.withValues(alpha: 0.85 + 0.15 * aw), deepBg],
+      ).createShader(
+        Rect.fromCircle(
+          center: Offset(size.x / 2, size.y / 2),
+          radius: size.length / (1.6 - 0.2 * aw),
+        ),
+      );
+    }
+    _nebulaPaint.shader = _nebulaShader;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), _nebulaPaint);
+
+    // 世界的回应（第 11 轮）：眨眼时远处的星柔和地一起亮一下。
+    final blink = game.blinkStrength;
 
     for (final star in stars) {
+      // 开场苏醒：星按各自的时刻逐颗亮起（克制的错落，不整齐划一）。
+      final reveal = ((intro * 1.55 - star.revealDelay) / 0.28).clamp(0.0, 1.0);
+      if (reveal <= 0) continue;
+
       final twinkle =
           0.55 +
           0.45 * math.sin(_elapsed * star.twinkleSpeed * 2 + star.twinklePhase);
@@ -562,16 +640,17 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
           star.twinkleSpeed > 1.6 - 1.1 * aw || aw > 0.85 || night > 0.5;
       final twinkleAmp = active ? 0.25 + 0.5 * aw : 0.0;
       // 长夜：星更亮，暗星也被轻轻托起。
-      final brightness =
+      var brightness =
           (0.22 + 0.35 * aw + 0.22 * night) + twinkleAmp * twinkle;
-      final paint = Paint()
-        ..color = ZenTheme.starWhite.withValues(
-          alpha: brightness.clamp(0.0, 1.0),
-        );
+      if (blink > 0 && reveal > 0.9) {
+        brightness += 0.38 * blink * star.blinkAffinity;
+      }
+      brightness = (brightness * (0.12 + 0.88 * reveal)).clamp(0.0, 1.0);
+      _starPaint.color = ZenTheme.starWhite.withValues(alpha: brightness);
       canvas.drawCircle(
         Offset(star.position.x * size.x, star.position.y * size.y),
         star.radius,
-        paint,
+        _starPaint,
       );
     }
   }
@@ -588,21 +667,48 @@ class _Star {
     required this.radius,
     required this.twinklePhase,
     required this.twinkleSpeed,
-  });
+    required double random,
+  }) : revealDelay = 0.15 + random * 1.2,
+       blinkAffinity = random * random;
 
   final Vector2 position;
   final double radius;
   final double twinklePhase;
   final double twinkleSpeed;
+
+  /// 开场苏醒的错落时刻（0..~1.35，越大亮起越晚）。
+  final double revealDelay;
+
+  /// "世界眨眼"的亲和度（0..1，平方分布——只有少数星明显回应）。
+  final double blinkAffinity;
 }
 
 /// "光灵"：呼吸脉动的光球。
 /// 吸气（progress 上升）时扩张上升并更亮，呼气时凝聚下沉。
 /// [glowBoost] 随世界苏醒度增强光晕强度。
 class LightSpirit extends Component with HasGameReference<JingjingGame> {
-  LightSpirit({required this.tint});
+  LightSpirit({required this.tint}) {
+    // 环绕微粒的固定参数（预生成，避免每帧分配 Random 与对象）。
+    final rng = math.Random(42);
+    for (int i = 0; i < particleCount; i++) {
+      _particles.add(
+        _OrbParticle(
+          angle: (i / particleCount) * math.pi * 2 + rng.nextDouble() * 0.5,
+          distFactor: 0.5 + rng.nextDouble() * 0.5,
+          size: 1.5 + rng.nextDouble() * 2.5,
+        ),
+      );
+    }
+  }
 
   final Color tint;
+
+  /// 环绕微粒数量。
+  static const int particleCount = 18;
+  final List<_OrbParticle> _particles = [];
+
+  /// 标签文字的预排版（只 layout 一次）。
+  TextPainter? _labelPainter;
 
   /// 0..1，由呼吸输入层驱动（平滑跟随，不瞬跳）。
   double breatheProgress = 0;
@@ -613,6 +719,11 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
   @override
   void render(Canvas canvas) {
     final size = game.size;
+    final intro = game.introEase;
+    if (intro <= 0.01) return; // 开场：世界还黑着，光灵尚未醒来。
+    final calm = game.calmGlow;
+    final t = game.time;
+
     // 光灵世界坐标 -> 屏幕坐标：随漫游在屏上小幅游移。
     final base = Offset(size.x / 2, size.y / 2 - size.y * 0.04);
     final drift = Offset(
@@ -621,15 +732,21 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     );
     final center = base + drift;
 
-    // 呼吸派生量。
-    final expansion = 0.55 + 0.45 * breatheProgress;
+    // 呼吸派生量。平静的积累：更亮、更舒展（长 time 平稳呼吸的痕迹）。
+    final expansion = 0.55 + 0.45 * breatheProgress + 0.05 * calm;
     final rise = -size.y * 0.05 * breatheProgress;
     final orbCenter = Offset(center.dx, center.dy + rise);
     final maxRadius = math.min(size.x, size.y) * 0.18;
     // 长夜：光晕收拢变柔——外层辉光更小更淡，本体稍收。
     final nightSoften = 1.0 - 0.3 * game.nightAmount;
-    final radius = maxRadius * expansion * nightSoften;
-    final glow = (0.35 + 0.65 * breatheProgress) * glowBoost * nightSoften;
+    final radius =
+        maxRadius * expansion * nightSoften * (0.55 + 0.45 * intro);
+    final glow =
+        (0.35 + 0.65 * breatheProgress) *
+        glowBoost *
+        nightSoften *
+        (0.25 + 0.75 * intro) *
+        (1 + 0.18 * calm);
 
     // 多层呼吸光晕。
     for (int i = 5; i >= 0; i--) {
@@ -647,7 +764,8 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
       canvas.drawCircle(orbCenter, layerRadius, paint);
     }
 
-    // 光球本体。
+    // 光球本体：边缘带轻微呼吸噪声形变（顶点微扰而非贴图），
+    // 光灵像一滴活着的 光，而不是一枚标准的圆。
     final bodyPaint = Paint()
       ..shader = RadialGradient(
         colors: [
@@ -658,7 +776,45 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
         ],
         stops: const [0.0, 0.35, 0.65, 1.0],
       ).createShader(Rect.fromCircle(center: orbCenter, radius: radius));
-    canvas.drawCircle(orbCenter, radius, bodyPaint);
+    final orb = Path();
+    const segments = 28;
+    for (int i = 0; i <= segments; i++) {
+      final a = i / segments * math.pi * 2;
+      final wobble =
+          1 +
+          0.028 * math.sin(a * 3 + t * 1.1) +
+          0.02 * math.sin(a * 5 - t * 0.7);
+      final r = radius * wobble;
+      final p = Offset(
+        orbCenter.dx + math.cos(a) * r,
+        orbCenter.dy + math.sin(a) * r,
+      );
+      if (i == 0) {
+        orb.moveTo(p.dx, p.dy);
+      } else {
+        orb.lineTo(p.dx, p.dy);
+      }
+    }
+    orb.close();
+    canvas.drawPath(orb, bodyPaint);
+
+    // 尾迹微粒（第 11 轮）：朝游动方向的反向留下一串渐隐的光尘，
+    // 让光灵的移动有"穿过世界"的朝向感。
+    final vel = game.spiritVelocity;
+    final speed = vel.length;
+    if (speed > 5) {
+      final dx = vel.x / speed;
+      final dy = vel.y / speed;
+      for (int i = 1; i <= 6; i++) {
+        final d = i * radius * 0.24 * (0.6 + breatheProgress * 0.6);
+        final fade = (1 - i / 7) * 0.11 * intro;
+        canvas.drawCircle(
+          Offset(orbCenter.dx - dx * d, orbCenter.dy - dy * d),
+          1.6 + (6 - i) * 0.4,
+          Paint()..color = tint.withValues(alpha: fade),
+        );
+      }
+    }
 
     // 声息涟漪（第 9 轮）：麦克风呼吸开启时，光灵边缘一圈极淡的涟漪
     // 随音量包络脉动（alpha 峰值仅 0.15），世界感知到"真实的气息"。
@@ -683,45 +839,57 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     }
 
     // 环绕微粒：吸气时外扩、呼气时收拢。
-    final rng = math.Random(42);
-    const particleCount = 18;
-    for (int i = 0; i < particleCount; i++) {
-      final angle = (i / particleCount) * math.pi * 2 + rng.nextDouble() * 0.5;
+    final particleOpacity =
+        ((0.75 - breatheProgress * 0.45) * (0.4 + glow * 0.6) * intro)
+            .clamp(0.0, 1.0);
+    final particlePaint = Paint();
+    for (final particle in _particles) {
+      final wobbleAngle = particle.angle + math.sin(t * 0.6 + particle.angle * 3) * 0.12;
       final distance =
           radius * 1.25 +
-          breatheProgress * radius * 0.9 * (0.5 + rng.nextDouble() * 0.5);
+          breatheProgress * radius * 0.9 * particle.distFactor;
       final p = Offset(
-        orbCenter.dx + math.cos(angle) * distance,
-        orbCenter.dy + math.sin(angle) * distance,
+        orbCenter.dx + math.cos(wobbleAngle) * distance,
+        orbCenter.dy + math.sin(wobbleAngle) * distance,
       );
-      final opacity = ((0.75 - breatheProgress * 0.45) * (0.4 + glow * 0.6))
-          .clamp(0.0, 1.0);
-      canvas.drawCircle(
-        p,
-        1.5 + rng.nextDouble() * 2.5,
-        Paint()..color = ZenTheme.starWhite.withValues(alpha: opacity),
+      particlePaint.color = ZenTheme.starWhite.withValues(
+        alpha: particleOpacity,
       );
+      canvas.drawCircle(p, particle.size, particlePaint);
     }
 
-    // 底部提示文字随呼吸微弱明灭。
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: '光灵 · 随呼吸起伏',
-        style: TextStyle(
-          color: ZenTheme.textMuted.withValues(
-            alpha: (0.55 + 0.3 * glow).clamp(0.0, 1.0),
+    // 底部提示文字：预排版一次，开场后稳定呈现。
+    if (intro > 0.55) {
+      final label = _labelPainter ??= TextPainter(
+        text: TextSpan(
+          text: '光灵 · 随呼吸起伏',
+          style: TextStyle(
+            color: ZenTheme.textMuted.withValues(alpha: 0.62),
+            fontSize: 13,
+            letterSpacing: 4,
           ),
-          fontSize: 13,
-          letterSpacing: 4,
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(
-      canvas,
-      Offset(orbCenter.dx - textPainter.width / 2, orbCenter.dy + radius + 42),
-    );
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(
+        canvas,
+        Offset(orbCenter.dx - label.width / 2, orbCenter.dy + radius + 42),
+      );
+    }
   }
+}
+
+/// 光灵环绕微粒的固定参数（预生成，渲染零分配）。
+class _OrbParticle {
+  _OrbParticle({
+    required this.angle,
+    required this.distFactor,
+    required this.size,
+  });
+
+  final double angle;
+  final double distFactor;
+  final double size;
 }
 
 /// 声景视听联动层（第 8 轮）：夜雨时叠加极淡雨丝缓落，篝火时背景

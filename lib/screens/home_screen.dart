@@ -55,9 +55,12 @@ class _HomeScreenState extends State<HomeScreen> {
           settings: provider.settings,
         ),
         transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: ZenMotion.pageCurve),
+            child: child,
+          );
         },
-        transitionDuration: const Duration(milliseconds: 500),
+        transitionDuration: ZenMotion.page,
       ),
     );
   }
@@ -70,9 +73,12 @@ class _HomeScreenState extends State<HomeScreen> {
         pageBuilder: (_, __, ___) =>
             JingjingScreen(seedColor: provider.seedColor),
         transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: ZenMotion.pageCurve),
+            child: child,
+          );
         },
-        transitionDuration: const Duration(milliseconds: 500),
+        transitionDuration: ZenMotion.page,
       ),
     );
   }

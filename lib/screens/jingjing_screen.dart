@@ -22,9 +22,14 @@ class JingjingScreen extends StatefulWidget {
   State<JingjingScreen> createState() => _JingjingScreenState();
 }
 
-class _JingjingScreenState extends State<JingjingScreen> {
+class _JingjingScreenState extends State<JingjingScreen>
+    with WidgetsBindingObserver {
   late final JingjingGame _game;
   Timer? _koanTimer;
+
+  /// 开场引导的一行淡字：进入静境时浮现又自行淡去。
+  bool _showIntroLine = true;
+  Timer? _introTimer;
 
   /// 声景引擎（Web 合成实现；非 Web 平台静音降级）。
   /// 懒创建：首次进入长夜（用户手势内）才真正初始化 AudioContext。
@@ -61,8 +66,13 @@ class _JingjingScreenState extends State<JingjingScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _game = JingjingGame(seedColor: widget.seedColor);
     _game.shardMessage.addListener(_onShardMessage);
+    // 开场引导：一行淡字缓缓浮现，约 6 秒后自行淡去，绝无按钮。
+    _introTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _showIntroLine = false);
+    });
     // 麦克风可用性探测（不请求权限，只看平台是否可能支持）。
     _micAvailable = BreathMicEngineImpl().isSupported;
     _micSensPref.load().then((_) {
@@ -96,6 +106,8 @@ class _JingjingScreenState extends State<JingjingScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _introTimer?.cancel();
     _game.shardMessage.removeListener(_onShardMessage);
     _koanTimer?.cancel();
     _toastTimer?.cancel();
@@ -103,6 +115,20 @@ class _JingjingScreenState extends State<JingjingScreen> {
     unawaited(_micEngine?.stop()); // 彻底释放麦克风流与轨道。
     _game.awakening.save();
     super.dispose();
+  }
+
+  /// 生命周期安全（第 11 轮）：切到后台时声景缓缓停下，
+  /// 回到前台时若仍在长夜则再缓缓浮起——声音不惊扰、不泄漏。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.inactive) {
+      unawaited(_soundscape?.stop(fadeOut: 0.8));
+    } else if (state == AppLifecycleState.resumed && _nightMode) {
+      final engine = _soundscape ??= SoundscapeEngineImpl();
+      unawaited(engine.start(fadeIn: 3.0));
+    }
   }
 
   /// 开/关麦克风呼吸输入。getUserMedia 只在此点击手势的调用栈内触发；
@@ -227,6 +253,29 @@ class _JingjingScreenState extends State<JingjingScreen> {
                   ),
                 );
               },
+            ),
+          ),
+          // 开场引导：一行淡字缓缓浮现又自行淡去——这是第一口气之前的
+          // 唯一提示，无按钮、不打扰。
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Align(
+                alignment: const Alignment(0, -0.32),
+                child: AnimatedOpacity(
+                  opacity: _showIntroLine ? 1 : 0,
+                  duration: const Duration(milliseconds: 2200),
+                  curve: Curves.easeOut,
+                  child: Text(
+                    '你的呼吸，点亮这个世界',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ZenTheme.textMuted.withValues(alpha: 0.42),
+                      fontSize: 13,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
           // 呼吸提示词：淡入淡出，随呼吸方向切换。
@@ -560,13 +609,13 @@ class _JingjingScreenState extends State<JingjingScreen> {
                   onPressed: () {
                     Navigator.of(context).push(
                       PageRouteBuilder<void>(
-                        transitionDuration: const Duration(milliseconds: 800),
+                        transitionDuration: ZenMotion.page,
                         pageBuilder: (_, _, _) => const StarMapScreen(),
                         transitionsBuilder: (_, animation, _, child) =>
                             FadeTransition(
                               opacity: CurvedAnimation(
                                 parent: animation,
-                                curve: Curves.easeOut,
+                                curve: ZenMotion.pageCurve,
                               ),
                               child: child,
                             ),
