@@ -13,6 +13,7 @@ import 'insomnia_sea.dart';
 import 'long_night.dart';
 import 'mist_guardian.dart';
 import 'mist_wood.dart';
+import 'onboarding.dart';
 import 'quality.dart';
 import 'regions.dart';
 import 'reunion.dart';
@@ -85,6 +86,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 「相会」演出（第 18 轮）：眠与惘的稀有时刻（触发即自动运行）。
   late final ReunionEvent reunion;
+
+  /// 「初次入静」开场呼吸引导（第 23 轮）：仅首次且未开随息时装配；
+  /// 老用户/随息用户为 null，零打扰。
+  OnboardingOverlay? onboarding;
+  late final OnboardingPreference onboardingPref = OnboardingPreference();
 
   /// 已完成的平稳呼吸循环总数（星兽苏醒的独立事件源，不受碎片消费影响）。
   int cycleCount = 0;
@@ -203,6 +209,12 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 当前是否处于平稳呼吸（供星岛苏醒判定）。
   bool get breathSteady => _breathJitter > 0.004 && _breathJitter < 0.35;
+
+  /// 当前是否按住（吸气中）——开场引导的提示词切换用（第 23 轮）。
+  bool get breathPressing => _pressing;
+
+  /// 当前呼吸相位 0..1（0=呼尽，1=吸满）——开场引导的淡入淡出用。
+  double get breathPhase => _breathProgress;
 
   /// 游戏运行秒数（供组件做微光动画）。
   double get time => _time;
@@ -330,6 +342,23 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 平时 idle 只做轻量条件检查，零渲染成本。
     reunion = ReunionEvent(beast: beast, guardian: mistGuardian, path: stillPath);
     add(reunion);
+
+    // 「初次入静」开场呼吸引导（第 23 轮）：仅当从未完成过引导且本次
+    // 未开启随息麦克风时装配（最上层渲染）；条件不满足即零打扰。
+    await onboardingPref.load();
+    if (!onboardingPref.onboarded && !micBreathEnabled) {
+      onboarding = OnboardingOverlay(pref: onboardingPref);
+      add(onboarding!);
+    }
+  }
+
+  /// 用户开启随息麦克风时取消引导（零打扰原则）：立即退场并打上
+  /// 已引导标记，之后永不再现。
+  void cancelOnboarding() {
+    onboarding?.removeFromParent();
+    onboarding = null;
+    // ignore: discarded_futures
+    onboardingPref.markOnboarded();
   }
 
   /// 刚完成一次平稳呼吸循环且尚未被碎片消费——供 MindShard 吸入判定。
