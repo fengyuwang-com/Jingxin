@@ -9,6 +9,8 @@
 - [ ] （可选）装 Visual Studio C++ 工作负载以支持 Windows 桌面构建
 
 ## 已完成
+
+- [x] 第15轮：「拾忆」——心镜导出与带回（新增 lib/game/memento.dart：MementoCodec 导出 `jx-memo-v1:<base64(utf8(json))>`（v1 格式+schema 注释，含碎片时间戳+禅语+区域+苏醒度+星兽状态），tryDecode 容错静默失败；mergeShards 按时间戳+禅语去重合并不覆盖、按时间排序返回新增数；星图右上角极小「拾忆」图标→玻璃拟态底部抽屉（ZenMotion 入场）：带我的心境走（Clipboard+淡字「已复制，收好」）/看一眼足迹（纯文本第一次+最近一次回顾）/放回心镜（粘贴+归位，失败「这段记忆读不出来」成功「心镜归位了，共 N 片」）；star_beast 加 swimUntilEpoch getter；analyze 0 error（19基线）/flutter test 9 项通过（新增 shard_merge_test.dart 8 项）/build web 通过，commit 5fe9009）
 - [x] 第10轮：随息——麦克风呼吸检测输入层（breath_mic.dart 条件导入：Web 用 js_interop+package:web getUserMedia+AnalyserNode RMS；非 Web stub 静默降级、UI 隐藏入口；隐私克制不录音不存储+首次「只听气息，不留声音」；慢速自动增益基线（上涨τ30s/下跌τ1.5s）+灵敏度3档（低/中/高，持久化 jingxin.mic.sens.v1）+两级低通杜绝抖动；吹气=呼气相位映射；双输入最近活跃者仲裁，触控随时接管；失败淡字「随息未就绪，轻触亦可行」绝不弹窗；退出页面彻底 stop 释放轨道；analyze 0 error（19条低于基线）/build web 通过，commit 07e483f）
 - [x] 第11轮：手感与视觉打磨 pass（①开场苏醒：星按错落时刻逐颗亮起+光灵缓现+一行淡字「你的呼吸，点亮这个世界」2.2s淡入6s自去；②光灵生命感：边缘28段顶点微扰噪声形变+游动反向尾迹光尘+平静积累 calmGlow（约10平稳循环满，光灵+18%光晕+5%半径）；③相机呼吸微动：camPos=基准跟随+呼吸同相极小位移(1.4/2.2px)getter，组件零改动；④转场统一 ZenMotion 800ms easeOutCubic（首页→冥想/静境 500ms 提升、星图曲线统一）+AppLifecycle 后台声景0.8s缓停/回前台长夜3s浮起；⑤性能：微粒参数预生成+TextPainter只layout一次+碎片逆序遍历去List.of+星空画笔复用+星云着色器量化缓存；稀有「世界的回应」：约6%平稳循环后远处星按平方亲和度同眨一眼0.9s，无文字；analyze 0 error（19基线无新增）/build web 通过，commit c8d924c）
 - [x] 第7轮：第二心境区域「焦虑之渊」——区域抽象 regions.dart（深度带 0.80→0.93 漫游即达，无加载无传送门）；乱星36颗快速低亮明灭，平稳呼吸时频率/相位渐被同化为8s温柔脉动、离开极缓恢复杂乱；渊底心跳微光9s极慢脉动；5朵星花按附近乱星同化度开合（当次反馈）；渊中碎片用专属渊语池+「焦虑之渊·XX」九宫格命名；analyze 0 error/build web 通过，commit b5a98e6

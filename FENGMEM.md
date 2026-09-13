@@ -86,3 +86,9 @@
 - AI 行动: 新建 lib/game/still_path.dart（锚点连续坐标展开允许 x<0 穿接缝、Catmull-Rom 81 采样缓存静态 Path、渲染按最短环绕平移+接缝镜像副本+bbox 剔除、余温按采样段累积/16s 衰减、径上尘参数化沿径往返游移）；jingjing_game.dart 装配（雾林之后、星兽之前渲染层）+import
 - 产出: commit ded0ce8 [auto-night-14]；analyze 0 error（19 基线无新增）；flutter build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
 - 关键决策: 路径只是一道"旧迹"非导航非任务（无成就无计数无提示）；渲染用静态 Path 每帧仅平移描边零重建（性能关键）；接缝连续性靠"锚点连续展开+每点最短环绕差+镜像副本"三件套；余温衰减 16s/累积 1.8s（踩一脚易、褪去缓）；下一步建议：星图数据导出 / 部署 GitHub Pages（需主人确认 push）/ 性能 profile 与移动端适配
+
+## 2026-09-13 — 第 15 轮
+- 用户要求: 通宵升级第 15 轮「拾忆」——星图页克制入口 + 玻璃底部抽屉：导出（JSON+base64 轻混淆 v1 格式复制剪贴板）、极简足迹回顾、导入（粘贴→校验→按时间戳+禅语去重合并不覆盖）；单测覆盖合并/编解码；analyze/test/build 门槛
+- AI 行动: 新建 lib/game/memento.dart（MementoCodec encode/tryDecode + mergeShards 纯函数，schema 注释入档）；star_map_screen 加右上角小图标 + _MementoDrawer 玻璃抽屉（BackdropFilter + ZenMotion 上浮淡入 + 三动作 + 一行淡字反馈）；star_beast.dart 加 swimUntilEpoch getter；新增 test/shard_merge_test.dart（8 项）；UPGRADE-LOG/todo/FENGMEM 更新
+- 产出: commit 5fe9009 [auto-night-15]；analyze 0 error（19 基线无新增）；flutter test 9 项全通过；flutter build web 成功
+- 关键决策: 导出格式 `jx-memo-v1:<base64(utf8(json))>`（字段 v/at/awa/beast{v,swim}/shards[{t,text,region}]）；解析容错：容忍前后杂文字与空白、任何异常静默 null；去重标准=同时间戳+同禅语（不覆盖现有、保留现有实例）；UI 无文件选择器纯剪贴板（web 简单可靠）；下一步建议：性能 profile 与移动端适配 / 部署 GitHub Pages（需主人确认 push）/ 世界级彩蛋
