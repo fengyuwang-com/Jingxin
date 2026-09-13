@@ -528,3 +528,21 @@ flutter build web 成功；python -m http.server 临时起服：index.html / mai
 
 ### 质量门槛
 flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2 项回归）；build web 成功。
+
+## 第 35 轮（2026-09-13）— 星图分享卡：把你的平静星图带走
+- 理念：星图是玩家自己的，值得带走留念。
+- 渲染（新增 lib/game/star_card.dart）：
+  - renderStarCardImage：PictureRecorder → toImage(540×810 × 2 = 1080×1620)，UI 线程一次完成。
+  - 卡面：深空径向底色（ZenTheme.deepSpace→voidBlack）+ 黄金角螺旋星点（每枚碎片一枚、regionDotColor 区域色相，兽语签 = 星兽金 0xFFe8c473）+ 中央小晨星印记（满醒过才画）+ 顶部小字「静境 · 我的平静星图」+ 底部统计「已拾 N 枚碎片 · 静了 M 个夜晚」（复用 memo_stats.countNights）+ 日期「yyyy年M月d日」。系统字体、克制留白。
+  - 纯函数可测：starCardStarOffset（螺旋半径封顶最短边×0.42，碎片再多也在卡内）、starCardStatsLine、starCardDateLine、starCardSize/starCardPixelRatio 常量。
+- 出口（新增 star_card_saver.dart 条件导出，同 soundscape/breath_mic 模式）：
+  - web：star_card_saver_web.dart 用 dart:js_interop + package:web，PNG 字节 → Blob → ObjectURL → `<a download>` 程序化点击（文件名 jingxin-star-map-<日期>.png），用后 revoke，零残留。
+  - 非 web：stub 仅记录日志、isSupported=false（移动端保存本轮范围外）。
+- 入口（star_map_screen.dart）：右上角与「拾忆」并列一枚 ios_share 图标（tooltip「带走星图」）；点击生成期间按钮转圈禁用；成功/失败走底部浮动 SnackBar 一行淡字（「星图已带走，收好」/「这张星图暂时带不走，晚点再来」），不惊扰。
+- 测试：新增 test/star_card_test.dart 5 项（螺旋确定性与画布内 / 螺旋起点与 0.82 纵向压扁系数 / 统计行文案与空态 / 日期行不补零 / 1080×1620 尺寸常量）。总计 78/78 全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 78/78；flutter build web 成功。
+- commit：见 git log（feat(game): 星图分享卡导出 [auto-night-35]，未 push）。
+- 下一步建议（第 36 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒/纪念签/星兽低语/兽语签/带走星图全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 分享卡深化：Web 端长按预览（Dialog 内先看一眼再下载）；或分享卡加「满醒 M 次」的一枚极小金印（复用 jingxin.fullawake.count.v1）。
