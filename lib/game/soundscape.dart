@@ -74,6 +74,12 @@ abstract class SoundscapeEngine {
   /// 长夜/晨光告别后调回 1.0。Web 实现用独立增益节点长 ramp 平滑
   /// 过渡（数秒尺度），绝不跳变；相位映射不受影响。
   void setBreathLullFactor(double factor);
+
+  /// 晨光泛音（第 50 轮）：满醒日晨光回涨段，呼吸音之上叠一层极轻
+  /// 的高八度泛音，[gain] 由 breathDawnOvertoneGain 给出（0..0.12，
+  /// 非满醒日恒 0）。Web 实现用独立增益节点 setTargetAtTime 长时间
+  /// 常数平滑推进（与 setBreathLullFactor 同节奏），绝不跳变。
+  void setBreathDawnOvertoneGain(double gain);
 }
 
 /// 声景选择持久化（shared_preferences，所有平台可用）。

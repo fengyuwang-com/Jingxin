@@ -61,6 +61,13 @@ class _JingjingScreenState extends State<JingjingScreen>
   /// 长夜开始时刻（第 45 轮入睡礼让）：呼吸音随夜深缓缓变轻的计时起点。
   DateTime? _nightStartAt;
 
+  /// 晨光泛音（第 50 轮）：最近一次满醒的日期（`jingxin.fullawake.count.v1`
+  /// 的 `次数|yyyyMMdd`，FullAwakeCtl.parseCount 容错解析）。与今天
+  /// 同一天即为「满醒日」，晨光回涨段呼吸音叠一层极轻高八度泛音；
+  /// 初始化时读一次即可，跨午夜由 [_syncBreathLull] 用当天日期现算
+  /// 比对，天然正确。
+  DateTime? _fullAwakeLastDate;
+
   // ---- 麦克风呼吸（第 9 轮）：完全可选、默认关闭、不持久化 ----
   /// 麦克风引擎（懒创建，只在用户点击手势内 start）。
   BreathMicEngine? _micEngine;
@@ -208,6 +215,10 @@ class _JingjingScreenState extends State<JingjingScreen>
       if (!mounted) return;
       setState(() => _breathSoundOn = _breathPref.enabled);
       _syncBreathSound();
+    });
+    // 晨光泛音（第 50 轮）：读一次满醒记账的最近日期，判「满醒日」。
+    FullAwakeCtl.loadCount().then((count) {
+      if (mounted) _fullAwakeLastDate = count.lastDate;
     });
     // 闻声：朗读时把声景 master gain 轻压下去，读完缓缓恢复。
     _voice.onSpeakingStart = (_) => _soundscape?.duck(active: true);
@@ -415,6 +426,17 @@ class _JingjingScreenState extends State<JingjingScreen>
     // 呼吸音保持原档位，见 breathWobbleFactor 的中点约定）。
     final envelope = _micOn ? _game.micEnvelope : 0.5;
     _soundscape?.setBreathLullFactor(factor * breathWobbleFactor(envelope));
+    // 晨光泛音（第 50 轮）：满醒日印当天，泛音随晨光平滑升起
+    //（进度到 1 后保持峰值——世界已醒，声音亮着）；非满醒日恒 0。
+    final last = _fullAwakeLastDate;
+    final isFullAwakeDay = last != null &&
+        last.year == now.year &&
+        last.month == now.month &&
+        last.day == now.day;
+    _soundscape?.setBreathDawnOvertoneGain(breathDawnOvertoneGain(
+      isFullAwakeDay: isFullAwakeDay,
+      dawnProgress: breathDawnProgress(DayTide.daylight(minutes)),
+    ));
   }
 
   /// 开始晨光告别：暖金晨光 15s 漫入、星兽眯眼、白噪音 20s 平滑淡出、
@@ -508,6 +530,7 @@ class _JingjingScreenState extends State<JingjingScreen>
     // （引擎侧约 3 秒长 ramp，晨光里不会突然变响）。
     _nightStartAt = null;
     _soundscape?.setBreathLullFactor(1.0);
+    _soundscape?.setBreathDawnOvertoneGain(0.0); // 泛音随长夜一同收声。
     _whisperTimer?.cancel();
     _beastWhisperTimer?.cancel();
     // 兽语签作废：梦话没被听完（天亮了）。

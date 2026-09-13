@@ -39,6 +39,9 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
   void setBreathLullFactor(double factor) {}
 
   @override
+  void setBreathDawnOvertoneGain(double gain) {}
+
+  @override
   void updateBreathTone({
     required double phase,
     required bool inhaling,

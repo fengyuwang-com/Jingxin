@@ -220,6 +220,28 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
     }
   }
 
+  /// 晨光泛音（第 50 轮）：满醒日晨光回涨段的高八度泛音增益
+  ///（0..0.12，非满醒日恒 0）。走独立 overtoneGain 节点，
+  /// setTargetAtTime 时间常数 1s，与 lullGain 同节奏平滑推进。
+  @override
+  void setBreathDawnOvertoneGain(double gain) {
+    final ctx = _ctx;
+    final voice = _breath;
+    if (ctx == null || voice == null || !voice.built) {
+      return; // 未构建：构建时取默认静默（0.0001）。
+    }
+    try {
+      final now = ctx.currentTime;
+      voice.overtoneGain.gain.setTargetAtTime(
+        gain <= 0.0001 ? 0.0001 : gain,
+        now,
+        1.0, // 时间常数 1s → 约 3 秒基本到位，长 ramp 无跳变。
+      );
+    } catch (_) {
+      // 泛音推进失败无伤大雅：呼吸音保持原样。
+    }
+  }
+
   /// start/开关变更时按当前状态起停呼吸之音。
   void _startOrStopBreath({required double fadeIn}) {
     if (_breathEnabled && _playing) {
@@ -613,6 +635,12 @@ class _BreathVoice {
   /// 入睡礼让（第 45 轮）：toneGain 与 bus 之间的独立全局系数节点，
   /// 长夜越深越轻（breathNightFactor），与音内包络/起停 ramp 相互正交。
   late final web.GainNode lullGain;
+
+  /// 晨光泛音（第 50 轮）：高八度正弦振荡器 + 独立增益节点（初始
+  /// 静默）。振荡器常驻（避免频繁 create/dispose），只有满醒日晨光
+  /// 才由屏幕侧把 overtoneGain 推离 0——非满醒日完全无声。
+  late final web.OscillatorNode overtoneOsc;
+  late final web.GainNode overtoneGain;
   late final web.GainNode bus;
   bool built = false;
 
@@ -638,7 +666,14 @@ class _BreathVoice {
     osc.connect(toneGain);
     toneGain.connect(lullGain);
     lullGain.connect(bus);
-    osc.start();
+    overtoneOsc = ctx.createOscillator();
+    overtoneOsc.type = 'sine';
+    overtoneOsc.frequency.value = kBreathPentatonic.first * 2;
+    overtoneGain = ctx.createGain();
+    overtoneGain.gain.value = 0.0001; // 初始静默：非满醒日永不发声。
+    overtoneOsc.connect(overtoneGain);
+    overtoneGain.connect(lullGain); // 与主音同受礼让/起停 ramp 约束。
+    overtoneOsc.start();
     built = true;
   }
 
@@ -659,6 +694,12 @@ class _BreathVoice {
       const ramp = 0.15;
       if (tone.frequency != _lastFreq) {
         osc.frequency.setTargetAtTime(tone.frequency, now, ramp / 3);
+        // 高八度泛音随主音一同换音（频率恒为主音的 2 倍）。
+        overtoneOsc.frequency.setTargetAtTime(
+          tone.frequency * 2,
+          now,
+          ramp / 3,
+        );
         _lastFreq = tone.frequency;
       }
       if ((tone.gain - _lastGain).abs() > 0.0005) {

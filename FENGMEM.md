@@ -575,3 +575,9 @@
 - AI 行动: 读 UPGRADE-LOG 第 47/48 轮与 git log；在 lib/game/star_card.dart 抽纯逻辑（按钮状态机 cardSavePhaseNext、文件名 saveCardFileName）；lib/screens/star_map_screen.dart 预览层加玻璃拟态「收下」小钮（仅 Web、三态、禁用防重复、1.5s 确认态淡回、失败轻提示）；决策「另渲染新离屏图」实现保存与预览 dispose 完全解耦。
 - 产出: commit e6a6539（未 push）；新增 test/star_card_save_test.dart 10 项；UPGRADE-LOG.md 第 49 轮记录；analyze 19 条基线持平 0 error，test 166/166，build web 成功。
 - 关键决策: 不复用预览图（其会在关闭 350ms 后 dispose），保存时另渲染一张生命周期局部于保存函数的新图——最简且并发安全；状态机 start 仅允许自 idle/failed，防重复提交与 done 误重启。
+
+## 2026-09-14 04:43 — 第 50 轮
+- 用户要求: 通宵自动升级第 50 轮：满醒日晨光泛音——满醒日印当天晨光回涨段呼吸音叠极轻高八度泛音（峰值≤0.12），抽纯函数+单测，Web 端 _BreathVoice 加常驻泛音振荡器与独立 gain（τ≈1s），复用 FullAwakeCount 判满醒日，全质量门槛（analyze/test/build web/commit）后记日志与记忆。
+- AI 行动: breath_sound.dart 加 breathDawnOvertoneGain（smoothstep，非满醒日恒 0）；soundscape 接口/stub/web 三处加 setBreathDawnOvertoneGain，_BreathVoice 加 overtoneOsc(2×主音)+overtoneGain(初 0.0001)挂 lullGain；jingjing_screen initState 读一次 FullAwakeCtl.loadCount，_syncBreathLull 每秒比对当天日期并推泛音，_finishFarewell 收声归零；test 新增 6 项。
+- 产出: commit（feat(game): 满醒日晨光泛音 [auto-night-50]，未 push）；analyze 19 条基线 0 error；test 172/172；build web 成功；UPGRADE-LOG.md 第 50 轮已记。
+- 关键决策: 听感权衡选「dawnProgress 到 1 后保持峰值」——晨光告别时声音整体已淡出，不存在正午独响场景，且与晨光回涨"涨回全量恒 1.0"语义一致（光声同亮同收）；满醒日解析复用既有 parseCount 不另抽函数。
