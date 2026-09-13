@@ -8,6 +8,7 @@ import 'package:flutter/material.dart' hide Draggable;
 import '../core/theme.dart';
 import 'anxiety_abyss.dart';
 import 'companion.dart';
+import 'day_tide.dart';
 import 'breath_mic.dart';
 import 'awakening.dart';
 import 'full_awake.dart';
@@ -375,6 +376,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
       shards.add(shard);
       add(shard);
     }
+
+    // 昼夜潮汐（第 36 轮）：按本地真实时刻的全屏极淡 tint（画在
+    // 世界之上、声景天气与演出层之下，长夜激活时自动让位归零）。
+    add(DayTideLayer());
 
     // 声景视听联动层（最顶层渲染，极淡）：夜雨雨丝 / 篝火暖色偏移。
     add(_NightWeather());
