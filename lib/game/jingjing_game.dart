@@ -11,6 +11,7 @@ import 'breath_mic.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
+import 'mist_wood.dart';
 import 'regions.dart';
 import 'shard.dart';
 import 'soundscape.dart';
@@ -178,6 +179,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 光灵当前在「疲惫荒原」的深度（0..1，世界上部旷野带，与渊镜像对称）。
   double heathDepth = 0;
 
+  /// 光灵当前在「纷心雾林」的深度（0..1，世界左/右接缝水平带，第 13 轮）。
+  double mistDepth = 0;
+
   /// 呼吸平稳度：|Δprogress| 的低通值，低于阈值视为"平稳呼吸"。
   double _breathJitter = 0;
 
@@ -226,6 +230,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(sea);
     add(WearyHeath());
     add(AnxietyAbyss());
+    add(MistWood());
     beast = StarBeast();
     add(beast);
     final rng = math.Random(42);
@@ -245,27 +250,36 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(_spirit);
 
     // 心镜碎片：本轮漫游程序放置 2~4 片，散布在世界中（远离光灵起点）。
-    // 碎片按序号分配心境区域：i%3==1 沉入「焦虑之渊」深度带，
-    // i%3==2 上浮「疲惫荒原」旷野带（各自用专属偈语池）。
+    // 碎片按序号分配心境区域：i%4==1 沉入「焦虑之渊」深度带，
+    // i%4==2 上浮「疲惫荒原」旷野带，i%4==3 漂入「纷心雾林」接缝带
+    // （各自用专属偈语池）。
     final shardRng = math.Random(DateTime.now().millisecondsSinceEpoch);
     final count = 2 + shardRng.nextInt(3);
     final abyssBand = GameRegion.anxietyAbyss;
     final heathBand = GameRegion.wearyHeath;
     for (int i = 0; i < count; i++) {
-      final inAbyss = i % 3 == 1;
-      final inHeath = i % 3 == 2;
+      final inAbyss = i % 4 == 1;
+      final inHeath = i % 4 == 2;
+      final inMist = i % 4 == 3;
       double ny;
+      double nx = 0.06 + 0.88 * shardRng.nextDouble();
       if (inAbyss) {
         ny = abyssBand.depthStart +
             0.02 + shardRng.nextDouble() * (0.98 - abyssBand.depthStart);
       } else if (inHeath) {
         ny = heathBand.depthFull - 0.03 -
             shardRng.nextDouble() * (heathBand.depthFull - 0.02);
+      } else if (inMist) {
+        // 雾林碎片：贴着 x 接缝的林深处（nx 或 1-nx 小），ny 在门带中段。
+        final side = shardRng.nextBool();
+        final off = 0.04 + shardRng.nextDouble() * 0.20;
+        nx = side ? off : 1.0 - off;
+        ny = 0.33 + shardRng.nextDouble() * 0.32;
       } else {
         ny = 0.06 + 0.88 * shardRng.nextDouble();
       }
       final pos = Vector2(
-        (0.06 + 0.88 * shardRng.nextDouble()) * worldPeriod.x,
+        nx * worldPeriod.x,
         ny * worldPeriod.y,
       );
       final shard = MindShard(
@@ -275,9 +289,12 @@ class JingjingGame extends FlameGame with TapCallbacks {
             ? const Color(0xFFc9a0b8)
             : inHeath
             ? const Color(0xFFd8bc8e)
+            : inMist
+            ? const Color(0xFF9cc8b8)
             : ZenTheme.nebulaCyan,
         abyss: inAbyss,
         heath: inHeath,
+        mist: inMist,
       );
       shards.add(shard);
       add(shard);
@@ -418,11 +435,15 @@ class JingjingGame extends FlameGame with TapCallbacks {
     spiritPos += _spiritVelocity * dt;
     wrap(spiritPos);
 
-    // 区域深度：按光灵所在归一化 y 平滑过渡（渊在海的更深处，
-    // 荒原在世界上部的旷野带，接入方式镜像对称）。
+    // 区域深度：按光灵所在归一化坐标平滑过渡（渊在海的更深处，
+    // 荒原在世界上部的旷野带，雾林在世界左右接缝的水平边缘带）。
     final ny = spiritPos.y / worldPeriod.y;
     abyssDepth = GameRegion.anxietyAbyss.depthAt(ny);
     heathDepth = GameRegion.wearyHeath.depthAt(ny);
+    mistDepth = GameRegion.mistWood.depthAtPoint(
+      spiritPos.x / worldPeriod.x,
+      ny,
+    );
 
     // 相机极缓跟随：光灵在屏幕上只做小幅游移，世界在四周流动。
     final camDelta = spiritPos - _camBase;

@@ -65,6 +65,21 @@ class Koans {
 
   static final List<int> _heathRecent = [];
 
+  /// 「纷心雾林」专属偈语池（第 13 轮）：让思绪落地的意象——
+  /// 雾是纷乱的心事，随呼吸沉降。克制、勿鸡汤。
+  static const List<String> _mistPool = [
+    '雾不是墙，是还没落下的心事。',
+    '呼气的时候，雾也矮了一寸。',
+    '念头落了地，就成了萤火。',
+    '林中无路，呼吸自会分开雾。',
+    '看得不清，就先不必看清。',
+    '雾散不是赶走，是请它坐下。',
+    '枝头一盏灯，照的不是路，是停。',
+    '心事沉下去的地方，会微微发亮。',
+  ];
+
+  static final List<int> _mistRecent = [];
+
   /// 「入睡引导」极短句池（第 12 轮「闻声」）：长夜里极低频率轻声读出。
   /// 主题是睡眠接近感——描述性的、留白的，勿鸡汤勿命令式。
   static const List<String> _whisperPool = [
@@ -93,6 +108,9 @@ class Koans {
 
   /// 「疲惫荒原」碎片偈语。
   static String nextHeath() => _draw(_heathPool, _heathRecent);
+
+  /// 「纷心雾林」碎片偈语。
+  static String nextMist() => _draw(_mistPool, _mistRecent);
 
   static String _draw(List<String> pool, List<int> recent) {
     if (recent.length >= pool.length - 3) recent.clear();
