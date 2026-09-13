@@ -16,6 +16,8 @@
 把静心从冥想工具重构成游戏《静境》：呼吸即唯一操作、无失败无分数、苏醒度即进度、心境星图 + 心镜碎片、睡前长夜收尾。视觉保持 CYBER-ZEN。
 
 ## 队列
+
+- [x] 第45轮：呼吸音入睡礼让——夜越深琴越轻（breathNightFactor 纯曲线三段 1.0→0.6→0.35 + 60s smoothstep 边界；随息联动选方案 A：breathWobbleFactor 把 micEnvelope 映射 ±15% 起伏、中点 0.5=1.0 未开随息不变；SoundscapeEngine.setBreathLullFactor 走 _BreathVoice 独立 lullGain 节点 1s 时间常数长 ramp；jingjing_screen 记 _nightStartAt 每秒巡检 _syncBreathLull、晨光告别收束 ramp 回 1.0；test +6 项 146/146；analyze 19 基线/build web 过，commit 2e1d105）
 - [ ] 通宵升级循环运行中：每 20 分钟一轮《静境》游戏化增量（automation-1ded3cbe-a45e-4b61-8964-f74fc9a7ca6a），进度看 UPGRADE-LOG.md 和 git log
 - [ ] （可选）装 Visual Studio C++ 工作负载以支持 Windows 桌面构建
 

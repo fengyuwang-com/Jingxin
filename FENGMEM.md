@@ -263,3 +263,10 @@
 - 产出: commit feat(game): 呼吸之音——可选的五声音阶呼吸引导音 [auto-night-44]（未 push）；analyze 19 基线 0 error；test 140/140（+8）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
 - 关键决策: 键选 jingxin.breathsound.v1 布尔新键——soundscape.v1 存的是场景枚举名，呼吸音是正交开关，不硬塞同键；紊乱用增益 ×0.35"更少的音"而非静默（与"乱了世界变暗"同语义）；端点增益严格归零 + setTargetAtTime 平滑是"无咔哒"的双保险；TTS 让位不新做——呼吸音汇入 master bus，duck 自动波及。
 - 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。
+
+## 2026-09-14 — 第 45 轮（通宵自动升级）
+- 用户要求: 呼吸音入睡礼让——夜越深琴越轻：长夜 10 分钟降到 60%、20 分钟降到 35%（相位映射不变只乘全局系数，退出长夜平滑恢复）；随息联动（平稳度起伏 ±15% 或退化为再轻 10%，记录方案理由）；曲线抽纯函数 + 4~6 项测试；门槛 + commit + 文档。
+- AI 行动: breath_sound.dart 加 breathNightFactor（三段平台 + 边界 60s smoothstep）与 breathWobbleFactor；soundscape 接口/stub/web 加 setBreathLullFactor（_BreathVoice 插独立 lullGain 节点，setTargetAtTime τ=1s）；jingjing_screen 加 _nightStartAt + 每秒 _syncBreathLull（复用闲置巡检定时器）+ _finishFarewell 收束回 1.0；test/breath_sound_test.dart 新增 6 项。
+- 产出: commit 2e1d105（未 push）；analyze 19 基线 0 error（顺带清掉 44 轮一个未用变量）；test 146/146（+6）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 随息选方案 A（实时 ±15% 起伏）而非退化方案——micEngine.micEnvelope 是现成公开实时信号，代价仅一个纯函数；用"中点约定"（未开随息传 0.5 构造上=1.0）让两条路径共用同一纯函数免分支；礼让系数走独立 lullGain 节点，与音内包络/起停 ramp 正交互不干扰；恢复全量在晨光告别完成时一次 ramp（约 3 秒到位），不在演出中途动音量。
+- 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push；可选深化——极轻档随晨光渐涨回全量（现为告别收束时 ramp）。
