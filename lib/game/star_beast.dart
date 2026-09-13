@@ -49,6 +49,9 @@ class StarBeastState {
   /// 是否处于全睁后的游弋阶段（跨会话用时间戳持久化）。
   bool get swimming => DateTime.now().millisecondsSinceEpoch < _swimUntil;
 
+  /// 游弋截止时间的原始值（第 15 轮「拾忆」导出用）。
+  int get swimUntilEpoch => _swimUntil;
+
   /// 当前已睁开的眼睛数（游弋期视为全睁）。
   int get openedEyes =>
       swimming ? eyeCount : math.min(eyeCount, (_value / tierSpan).floor());
