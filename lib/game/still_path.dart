@@ -107,6 +107,52 @@ class StillPath extends Component with HasGameReference<JingjingGame> {
   /// 每段 Catmull-Rom 的采样数。
   static const int samplesPerSegment = 16;
 
+  /// 同频引路（第 27 轮）：长按点落在径上时，给该段路径「续余温」。
+  ///
+  /// 沿用既有余温机制——同样的累积速率（dt/1.8）与褪去速率（16 秒
+  /// 缓褪），只调本接口不改数值；视觉即该段路径像被走过一样微亮。
+  /// [worldPoint] 为长按点的世界坐标，[radius] 内的采样点获得续温。
+  void warmNearPoint(Vector2 worldPoint, double dt, {double radius = 80}) {
+    final period = JingjingGame.worldPeriod;
+    final r2 = radius * radius;
+    for (int i = 0; i < _points.length; i++) {
+      final p = _points[i];
+      var dx = p.dx - worldPoint.x;
+      var dy = p.dy - worldPoint.y;
+      if (dx > period.x / 2) dx -= period.x;
+      if (dx < -period.x / 2) dx += period.x;
+      if (dy > period.y / 2) dy -= period.y;
+      if (dy < -period.y / 2) dy += period.y;
+      if (dx * dx + dy * dy < r2) {
+        _warmth[i] = (_warmth[i] + dt / 1.8).clamp(0.0, 1.0);
+      }
+    }
+  }
+
+  /// 世界点到径的最短环绕距离（同频引路的「在径上」判定用，第 27 轮）。
+  double distanceToPoint(Vector2 p, {Vector2? period}) {
+    final per = period ?? JingjingGame.worldPeriod;
+    var best = double.infinity;
+    for (int i = 0; i < _points.length; i++) {
+      final pt = _points[i];
+      var dx = pt.dx - p.x;
+      var dy = pt.dy - p.y;
+      if (dx > per.x / 2) dx -= per.x;
+      if (dx < -per.x / 2) dx += per.x;
+      if (dy > per.y / 2) dy -= per.y;
+      if (dy < -per.y / 2) dy += per.y;
+      final d2 = dx * dx + dy * dy;
+      if (d2 < best) best = d2;
+    }
+    return math.sqrt(best);
+  }
+
+  /// 采样点数量（测试用）。
+  int get sampleCount => _points.length;
+
+  /// 第 [index] 个采样点的当前余温 0..1（测试用）。
+  double warmthAt(int index) => _warmth[index];
+
   /// 径上尘数量（≤10）。
   static const int dustCount = 10;
 
@@ -117,10 +163,13 @@ class StillPath extends Component with HasGameReference<JingjingGame> {
   final List<double> _warmth = [];
   final List<_PathDust> _dust = [];
   late final Path _basePath;
-  late final double _minX;
-  late final double _maxX;
-  late final double _minY;
-  late final double _maxY;
+  // 注意：bbox 在构造函数里先置首点再被 min/max 循环复赋——不能是
+  // late final（late final 二次赋值会抛 LateInitializationError，
+  // 第 27 轮测试构造第二个实例时暴露的潜在缺陷）。
+  double _minX = 0;
+  double _maxX = 0;
+  double _minY = 0;
+  double _maxY = 0;
 
   // ---- 相会回应（第 18 轮）：眠与惘在附近相会时，径短暂亮起、
   // 径上尘聚拢成一小圈——像径在为它们高兴。由 ReunionEvent 驱动。

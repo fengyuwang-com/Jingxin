@@ -1,7 +1,12 @@
 # Jingxin TODO
-- [ ] 第24轮：拾忆星图回看深化——「一夜的记忆」（拾忆抽屉：顶部汇总统计文案 memorySummary（空态「星图还空着，去呼吸吧」/否则「已拾 N 枚碎片 · 静了 M 个夜晚」按本地日期去重）；新增「重看那一夜」折叠区——按时间排序的碎片星点串（色相=来源区域 tint：渊紫/海青/荒原沙/雾林青灰/两兽之间金），点选浮起玻璃拟态记忆卡 _MemoryCard：时间戳+禅语+区域星点+CustomPainter 三环涟漪「呼吸纹」8s 极缓脉动；新增 lib/game/memo_stats.dart 纯函数与 test/memo_stats_test.dart 5 项；数据仅读 jingxin.shards.v1，导出格式不动；analyze 19 基线无新增/test 34 项全过(+5)/build web 通过，commit b2e7356）
+
+- [x] 第26轮：长夜的「晨光告别」演出（新增 lib/game/long_night_farewell.dart 纯函数 shouldBegin(idleSeconds, manuallyEnded)：长夜中安静满 90s 或点月亮结束即开始；UI 层每秒巡检闲置、随息呼吸循环也算活动；演出=低饱和暖金晨光 15s 自屏底漫入（峰值 alpha 0.16）+ 星兽眯眼（beast.squint 压低睁眼目标沿用 4s/只渐变）+ 声景 gain ramp 淡出 20s（新增 SoundscapeEngine.silence 供跳过快速压静）+ 告别偈语池 5 句 2s 淡入停 10s 整体 5s 淡出回普通态；任何触摸 0.9s 跳过；test/long_night_farewell_test.dart 4 项共 41 全过；analyze 19 基线无新增/build web 通过，commit 6ef99b8）
 
 ## 已完成
+
+- [ ] 第27轮：静之径「同频引路」——指尖陪伴互动（长按 ≥1.2s 无位移→光灵以极缓漂移（≤12px/s 一阶惯性）靠近指尖、30px 内停驻；松手原地停驻 2s 回归巡游；靠近时星尘尾迹 2.5s 柔散（低档粒子 14/高档 28）；长按点在径上→stillPath.warmNearPoint 续余温（沿用 dt/1.8 累积/16s 褪去，不改数值）；开场引导/相会演出互斥（ReunionEvent.active getter）；CompanionGuide 纯状态机 + CompanionDust 渲染层，不改 TapCallbacks 分发；test/companion_test.dart 6 项共 47 全过；analyze 19 基线无新增/build web 通过；附带修复 still_path 构造器 late final bbox 二次赋值的潜在 LateInitializationError，commit f2dc69b）
+
+- [x] 第24轮：拾忆星图回看深化——「一夜的记忆」（拾忆抽屉：顶部汇总统计文案 memorySummary（空态「星图还空着，去呼吸吧」/否则「已拾 N 枚碎片 · 静了 M 个夜晚」按本地日期去重）；新增「重看那一夜」折叠区——按时间排序的碎片星点串（色相=来源区域 tint：渊紫/海青/荒原沙/雾林青灰/两兽之间金），点选浮起玻璃拟态记忆卡 _MemoryCard：时间戳+禅语+区域星点+CustomPainter 三环涟漪「呼吸纹」8s 极缓脉动；新增 lib/game/memo_stats.dart 纯函数与 test/memo_stats_test.dart 5 项；数据仅读 jingxin.shards.v1，导出格式不动；analyze 19 基线无新增/test 34 项全过(+5)/build web 通过，commit b2e7356）
 - [x] 第23轮：初次入静——开场呼吸引导演出（新增 lib/game/onboarding.dart：OnboardingPreference 键 jingxin.onboarded.v1 仅首次且未开随息装配/老用户随息用户零打扰/开启随息即 cancelOnboarding 永不再现；OnboardingDirector 纯逻辑状态机可测；OnboardingOverlay 渲染层「按住·吸/松开·呼」随呼吸相位淡入淡出 0.05 档量化缓存，3 个平稳循环（复用 cycleCount 平稳判定）后渐隐谢幕禅意短句「呼吸还在，世界就醒着。」，60s 内完成触发星潮三圈波纹奖励；jingjing_game 装配+breathPressing/breathPhase getter；analyze 19 基线无新增/test 29 项全过(+5)/build web 通过，commit 36cce35）
 
 
