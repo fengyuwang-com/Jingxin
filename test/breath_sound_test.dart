@@ -247,4 +247,59 @@ void main() {
       expect(prev, closeTo(1.0, 1e-9));
     });
   });
+
+  group('晨光泛音（第 50 轮 breathDawnOvertoneGain）', () {
+    test('非满醒日恒 0：任意进度都不发声', () {
+      for (final v in [-0.5, 0.0, 0.25, 0.5, 0.75, 1.0, 1.5]) {
+        expect(breathDawnOvertoneGain(isFullAwakeDay: false, dawnProgress: v),
+            0.0, reason: 'progress=$v 非满醒日应静默');
+      }
+    });
+
+    test('满醒日端点：进度 0 恰为 0（无声起步），进度 1 恰为峰值 0.12', () {
+      expect(breathDawnOvertoneGain(isFullAwakeDay: true, dawnProgress: 0.0),
+          0.0);
+      expect(breathDawnOvertoneGain(isFullAwakeDay: true, dawnProgress: 1.0),
+          kBreathDawnOvertoneMaxGain);
+    });
+
+    test('smoothstep 半程：进度 0.5 恰为峰值一半（0.06）', () {
+      expect(breathDawnOvertoneGain(isFullAwakeDay: true, dawnProgress: 0.5),
+          closeTo(kBreathDawnOvertoneMaxGain / 2, 1e-9));
+    });
+
+    test('满醒日随进度单调不回跌', () {
+      double prev = -1;
+      for (int i = 0; i <= 100; i++) {
+        final g = breathDawnOvertoneGain(
+          isFullAwakeDay: true,
+          dawnProgress: i / 100,
+        );
+        expect(g, greaterThanOrEqualTo(prev - 1e-12),
+            reason: 'progress=$i/100 泛音不应回跌');
+        expect(g, inInclusiveRange(0.0, kBreathDawnOvertoneMaxGain));
+        prev = g;
+      }
+    });
+
+    test('连续性：细采样相邻差极小，无跳变', () {
+      double prev = 0;
+      for (int i = 1; i <= 1000; i++) {
+        final g = breathDawnOvertoneGain(
+          isFullAwakeDay: true,
+          dawnProgress: i / 1000,
+        );
+        expect((g - prev).abs(), lessThan(0.002),
+            reason: 'progress=$i/1000 出现跳变：$prev -> $g');
+        prev = g;
+      }
+    });
+
+    test('越界进度钳制到 0..1：不越过静默与峰值', () {
+      expect(breathDawnOvertoneGain(isFullAwakeDay: true, dawnProgress: -0.3),
+          0.0);
+      expect(breathDawnOvertoneGain(isFullAwakeDay: true, dawnProgress: 1.7),
+          kBreathDawnOvertoneMaxGain);
+    });
+  });
 }

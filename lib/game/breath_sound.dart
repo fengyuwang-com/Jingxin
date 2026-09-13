@@ -81,6 +81,26 @@ double breathDawnFactor(double daylight, double nightFactor) {
   return n + (1.0 - n) * breathDawnProgress(daylight);
 }
 
+// ---- 晨光泛音（第 50 轮）：满醒日，世界醒来的第一声更亮 ----
+
+/// 满醒日晨光泛音的峰值增益（极轻，不喧宾夺主）。
+const double kBreathDawnOvertoneMaxGain = 0.12;
+
+/// 晨光泛音增益（纯函数）：满醒日印当天（最近一次满醒的 yyyyMMdd
+/// 与今天相同），晨光回涨段呼吸音之上叠一层极轻的高八度泛音——
+/// [dawnProgress] 为 breathDawnProgress 的结果（0..1），用 smoothstep
+///（两端导数为零）随晨光平滑升起，无起步顿挫；进度到 1 后保持峰值
+///（世界已醒，声音亮着）。非满醒日恒 0——泛音是满醒纪念日独有的
+/// 一层亮色。越界的 dawnProgress 钳制到 0..1。
+double breathDawnOvertoneGain({
+  required bool isFullAwakeDay,
+  required double dawnProgress,
+}) {
+  if (!isFullAwakeDay) return 0.0;
+  final t = dawnProgress.clamp(0.0, 1.0).toDouble();
+  return kBreathDawnOvertoneMaxGain * t * t * (3 - 2 * t);
+}
+
 /// 随息（麦克风）联动：呼吸音随气息包络起伏的幅度（±15%）。
 const double kBreathWobbleDepth = 0.15;
 

@@ -747,3 +747,18 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 晨光泛音：满醒日印当天的晨光回涨带一点极轻的高八度泛音（第 47 轮遗留候选）；或星兽注视 / 惑星深化。
+
+## 第 50 轮（2026-09-14）—— 晨光泛音：满醒日，世界醒来的第一声更亮
+- 理念：满醒日印当天（最近一次满醒的 yyyyMMdd 与今天相同），晨光回涨段呼吸音之上叠一层极轻的高八度泛音——世界记得你昨天完整地醒来过，今天的第一声因此更亮一点；非满醒日完全无声，泛音是满醒纪念日独有的亮色。
+- 实现：
+  - 纯函数（lib/game/breath_sound.dart）：breathDawnOvertoneGain({isFullAwakeDay, dawnProgress})——非满醒日恒 0；满醒日随晨光进度用 smoothstep（两端导数为零）从 0 平滑升到峰值 kBreathDawnOvertoneMaxGain=0.12（极轻，约主音包络峰值的 2 倍档，绝不喧宾夺主）；越界进度钳制 0..1。零分配可单测。
+  - 听感权衡（任务第 4 点二选一）：**dawnProgress 到 1 后保持峰值**——理由：① 泛音挂在长夜巡检的每秒 _syncBreathLull 上，晨光告别一旦开始声音整体已在 20s 淡出，不存在"正午泛音还独自响着"的场景；② "世界已醒，声音亮着"与晨光回涨段"涨回全量后恒 1.0"的既有语义一致——光和声一起亮起来、一起随告别收声，比"涨到顶又自己暗下去"更像一个完整的天亮。
+  - Web 发声（soundscape_web.dart 的 _BreathVoice）：新增常驻高八度正弦振荡器 overtoneOsc（频率恒为主音 2 倍，换音时随主音一同 ramp）+ 独立 overtoneGain 节点（初始 0.0001 静默，不振荡器不重建）；链路 overtoneGain → lullGain → bus，与主音同受礼让系数与起停 ramp 约束；引擎新增 setBreathDawnOvertoneGain，setTargetAtTime τ≈1s（与 lullGain 同节奏，约 3 秒到位）。
+  - 满醒日判定（jingjing_screen.dart）：复用 full_awake.dart 既有的 FullAwakeCtl.parseCount/loadCount（自带脏数据容错，无需另抽 parseFullAwakeStamp）；initState 读一次存 _fullAwakeLastDate，_syncBreathLull 每秒用当天日期现算比对——运行中跨过午夜天然正确；_finishFarewell 把泛音随 lull 一起 ramp 回 0（幂等收声）。接口 soundscape.dart 加抽象方法，soundscape_stub.dart 同步空实现。
+- 测试（test/breath_sound_test.dart 新增 6 项，166→172）：非满醒日全进度恒 0、满醒日端点（0→0、1→0.12）、smoothstep 半程恰为 0.06、满醒日单调不回跌且夹在 [0, 0.12]、细采样连续性无跳变、越界钳制。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 172/172；flutter build web 成功。
+- commit：feat(game): 满醒日晨光泛音——世界醒来的第一声更亮 [auto-night-50]（未 push）。
+- 下一步建议（第 51 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 晨光泛音深化：泛音随呼吸相位微起伏（与主音同相位差八度）；或星兽注视 / 惑星深化。
