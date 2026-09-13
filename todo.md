@@ -9,6 +9,7 @@
 - [ ] （可选）装 Visual Studio C++ 工作负载以支持 Windows 桌面构建
 
 ## 已完成
+- [x] 第10轮：随息——麦克风呼吸检测输入层（breath_mic.dart 条件导入：Web 用 js_interop+package:web getUserMedia+AnalyserNode RMS；非 Web stub 静默降级、UI 隐藏入口；隐私克制不录音不存储+首次「只听气息，不留声音」；慢速自动增益基线（上涨τ30s/下跌τ1.5s）+灵敏度3档（低/中/高，持久化 jingxin.mic.sens.v1）+两级低通杜绝抖动；吹气=呼气相位映射；双输入最近活跃者仲裁，触控随时接管；失败淡字「随息未就绪，轻触亦可行」绝不弹窗；退出页面彻底 stop 释放轨道；analyze 0 error（19条低于基线）/build web 通过，commit 07e483f）
 - [x] 第7轮：第二心境区域「焦虑之渊」——区域抽象 regions.dart（深度带 0.80→0.93 漫游即达，无加载无传送门）；乱星36颗快速低亮明灭，平稳呼吸时频率/相位渐被同化为8s温柔脉动、离开极缓恢复杂乱；渊底心跳微光9s极慢脉动；5朵星花按附近乱星同化度开合（当次反馈）；渊中碎片用专属渊语池+「焦虑之渊·XX」九宫格命名；analyze 0 error/build web 通过，commit b5a98e6
 - [x] 第6轮：长夜收尾——白噪音声景引擎（soundscape.dart 条件导入：Web 用 js_interop+package:web 合成粉红噪声 Paul Kellet 8s 循环+480Hz 低通+0.06Hz LFO 海潮起伏，淡入4s/淡出3s；非 Web 静音降级；右下角小月亮入口进入长夜——nightAmount 4s 渐变深夜色调/星更亮/光灵光晕收拢，提示语"世界睡了，你也可以睡了"；长夜记忆 shared_preferences 只存不用；AudioContext 手势内创建规避自动播放；analyze 0 error/build web 通过）
 - [x] 第5轮：星兽眠——长线苏醒与睁眼（失眠之海深处星座连线巨魟，平时隐约轮廓；独立苏醒累计跨会话持久化：平稳循环+0.004/附近循环+0.012/碎片+0.02；5档每档缓睁一只眼约4s渐变+涟漪+星屑聚拢；满值游弋150s后归零重睡循环而非终局；星图页底部极淡措辞一行；analyze 0 error/build web 通过，commit 7fe81ab）

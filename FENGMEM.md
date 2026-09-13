@@ -56,3 +56,8 @@
 - AI 行动: regions.dart 加 upper 标志+wearyHeath 常量（depthAt 方向反转、regionAt 双端匹配）；新建 lib/game/weary_heath.dart（26 余烬微尘、地平线微光线、_Beacon 剪影+fuel 累积 22s/倒退 0.01/s 保底 0.08+lit 锁存+5.5s 脉动暖光）；koans.dart 加 _heathPool/nextHeath；shard.dart MindShard 加 heath 标记（暖沙色 0xFFd8bc8e）；jingjing_game.dart 加 heathDepth+WearyHeath 装配+碎片 i%3 分区（0海/1渊/2荒原）
 - 产出: analyze 0 error（23 条既有 warning/info，基线 24 无新增）；flutter build web 成功；commit [auto-night-9]；UPGRADE-LOG/todo/FENGMEM 已更新
 - 关键决策: 荒原带定 ny 0.05~0.18 与渊 0.80~0.93 对称、地平线放带中央 0.115；重燃周期 22s（≈2~3 个 8s 循环）且 fuel 满后永久锁存当次会话（扎根感）；灯台离开倒退但保底 0.08 余温（"可倒退不归零"）；碎片分区从奇数入渊改为 i%3 三区轮转
+## 2026-09-13 — 第 10 轮（通宵升级 auto-night-10）
+- 用户要求: 麦克风呼吸检测「随息」可选输入层——getUserMedia 音量包络驱动呼吸相位、隐私克制不录音、3档灵敏度持久化、失败静默回退触摸、非 web stub 降级、相位来源可替换下游全复用、退出释放轨道
+- AI 行动: 发现第 9 轮 commit 已含 breath_mic 骨架（门面/web/stub/UI开关/涟漪/仲裁），本轮补齐 spec 差口：breath_mic.dart 加 MicSensitivity 三档+scale+MicSensitivityPreference 持久化（jingxin.mic.sens.v1）+setSensitivity 接口；breath_mic_web.dart 固定底噪改慢速自动增益（非对称基线 τ30s↑/τ1.5s↓+余量0.006+灵敏度缩放）；jingjing_game.dart 麦克风分支改「吹气是呼」（目标=1-包络）；jingjing_screen.dart 灵敏度三小字切换行+首次开启「只听气息，不留声音」+失败「随息未就绪，轻触亦可行」；顺手清 4 条 lint
+- 产出: analyze 0 error（19 条，低于基线 23）；flutter build web 成功；commit 07e483f [auto-night-10]；UPGRADE-LOG/todo/FENGMEM 已更新
+- 关键决策: 包络语义定为「吹气=呼气」（进度下沉、安静=吸气回升）遵循任务 spec；基线向上涨 30s 使短暂吹气拉不动底噪、下跌 1.5s 让房间转静立刻归位；开启状态不持久化每次会话重选（权限友好），灵敏度档位持久化
