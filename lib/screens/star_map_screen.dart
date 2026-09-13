@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -42,6 +43,11 @@ class _StarMapScreenState extends State<StarMapScreen> {
   bool _loaded = false;
   // 「带走星图」（第 35 轮）：分享卡生成期间转圈禁用。
   bool _exporting = false;
+  // 「长按预览」（第 48 轮）：全屏预览层状态——纯 UI，不碰游戏状态。
+  bool _cardPreviewing = false;
+  ui.Image? _previewImage;
+  // 桌面端 hover 才亮出的一行保存提示；Web 端打开预览即显示。
+  bool _previewHintVisible = false;
   // 「满醒纪念签」（第 31 轮）：演过满醒终幕才有的印记，未满醒零渲染。
   bool _fullAwakePlayed = false;
   FullAwakeCount _fullAwakeCount = const FullAwakeCount(count: 1);
@@ -74,6 +80,7 @@ class _StarMapScreenState extends State<StarMapScreen> {
   @override
   void dispose() {
     _tokenTimer?.cancel();
+    _previewImage?.dispose();
     super.dispose();
   }
 
@@ -96,18 +103,27 @@ class _StarMapScreenState extends State<StarMapScreen> {
     );
   }
 
+  /// 渲染当前星图为离屏分享卡图像（导出与预览共用，第 48 轮抽出）。
+  /// 失败/未加载返回 null，调用方各自温柔收场。
+  Future<ui.Image?> _renderCardImage() async {
+    if (!_loaded) return null;
+    final image = await renderStarCardImage(
+      records: _records,
+      fullAwakePlayed: _fullAwakePlayed,
+    );
+    return image;
+  }
+
   /// 「带走星图」（第 35 轮）：把当前星图渲染成一张 1080×1620 的
   /// 离屏分享卡（深空底色 + 同款黄金角螺旋星点 + 中央小晨星 +
   /// 统计行），Web 上经 anchor download 触发 PNG 下载。
   /// 生成期间按钮转圈禁用；失败温柔提示，不惊扰。
   Future<void> _exportStarCard() async {
-    if (_exporting || !_loaded) return;
+    if (_exporting || _cardPreviewing) return;
     setState(() => _exporting = true);
     try {
-      final image = await renderStarCardImage(
-        records: _records,
-        fullAwakePlayed: _fullAwakePlayed,
-      );
+      final image = await _renderCardImage();
+      if (image == null) throw StateError('not loaded');
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
       if (data == null) {
@@ -125,6 +141,46 @@ class _StarMapScreenState extends State<StarMapScreen> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+
+  /// 「长按预览」（第 48 轮）：长按「带走星图」入口，把同一张分享卡
+  /// 渲染出来放进全屏预览层——半透明黑幕 + 等比缩放居中。
+  /// 纯展示，不触发保存、不改游戏状态；点一下任意处或关闭按钮淡出。
+  Future<void> _openCardPreview() async {
+    if (_exporting || _cardPreviewing || !_loaded) return;
+    setState(() => _exporting = true);
+    try {
+      final image = await _renderCardImage();
+      if (!mounted) {
+        image?.dispose();
+        return;
+      }
+      if (image == null) throw StateError('not loaded');
+      setState(() {
+        _previewImage = image;
+        _cardPreviewing = true;
+        // Web 端打开即显示保存提示（长按图片在浏览器里另有语义，
+        // 提示文字改为指回「带走星图」按钮）；桌面端 hover 才亮出。
+        _previewHintVisible = kIsWeb;
+      });
+    } catch (_) {
+      if (mounted) _say('这张星图暂时带不走，晚点再来');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// 关闭预览层：先淡出（隐式动画），动画走完再释放离屏图。
+  void _closeCardPreview() {
+    if (!_cardPreviewing) return;
+    setState(() {
+      _cardPreviewing = false;
+      _previewHintVisible = false;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      _previewImage?.dispose();
+      if (mounted) setState(() => _previewImage = null);
+    });
   }
 
   /// 一行淡字提示（底部 snackbar，温柔、用后即逝）。
@@ -401,25 +457,30 @@ class _StarMapScreenState extends State<StarMapScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      tooltip: '带走星图',
-                      iconSize: 20,
-                      icon: _exporting
-                          ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.6,
-                                color: ZenTheme.nebulaCyan.withValues(
-                                  alpha: 0.7,
+                    // 「长按预览」（第 48 轮）：长按同一入口全屏看一眼
+                    // 这张星图卡，再决定要不要带走。
+                    GestureDetector(
+                      onLongPressStart: (_) => _openCardPreview(),
+                      child: IconButton(
+                        tooltip: '带走星图（长按可预览）',
+                        iconSize: 20,
+                        icon: _exporting
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.6,
+                                  color: ZenTheme.nebulaCyan.withValues(
+                                    alpha: 0.7,
+                                  ),
                                 ),
-                              ),
-                            )
+                              )
                             : Icon(
-                              Icons.ios_share_rounded,
-                              color: ZenTheme.textMuted.withValues(alpha: 0.6),
-                            ),
-                      onPressed: _exporting ? null : _exportStarCard,
+                                Icons.ios_share_rounded,
+                                color: ZenTheme.textMuted.withValues(alpha: 0.6),
+                              ),
+                        onPressed: _exporting ? null : _exportStarCard,
+                      ),
                     ),
                     IconButton(
                       tooltip: '拾忆',
@@ -448,6 +509,117 @@ class _StarMapScreenState extends State<StarMapScreen> {
                     color: ZenTheme.textMuted,
                   ),
                   onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ),
+            ),
+          ),
+          // 「长按预览」全屏层（第 48 轮）：黑幕 + 等比缩放的分享卡。
+          // 隐式动画淡入淡出，无每帧重建；点任意处或关闭按钮淡出。
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: !_cardPreviewing,
+              child: AnimatedOpacity(
+                opacity: _cardPreviewing ? 1 : 0,
+                duration: Duration(milliseconds: _cardPreviewing ? 300 : 350),
+                curve: Curves.easeOut,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.82),
+                  child: SafeArea(
+                    child: Stack(
+                      children: [
+                        // 点任意处关闭。
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _closeCardPreview,
+                          ),
+                        ),
+                        // 居中等比缩放的卡片（缩放比纯函数 fitCardToScreen）。
+                        Center(
+                          child: AnimatedScale(
+                            scale: _cardPreviewing ? 1 : 0.96,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final image = _previewImage;
+                                if (image == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                final fit = fitCardToScreen(
+                                  Size(
+                                    constraints.maxWidth,
+                                    constraints.maxHeight,
+                                  ),
+                                  Size(
+                                    image.width.toDouble(),
+                                    image.height.toDouble(),
+                                  ),
+                                );
+                                return GestureDetector(
+                                  onTap: _closeCardPreview,
+                                  child: SizedBox(
+                                    width: fit.width,
+                                    height: fit.height,
+                                    child: RawImage(
+                                      image: image,
+                                      fit: BoxFit.fill,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        // 右上角关闭。
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: IconButton(
+                            tooltip: '收起',
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: ZenTheme.textMuted.withValues(alpha: 0.7),
+                            ),
+                            onPressed: _closeCardPreview,
+                          ),
+                        ),
+                        // 保存提示：Web 端打开即显示；桌面端 hover 亮出。
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 12,
+                          child: MouseRegion(
+                            onEnter: (_) {
+                              if (!kIsWeb) {
+                                setState(() => _previewHintVisible = true);
+                              }
+                            },
+                            onExit: (_) {
+                              if (!kIsWeb) {
+                                setState(() => _previewHintVisible = false);
+                              }
+                            },
+                            child: AnimatedOpacity(
+                              opacity: _previewHintVisible ? 0.6 : 0,
+                              duration: const Duration(milliseconds: 400),
+                              child: Text(
+                                kIsWeb
+                                    ? '点「带走星图」即可保存这张卡 · 点任意处收起'
+                                    : '点任意处收起',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: ZenTheme.textMuted,
+                                  fontSize: 12,
+                                  letterSpacing: 3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
