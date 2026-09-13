@@ -22,7 +22,12 @@ class VoiceEngineImpl implements VoiceEngine {
   void Function(VoiceKind kind)? onSpeakingEnd;
 
   @override
-  void speak(String text, {required VoiceKind kind}) {}
+  void speak(
+    String text, {
+    required VoiceKind kind,
+    double rate = 0.85,
+    double volume = 0.5,
+  }) {}
 
   @override
   void cancelWhisper() {}

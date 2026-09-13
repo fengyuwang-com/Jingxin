@@ -155,6 +155,10 @@ class Koans {
   /// 入睡引导极短句（长夜朗读用，与碎片禅语互不干扰）。
   static String nextWhisper() => _draw(_whisperPool, _whisperRecent);
 
+  /// 入睡偈语池只读视图（第 32 轮「星兽低语」：调度器自己做近期
+  /// 去重取用，与 [nextWhisper] 的内部轮换互不影响）。
+  static List<String> get whisperPool => _whisperPool;
+
   /// 随机取一句，保证与最近取过的几句不重复。
   static String next() => _draw(_pool, _recent);
 

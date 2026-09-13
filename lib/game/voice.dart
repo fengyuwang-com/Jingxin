@@ -49,7 +49,13 @@ abstract class VoiceEngine {
   void Function(VoiceKind kind)? onSpeakingEnd;
 
   /// 轻声读一句。内部先 cancel 旧朗读；无可用声音时静默跳过。
-  void speak(String text, {required VoiceKind kind});
+  /// [rate]/[volume] 可覆盖默认的轻声参数（星兽低语用更慢更轻）。
+  void speak(
+    String text, {
+    required VoiceKind kind,
+    double rate = 0.85,
+    double volume = 0.5,
+  });
 
   /// 按礼仪规则取消：只取消 whisper；若正在读禅语则不动它。
   void cancelWhisper();

@@ -98,7 +98,12 @@ class VoiceEngineImpl implements VoiceEngine {
   }
 
   @override
-  void speak(String text, {required VoiceKind kind}) {
+  void speak(
+    String text, {
+    required VoiceKind kind,
+    double rate = 0.85,
+    double volume = 0.5,
+  }) {
     final synth = _synth;
     if (synth == null || text.isEmpty) return;
     try {
@@ -110,9 +115,9 @@ class VoiceEngineImpl implements VoiceEngine {
       u.lang = 'zh-CN'; // 即便没有专门中文声音也设置，让引擎就近选择。
       final voice = _pickVoice();
       if (voice != null) u.voice = voice;
-      u.rate = 0.85;
+      u.rate = rate.clamp(0.1, 1.0);
       u.pitch = 0.95;
-      u.volume = 0.5;
+      u.volume = volume.clamp(0.0, 1.0);
 
       _currentKind = kind;
       _cancelledInternally = false;
