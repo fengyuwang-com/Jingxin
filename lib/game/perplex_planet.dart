@@ -255,6 +255,15 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
   final List<double> _dustFactors = [];
   double _dustT = -1; // <0 = 未触发
 
+  // ---- 通达残影（第 53 轮）：状态在组件层内存持有，不持久化。 ----
+  // 通达进入 dissolving 时记录原位坐标；gone 之后原位留雾痕缓淡。
+  final Vector2 _tracePos = Vector2.zero();
+  bool _traceActive = false;
+  bool _traceGranted = false;
+  double _traceElapsedMs = 0;
+  double _traceBreathSm = 0; // 呼吸起伏包络低通（绝不瞬跳）。
+  final Paint _tracePaint = Paint();
+
   final math.Random _rng = math.Random(DateTime.now().millisecondsSinceEpoch);
 
   // 复用画笔（零逐帧分配）。
@@ -271,8 +280,39 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
   @override
   void update(double dt) {
     final game = this.game;
+
+    // 通达残影计时：自通达瞬间起累计（gone 之后继续淡出）。
+    if (_traceActive) _traceElapsedMs += dt * 1000;
+
     if (machine.gone) {
-      removeFromParent();
+      if (!_traceActive) {
+        removeFromParent();
+        return;
+      }
+      // 雾痕阶段：本体已散，只剩原位雾痕——alpha 归零后彻底停止。
+      if (mistTraceAlpha(_traceElapsedMs) <= 0) {
+        _traceActive = false;
+        removeFromParent();
+        return;
+      }
+      final d = game.spiritPos - _tracePos;
+      game.wrapDelta(d);
+      final near =
+          d.length2 <=
+          PerplexMachine.nearDistance * PerplexMachine.nearDistance;
+      // 平稳呼吸时雾痕轻微随呼吸起伏（低通包络，绝不瞬跳）。
+      final envTarget =
+          (near && game.breathSteady) ? math.sin(game.time * 1.4) : 0.0;
+      _traceBreathSm += (envTarget - _traceBreathSm) * math.min(1.0, dt * 3.0);
+      // 再遇馈赠：近旁 + 平稳呼吸 → 一次性掉落 1 枚普通心镜碎片。
+      if (mistTraceGrantAllowed(
+        granted: _traceGranted,
+        near: near,
+        breathSteady: game.breathSteady,
+      )) {
+        _traceGranted = true;
+        _grantTraceShard(game);
+      }
       return;
     }
 
@@ -347,6 +387,10 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
         _granted = true; // 通达发放「惑语」碎片，普通化解不再重复入账。
         _grantInsightShard(game);
         _dustT = 0;
+        // 通达残影：进入 dissolving 即记录原位坐标，gone 后留雾痕。
+        _traceActive = true;
+        _traceElapsedMs = 0;
+        _tracePos.setFrom(pos);
       }
     }
 
@@ -423,17 +467,39 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
     game.shardMessage.value = phrase;
   }
 
+  /// 「雾痕」一次性馈赠（第 53 轮）：近旁平稳呼吸时掉 1 枚普通心镜
+  /// 碎片（region='雾痕'，走既有拾忆/merge 幂等通道），一次性闸门由
+  /// mistTraceGrantAllowed 纯函数保证——掉过后只剩纯视觉雾痕。
+  void _grantTraceShard(JingjingGame game) {
+    final record = ShardRecord(
+      time: DateTime.now(),
+      text: mistTraceShardText,
+      region: mistTraceRegion,
+    );
+    final (merged, added) = mergeShards(game.shardCollection.records, [record]);
+    if (added > 0) {
+      game.shardCollection.records
+        ..clear()
+        ..addAll(merged);
+      unawaited(game.shardCollection.save());
+    }
+    game.shardMessage.value = mistTraceShardText;
+  }
+
   @override
   void render(Canvas canvas) {
     final game = this.game;
     final vis = machine.visibility;
     final phase = machine.phase;
-    if (phase == PerplexPhase.hidden ||
-        phase == PerplexPhase.gone ||
-        vis <= 0.004) {
-      return;
+    if (phase == PerplexPhase.hidden || vis <= 0.004) {
+      if (!(phase == PerplexPhase.gone && _traceActive)) return;
     }
     if (game.introEase <= 0.05) return;
+
+    if (phase == PerplexPhase.gone) {
+      _renderMistTrace(canvas, game);
+      return;
+    }
 
     // 世界坐标 -> 屏幕坐标（环绕镜像最近一次）。
     final size = game.size;
@@ -553,5 +619,37 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
         );
       }
     }
+  }
+
+  /// 通达残影（第 53 轮）：gone 之后在通达原位画一道极淡的灰紫椭圆
+  /// 雾痕，随 mistTraceAlpha 约 6 分钟缓淡；近旁平稳呼吸时经
+  /// mistTraceBreath 轻微起伏。alpha 归零后 update 已短路移除，
+  /// 超时/离屏直接 return——不画即零成本。
+  void _renderMistTrace(Canvas canvas, JingjingGame game) {
+    final a = mistTraceAlpha(_traceElapsedMs);
+    if (a <= 0) return;
+
+    final size = game.size;
+    final d = _tracePos - game.camPos;
+    game.wrapDelta(d);
+    final center = Offset(size.x / 2 + d.x, size.y / 2 + d.y);
+    if (center.dx < -90 ||
+        center.dx > size.x + 90 ||
+        center.dy < -90 ||
+        center.dy > size.y + 90) {
+      return;
+    }
+
+    final alpha = mistTraceBreath(a, _traceBreathSm);
+    if (alpha <= 0) return;
+    final wobble = 1 + 0.05 * _traceBreathSm;
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center,
+        width: 76 * wobble,
+        height: 58 * wobble,
+      ),
+      _tracePaint..color = const Color(0xFF8f86ad).withValues(alpha: alpha),
+    );
   }
 }

@@ -593,3 +593,9 @@
 - AI 行动: 读 perplex_planet.dart/beast_gaze.dart 摸清状态机与第 51 轮范式；新建 lib/game/perplex_insight.dart（dwell/progress/glow/dust/短语选取全纯函数）；PerplexMachine 加 triggerInsight（drifting-only + 一次性闸门）；PerplexPlanet 接线近旁复用距离判定、低通平稳度、region='惑' 碎片走 mergeShards、18 粒定长光尘池预生成、轮廓 0.5 后量化微亮
 - 产出: commit a7bcc81（未 push）；analyze 19 条基线 0 error；test 210/210（+19）；build web 成功；UPGRADE-LOG.md 已追加
 - 关键决策: 通达发放置 _granted 防普通化解重复入账（每颗惑星只得一份碎片）；光尘用组件内定长池（项目无全局粒子池，与光灵微粒同范式）；触发阈值 0.95 配合平稳度软压低保证"呼吸乱 10s 掉一半"
+
+## 2026-09-14 05:46 — 第 53 轮
+- 用户要求: 通宵自动升级第 53 轮：通达残影——惑星通达消散后原位留雾痕（0.14 起步约 6 分钟线性淡至 0、量化 0.02），近旁平稳呼吸时随呼吸起伏并一次性掉落 1 枚普通心镜碎片（mergeShards 幂等），全质量门槛后记日志与记忆。
+- AI 行动: perplex_insight.dart 追加 mistTraceAlpha/mistTraceBreath/mistTraceGrantAllowed 纯函数与常量；perplex_planet.dart 通达触发时记录原位坐标，gone 后组件留存推进雾痕（近旁 wrapDelta 判定 + 低通呼吸包络 + 闸门掉落 region='雾痕' 碎片），_renderMistTrace 灰紫实色椭圆（屏外剔除/超时短路/alpha 归零即移除）；新建 test/mist_trace_test.dart 16 项。
+- 产出: commit feat(game): 通达残影——雾痕与一次性的再遇馈赠 [auto-night-53]（未 push）；analyze 19 条基线 0 error；test 226/226（+16）；build web 成功；UPGRADE-LOG.md 第 53 轮已记；todo.md 入账后已清。
+- 关键决策: 雾痕坐标在 triggerInsight 成功瞬间记录（任务指定 dissolving 入口即此刻），gone 后 update 走专属雾痕分支、render 走 gone 专属路径——本体可见期绝不画痕；掉落馈赠配固定偈语'雾散的地方，你来过。'并浮 shardMessage，闸门做成纯函数便于单测一次性语义。
