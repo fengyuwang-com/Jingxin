@@ -285,3 +285,20 @@
   1. 等 NDK r27 自动下载完成（或用腾讯镜像 https://mirrors.cloud.tencent.com/AndroidSDK/ 手动装 android-ndk-r27c 到 Sdk/ndk/）后重跑 flutter build apk --debug，拿到 APK 路径与体积
   2. debug 成功后试 flutter build apk --release（若无签名配置，按 Flutter 模板默认 debug 签名即可出 release）
   3. 或者继续 Web 侧：GitHub Pages 部署（需主人确认 push）
+
+## 2026-09-13 第21轮：腾讯镜像手动装 NDK，Android APK 构建打通
+- 做了什么：
+  - 清理第 20 轮残留：杀掉挂起的 sdkmanager --licenses、gradle 8.14 daemon、kotlin daemon（java 进程按命令行确认后 taskkill）；Sdk/ndk/ 下 27.0.12077973 与 28.2.13676358 均为安装失败空壳（仅 .installer/.installData），已删除
+  - NDK 手动安装：腾讯镜像 https://mirrors.cloud.tencent.com/AndroidSDK/android-ndk-r27c-windows.zip（781,511,249 字节，curl -L -C - --retry 10 后台下载）→ 解压至 Sdk/ndk/ 并重命名为 27.2.12479018（source.properties 校验 Pkg.Revision=27.2.12479018, r27c）
+  - build-tools 35.0.0 补装：首次 apk 构建报 "Failed to install build-tools;35.0.0"（AGP 自动装仍走 dl.google.com）→ 腾讯镜像 build-tools_r35_windows.zip（59,878,107 字节）手动解压至 Sdk/build-tools/35.0.0
+  - android/app/build.gradle.kts 恢复并固定 ndkVersion = "27.2.12479018"
+- 成果：
+  - app-debug.apk：build/app/outputs/flutter-apk/app-debug.apk，154,712,588 字节（约 147.5MB，fat APK 含全 ABI）
+  - app-release.apk：49.0MB（debug 签名，Flutter 模板默认；正式发布需配签名）
+- 质量门槛：flutter analyze 0 error（19 条既有基线，无新增）；flutter test 20 项全过；flutter build web 成功
+- 遗留提示（不影响构建）：Kotlin 2.2.20 低于 Flutter 建议的 2.3.20，会有 warning
+- commit: 5158f3b build: 腾讯镜像安装 NDK，打通 Android APK 构建 [auto-night-21]
+- 下一步建议（第22轮）三选一：
+  1. Android 真机验证：adb install release APK，跑通触控/麦克风/声景/长夜全链路
+  2. 拆 ABI 出小包：flutter build apk --split-per-abi（arm64 应可 <25MB）或 build appbundle
+  3. GitHub Pages 部署 Web 版（需主人确认 push）
