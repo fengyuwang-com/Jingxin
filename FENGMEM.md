@@ -194,3 +194,10 @@
 - AI 行动: long_night_whisper.dart 加 WhisperGift 纯类（shouldGift: 夜仍在+未触摸+未演出）；jingjing_screen.dart 低语触发后挂 8s 一次性计时器，到点按 _lastInteraction 判定后走 mergeShards 幂等入账（region='兽语'，time=低语开始时刻），告别开始/收尾/dispose 作废待定签；memo_stats.dart regionDotColor 加「兽语」→星兽金；memento.dart 零改动（region 自由字符串天然容错）；新增 test/whisper_gift_test.dart 3 项。
 - 产出: commit 62e7824（未 push）；analyze 19 条基线 0 error；test 70/70；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新。
 - 关键决策: 不新增存储键与导出字段——兽语签只是 ShardRecord 的一种 region 取值，导出/合并/统计全部复用既有通路，幂等语义由 mergeShards 同时间戳+同偈语去重保证；打断判定复用屏幕层 _lastInteraction（触摸/呼吸活动统一记账），不在游戏层另行挂钩。
+
+## 2026-09-13 — 第 34 轮（通宵自动升级）
+- 用户要求: 长会话稳固性巡检（Timer/订阅泄漏、无限增长、prefs 兜底、Web 生命周期）+ Web 产物冒烟；只修真 bug 不重构，门槛 analyze/test/build，commit + 记录。
+- AI 行动: 逐文件核对了 jingjing_screen/soundscape_web/breath_mic_web/starfield/breathing_orb/meditation_screen/star_map 的计时器与订阅清理、去重队列上限、全部 prefs load 的 try/catch 兜底、两处 AppLifecycle 处理；发现并修复 meditation_screen.dart `late Timer _timer` 倒计时中途退出 dispose 崩溃（改可空 + 倒计时也挂 _timer + `_timer?.cancel()`），新增 test/meditation_dispose_test.dart 2 项回归；build web + http.server 冒烟（关键资源全 200，无缺失引用，进程已清理）。
+- 产出: commit 4234f7d（未 push）；analyze 19 条基线 0 error；test 73/73；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新。
+- 关键决策: 拾忆 records 不设上限是设计（星图素材+UI 限高+导出幂等），不改；Web 后台时 jingjing 长夜计时器不额外暂停（计时器节流无害且醒来路径已有 resumed 处理），只记录不改。
+- 下一步建议: 多轮次长会话压测（模拟整夜运行内存曲线）；拾忆条目极多时星图绘制性能抽查；考虑给 ShardCollection.save 失败加一次内存缓存重试。

@@ -509,3 +509,22 @@
   1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒/纪念签/星兽低语/兽语签全链路。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 星兽低语深化：低语浮现时该星兽极轻地眨一下眼或呼吸幅度微增一拍（世界"说了梦话"的身体感）。
+
+## 第 34 轮 — 长会话稳固性巡检 + Web 产物冒烟 [auto-night-34]
+
+### 巡检清单结论（逐项）
+1. Timer/订阅/AnimationController 泄漏：
+   - jingjing_screen.dart：intro/koan/toast/whisper/beastWhisper/beastGift/idle/farewell/farewellFinish 全部计时器在 dispose 一一 cancel；shardMessage listener 有 removeListener；WidgetsBindingObserver 有 removeObserver。✅ 无泄漏。
+   - soundscape_web.dart：雨层/篝火层瞬态计时器随 onAudibleChanged(false)（stop/select/silence 都会走到）取消。✅
+   - breath_mic_web.dart：轮询 _poll 在 stop() cancel+置空，音频轨/流/上下文全部释放。✅
+   - starfield.dart、breathing_orb.dart、meditation_screen.dart：控制器 dispose、监听随控制器销毁。✅
+2. 长会话增长：星兽低语去重 _recent 限 4 条且 beginNight 清空；Koans._recent 限 4；粒子/尘伴为定长池（orbParticles / companionDust 按画质档固定）；拾忆 records 无上限——设计如此（私人星图素材），UI 已限高滚动，导出/合并幂等。✅ 无无限增长。
+3. shared_preferences 兜底：shards/声景/闻声/长夜到访/苏醒度/满醒标记/满醒计数/onboarding 全部 load 带 try/catch 默认值回退，损坏即静默重置。✅ 一致。
+4. Web 生命周期：jingjing_screen.didChangeAppLifecycleState 已处理 paused/hidden/inactive → 声景 0.8s 淡出 + 朗读立即 cancelAll，resumed 且长夜中 → 3s 再浮起；meditation_screen 后台暂停呼吸动画。✅ 已有合理处理，未新增机制。
+5. 真实 bug（已修）：meditation_screen.dart `late Timer _timer` 在 3 秒倒计时中途退出时，dispose 调 `_timer.cancel()` 抛 LateInitializationError。改为可空 `Timer? _timer`、倒计时计时器也挂到 _timer、dispose 改 `_timer?.cancel()`；补 test/meditation_dispose_test.dart 2 项回归（倒计时中退出 / 走完退出均不崩）。
+
+### Web 冒烟
+flutter build web 成功；python -m http.server 临时起服：index.html / main.dart.js / flutter.js / flutter_bootstrap.js / manifest.json 全部 200，index.html 引用的本地资源无缺失，服务进程已清理。
+
+### 质量门槛
+flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2 项回归）；build web 成功。
