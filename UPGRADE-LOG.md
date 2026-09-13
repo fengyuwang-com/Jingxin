@@ -270,3 +270,18 @@
 - 做了什么: README 全面重写为《静境》游戏介绍——玩法总览（呼吸操控/四区域/双兽/相会/静之径/心镜星图/长夜）、六条设计支柱、快速开始、架构图（38 个 dart 文件全注明）、性能纪律、通宵升级史链接。旧版《静心》介绍退役（tag v1.0-pre-jingjing 仍可回溯）。
 - 验证: 文档轮，不涉及代码；上一轮 (e51c665) analyze/test/build 基线仍有效。
 - 下一步建议: 部署 GitHub Pages（需主人确认 push）；或世界内容数值配平巡检；或 Android APK 构建验证。
+
+## 2026-09-13 第20轮：Android 构建链路验证与移动端就绪
+- 做了什么：
+  - Android toolchain 就绪：SDK 在 C:\Users\a8881\AppData\Local\Android\Sdk（android-37 / build-tools 37.0.0），所有 SDK package licenses 已用 `yes | flutter doctor --android-licenses` 全部接受，doctor Android 项从 [!] 转 [√]
+  - JDK 修复：本机 JAVA_HOME 指向 JDK 25，与 Gradle 8.14 / Kotlin 不兼容（Kotlin 抛 IllegalArgumentException: 25.0.1）；flutter config --jdk-dir 指向 Gradle 自带的 Adoptium 21（C:\Users\a8881\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2），并在 android/gradle.properties 写 org.gradle.java.home 固定（forward-slash 写法）
+  - 绕过全局覆盖：全局 ~/.gradle/gradle.properties（FlyGo 留下，强制 org.gradle.java.home=jdk-25）优先级高于项目配置——为本项目建独立 GRADLE_USER_HOME=C:\Users\a8881\.gradle-jingxin（caches 与 wrapper/dists 用目录联接复用全局缓存，零重复下载），其 gradle.properties 为空
+  - NDK 问题：Flutter 默认 ndkVersion=28.2.13676358、AGP 默认 r27，两者都要从 dl.google.com 自动下载（国内极慢且 sdkmanager 拉清单会卡死）；本项目纯 Dart+Kotlin 插件无原生代码，已注释 app/build.gradle.kts 的 ndkVersion 行，但 AGP 仍自动装 r27——截至记录时 NDK r27 下载进行中（~155MB+），APK 构建未完成，属实情记录
+  - web/index.html：title 改为「静境 · 用呼吸玩」，meta description 改为「静境 · 用呼吸玩 —— 一款帮助放松与专注的呼吸节奏小游戏。」（UTF-8）
+- 质量门槛：flutter analyze 0 error（19 条既有基线，无新增）；flutter test 20 项全过；flutter build web 成功
+- gradle 镜像：未改 build.gradle/settings.gradle（本轮依赖均命中缓存或可续传下载，未到需要阿里云镜像的程度）
+- commit: build: Android 构建链路验证与就绪 [auto-night-20]
+- 下一步建议（第21轮）：
+  1. 等 NDK r27 自动下载完成（或用腾讯镜像 https://mirrors.cloud.tencent.com/AndroidSDK/ 手动装 android-ndk-r27c 到 Sdk/ndk/）后重跑 flutter build apk --debug，拿到 APK 路径与体积
+  2. debug 成功后试 flutter build apk --release（若无签名配置，按 Flutter 模板默认 debug 签名即可出 release）
+  3. 或者继续 Web 侧：GitHub Pages 部署（需主人确认 push）

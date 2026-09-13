@@ -110,3 +110,9 @@
 - AI 行动: 新建 reunion.dart（ReunionTrigger 纯函数+ReunionEvent 状态机，nudge 向量注入两兽、still_path 加 reunionGlow/reunionGather、mist_guardian 加 gaze、shard 加 reunion 标记、koans 加相会偈语池 2 句、jingjing_game 具名装配）；UPGRADE-LOG/todo/FENGMEM 更新
 - 产出: commit e51c665；analyze 0 error（19 基线）/test 20 全过（+reunion_test 6 项）/build web 成功
 - 关键决策: 触发只在平稳循环瞬间评估保证稀有；以 swimUntilEpoch 记账每游弋周期至多一次；碎片放光灵身旁极近处靠下一次循环自然吸入（自动获得但不弹窗）；下一步建议：交付总结文档（README 重写为《静境》介绍）/ GitHub Pages（需确认 push）/ 数值配平巡检
+
+## 2026-09-13 — 第 20 轮
+- 用户要求: 通宵第 20 轮——Android 构建验证：签 licenses、flutter build apk --debug、必要时 gradle 镜像、检查 web/index.html title/description、质量门槛、记录与 commit
+- AI 行动: licenses 全签；修 JDK 25↔Gradle 8.14 不兼容（flutter config --jdk-dir + 项目 gradle.properties 固定 JDK21）；建独立 GRADLE_USER_HOME(.gradle-jingxin，junction 复用缓存) 绕开全局 gradle.properties 强制 JDK25；注释 ndkVersion 行但 AGP 仍自动装 NDK r27（dl.google.com 慢，下载中）；web/index.html title/description 改为《静境》；UPGRADE-LOG/todo/FENGMEM 更新
+- 产出: analyze 0 error（19 基线）/test 20 全过/build web 成功；APK 构建进行中未出结果；commit build: Android 构建链路验证与就绪 [auto-night-20]
+- 关键决策: 不动全局 ~/.gradle/gradle.properties（FlyGo 依赖它），用独立 GRADLE_USER_HOME 隔离；gradle 镜像暂不需要（依赖多命中缓存）；NDK 下载留到下轮，不强求本轮出 APK
