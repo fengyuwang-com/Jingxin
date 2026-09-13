@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'jingjing_game.dart';
 import 'memento.dart';
+import 'perplex_insight.dart';
 import 'shard.dart';
 
 /// 「惑星」（第 43 轮）——世界里偶尔飘来的一个心结。
@@ -69,6 +70,23 @@ class PerplexMachine {
 
   /// 状态机是否已彻底结束。
   bool get gone => phase == PerplexPhase.gone;
+
+  bool _insightDone = false;
+
+  /// 本颗惑星是否已经历「通达」（每颗至多一次）。
+  bool get insightDone => _insightDone;
+
+  /// 「通达」触发（第 52 轮）：drifting 中跳过循环数要求、提前进入
+  /// 化解（星花散去 + 惑语碎片照常走 resolved 通道）。每颗至多一次
+  /// ——一次性闸门保证；非 drifting 或已触发过则拒绝并保持原状。
+  bool triggerInsight() {
+    if (_insightDone || phase != PerplexPhase.drifting) return false;
+    _insightDone = true;
+    phase = PerplexPhase.dissolving;
+    _resolved = true;
+    burst = 0;
+    return true;
+  }
 
   // ---- 内部计时 ----
   double _offTime = 0; // 连续离开范围的秒数
@@ -198,7 +216,13 @@ const String perplexRegion = '惑星';
 ///
 /// idle（hidden/gone）零渲染成本；浮现后也只画自己这一小团雾。
 class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
-  PerplexPlanet();
+  PerplexPlanet() {
+    final rng = math.Random(7);
+    for (int i = 0; i < _dustCount; i++) {
+      _dustAngles.add(rng.nextDouble() * math.pi * 2);
+      _dustFactors.add(0.55 + rng.nextDouble() * 0.45);
+    }
+  }
 
   final PerplexMachine machine = PerplexMachine();
 
@@ -215,6 +239,22 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
   int _steadyStreak = 0;
   double _lastCycleAt = -999;
 
+  // ---- 通达（第 52 轮）：状态在组件层内存持有，不持久化。 ----
+  double _insightDwell = 0;
+  double _insightProgress = 0;
+
+  // 平稳度低通（显示连续性，绝不瞬跳）。
+  double _insightSteadySm = 1.0;
+  int _lastInsightIndex = -1;
+  double _lastInsightAt = -999;
+
+  // 通达光尘：定长粒子池（角度/距离系数构造时预生成，触发时只置
+  // 相位 _dustT，逐帧零分配）。
+  static const int _dustCount = 18;
+  final List<double> _dustAngles = [];
+  final List<double> _dustFactors = [];
+  double _dustT = -1; // <0 = 未触发
+
   final math.Random _rng = math.Random(DateTime.now().millisecondsSinceEpoch);
 
   // 复用画笔（零逐帧分配）。
@@ -224,6 +264,9 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
     ..strokeWidth = 1.1
     ..strokeCap = StrokeCap.round;
   final Paint _sparkPaint = Paint();
+  final Paint _glowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.4;
 
   @override
   void update(double dt) {
@@ -282,6 +325,37 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
       dt: dt,
     );
 
+    // 通达（第 52 轮）：drifting 且近旁、平稳呼吸时驻留积累；注满
+    // 触发一次「通达」——惑星提前化解 + 光尘 + 惑语碎片（每颗至多
+    // 一次，由 triggerInsight 的一次性闸门保证）。
+    if (machine.phase == PerplexPhase.drifting) {
+      _insightSteadySm +=
+          ((game.breathSteady ? 1.0 : 0.0) - _insightSteadySm) *
+          math.min(1.0, dt * 0.8);
+      _insightDwell = perplexInsightDwellNext(
+        dwellSeconds: _insightDwell,
+        dt: dt,
+        near: nearby,
+        breathSteady: game.breathSteady,
+      );
+      _insightProgress = perplexInsightProgress(
+        dwellSeconds: _insightDwell,
+        breathSteadiness: _insightSteadySm,
+      );
+      if (_insightProgress >= kInsightTriggerThreshold &&
+          machine.triggerInsight()) {
+        _granted = true; // 通达发放「惑语」碎片，普通化解不再重复入账。
+        _grantInsightShard(game);
+        _dustT = 0;
+      }
+    }
+
+    // 通达光尘相位推进（化解 2.5s 内收散，组件移除前自然结束）。
+    if (_dustT >= 0) {
+      _dustT += dt;
+      if (_dustT >= kInsightDustSeconds) _dustT = -1;
+    }
+
     // 缓慢漂移：极小的圆流分量，无方向突变。
     final t = game.time + seed;
     pos.x += math.cos(t * 0.13) * 5.5 * dt;
@@ -321,6 +395,32 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
       unawaited(game.shardCollection.save());
     }
     game.shardMessage.value = koan;
+  }
+
+  /// 「通达」入账：一枚「惑语」碎片（region='惑'，走既有拾忆/merge
+  /// 通道）+ 一句"迷失也是路"短语浮出（15s 内不重复上句）。
+  void _grantInsightShard(JingjingGame game) {
+    final idx = perplexInsightPhraseIndex(
+      _rng.nextInt(kInsightPhrases.length),
+      _lastInsightIndex,
+      game.time - _lastInsightAt,
+    );
+    _lastInsightIndex = idx;
+    _lastInsightAt = game.time;
+    final phrase = kInsightPhrases[idx];
+    final record = ShardRecord(
+      time: DateTime.now(),
+      text: phrase,
+      region: perplexInsightRegion,
+    );
+    final (merged, added) = mergeShards(game.shardCollection.records, [record]);
+    if (added > 0) {
+      game.shardCollection.records
+        ..clear()
+        ..addAll(merged);
+      unawaited(game.shardCollection.save());
+    }
+    game.shardMessage.value = phrase;
   }
 
   @override
@@ -380,6 +480,23 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
       );
     }
 
+    // 通达轮廓微亮：progress 越过 0.5 后轮廓极缓亮起（量化 alpha，
+    // 不新增每帧分配——glow 本身已按 0.04 步进量化）。
+    final glow = perplexInsightGlow(
+      machine.phase == PerplexPhase.drifting ? _insightProgress : 0,
+    );
+    if (glow > 0) {
+      final ga = ((0.16 * glow * vis) * 40).round() / 40.0;
+      if (ga > 0) {
+        canvas.drawCircle(
+          center,
+          radius * 1.12,
+          _glowPaint
+            ..color = const Color(0xFFc9c2e0).withValues(alpha: ga),
+        );
+      }
+    }
+
     // 化解星花（复用 anxiety_abyss 星花的视觉语言）：一小簇星点
     // 从花心缓缓张开散去，花心带一点呼吸辉光。
     if (phase == PerplexPhase.dissolving) {
@@ -411,6 +528,29 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
             ease,
           )!.withValues(alpha: pa);
         canvas.drawCircle(pt, 1.3 + (i % 3) * 0.5, _sparkPaint);
+      }
+    }
+
+    // 通达光尘：一圈灰紫光尘从花心缓缓散开（定长池预生成参数，
+    // 包络 sin 起落，随化解一起收散）。
+    final dustEnv = perplexInsightDustEnvelope(_dustT);
+    if (dustEnv > 0) {
+      final spread = 22 + 72 * (_dustT / kInsightDustSeconds);
+      final da = ((0.5 * dustEnv) * 40).round() / 40.0;
+      for (int i = 0; i < _dustCount; i++) {
+        final a = _dustAngles[i] + _dustT * 0.5;
+        final dist = spread * _dustFactors[i];
+        _sparkPaint
+          ..shader = null
+          ..color = const Color(0xFF9b8fb8).withValues(alpha: da);
+        canvas.drawCircle(
+          Offset(
+            center.dx + math.cos(a) * dist,
+            center.dy + math.sin(a) * dist * 0.92,
+          ),
+          0.9 + (i % 3) * 0.4,
+          _sparkPaint,
+        );
       }
     }
   }

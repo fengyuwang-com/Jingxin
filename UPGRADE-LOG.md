@@ -776,3 +776,18 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 注视深化：注视期间星兽极缓朝光灵转头/轮廓微亮；或惘语偈语池扩充 / 惑星深化。
+
+## 第 52 轮（2026-09-14）—— 惑星通达：迷失处的第二次机遇与惑语碎片
+- 理念：惑星是"困住与迷失"的心境化身。光灵停在它近旁、保持平稳呼吸足够久（约 35s），不必攒满循环数，也能短暂"解开通达"——惑星提前化作一圈灰紫光尘散去，落下一枚「惑语」碎片。迷失本身，也是路。
+- 实现：
+  - 纯逻辑（lib/game/perplex_insight.dart 新文件）：perplexInsightDwellNext（近旁+平稳累积封顶 35s；呼吸乱按 1.2/s 快退、平稳离开按 0.35/s 慢退）、perplexInsightProgress（smoothstep 注满 × 平稳度软压低 0.55+0.45s，与 dwell 流失叠加保证"呼吸乱 10s 内掉一半"）、perplexInsightGlow（越过 0.5 后 smoothstep 亮起，0.04 步进量化）、perplexInsightDustEnvelope（2.4s sin 包络）、perplexInsightPhraseIndex（7 句"迷失也是路"池轮换，15s 内不重复上句）。常量：阈值 0.95、region「惑」。
+  - 状态机（perplex_planet.dart）：PerplexMachine.triggerInsight——drifting 专属 + 一次性闸门（_insightDone），跳过循环数要求提前进入 dissolving（resolved 走既有通道）；非 drifting / 已触发拒绝并保持原状，每颗惑星至多一次通达。
+  - 接线（PerplexPlanet.update）：drifting 时喂近旁（复用既有 wrapDelta 80px 判定）与 game.breathSteady，低通平稳度 + 驻留推进，progress ≥0.95 且 triggerInsight 成功 → 发「惑语」碎片（region='惑'，复用 mergeShards 幂等通道）+ 短语经 shardMessage 浮出 + 置 _granted 防普通化解重复入账 + 触发光尘相位。
+  - 演出（极克制、零每帧分配）：① progress 越过 0.5 轮廓微亮——描边圆 0.16×glow×vis，glow 已量化、终值再按 1/40 量化；② 通达光尘——18 粒定长池（角度/距离系数构造时预生成，触发只置相位），灰紫 0xFF9b8fb8 随化解 sin 包络散开，2.4s 内随 dissolving 自然收散，不新增每帧分配。
+- 测试（test/perplex_insight_test.dart 新增 19 项，191→210）：累积封顶、两种退速精确配平、退到 0 不越界、端点/半程/单调/连续性、"呼吸乱 10s 内掉一半"（dwell 35 与 28 双起点完整管线模拟）、triggerInsight 至多一次 + 各阶段拒绝 + 化解收尾到 gone、glow 阈值/单调/量化、光尘包络两端归零对称、短语池 6~8 句非空去重 + 15s 内不重复上句 + 池内界内。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 210/210；flutter build web 成功。
+- commit：feat(game): 惑星通达——迷失处的第二次机遇与惑语碎片 [auto-night-52]（未 push）。
+- 下一步建议（第 53 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 惑语深化：通达时惑星残影在原位留一瞬更淡的雾痕（温和的"来过"痕迹）；或注视深化 / 惘语偈语池扩充。
