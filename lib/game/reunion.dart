@@ -161,6 +161,9 @@ class ReunionEvent extends Component with HasGameReference<JingjingGame> {
   }
 
   void _tryTrigger() {
+    // 满醒终幕（第 28 轮）进行中让先：不评估、不触发。
+    if (game.fullAwake.active) return;
+
     // 同一游弋周期至多一次：以游弋截止时间戳记账。
     final epoch = beast.state.swimUntilEpoch;
     if (beast.state.swimming && _doneSwimEpoch == epoch && epoch != 0) return;

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../game/breath_mic.dart';
+import '../game/full_awake.dart';
 import '../game/jingjing_game.dart';
 import '../game/koans.dart';
 import '../game/long_night_farewell.dart';
@@ -257,6 +258,8 @@ class _JingjingScreenState extends State<JingjingScreen>
   /// 需要隐藏 video 元素与额外依赖，耗电且 Web 兼容性参差）。
   /// 用户锁屏即自然休眠——这是设计，不是缺失。
   Future<void> _toggleNight() async {
+    // 满醒终幕进行中：演出独占世界的光，长夜让先（后到者让先）。
+    if (_game.fullAwake.active) return;
     final entering = !_nightMode;
     if (entering) {
       setState(() => _nightMode = true);
@@ -289,6 +292,8 @@ class _JingjingScreenState extends State<JingjingScreen>
     if (!_nightMode) return;
     _idleTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || !_nightMode || _farewell) return;
+      // 满醒终幕进行中：晨光告别让先（不催天亮，等演出走完）。
+      if (_game.fullAwake.active) return;
       if (_micOn && _game.cycleCount != _lastIdleCycle) {
         _lastIdleCycle = _game.cycleCount;
         _lastInteraction = DateTime.now();
@@ -311,9 +316,12 @@ class _JingjingScreenState extends State<JingjingScreen>
   /// 告别偈语淡入停留 10s，然后整体 5s 淡出，回到普通世界态。
   void _beginFarewell() {
     if (_farewell || !_nightMode) return;
+    // 满醒终幕进行中：告别让先（后到者让先的互斥约定）。
+    if (_game.fullAwake.active) return;
     _idleTimer?.cancel();
     _whisperTimer?.cancel();
     _voice.cancelAll(); // 告别时刻：朗读也悄悄退场。
+    _game.farewellPlaying = true; // 满醒演出的互斥判定。
     // 音频走既有 gain ramp 平滑淡出（20s），比视觉略长——
     // 光先亮，声后歇，绝不爆音。
     unawaited(_soundscape?.stop(fadeOut: LongNightFarewell.audioFadeSeconds));
@@ -383,6 +391,7 @@ class _JingjingScreenState extends State<JingjingScreen>
       _farewellKoan = null;
       _nightMode = false;
     });
+    _game.farewellPlaying = false;
     _game.setNight(false);
     _game.setFarewell(0.0); // 星兽缓缓重新睁眼（4s/只渐变）。
     _whisperTimer?.cancel();
@@ -441,6 +450,12 @@ class _JingjingScreenState extends State<JingjingScreen>
             child: Listener(
               onPointerDown: (_) {
                 _lastInteraction = DateTime.now();
+                // 满醒终幕（第 28 轮）进行中：任何触摸都是"跳过"
+                //（0.9s 快速淡出，已演过标记照打）。
+                if (_game.fullAwake.active) {
+                  _game.fullAwake.skip();
+                  return;
+                }
                 if (_farewell) {
                   _skipFarewell();
                   return;
@@ -551,6 +566,46 @@ class _JingjingScreenState extends State<JingjingScreen>
                 ),
               ),
             ),
+          // 满醒终幕（第 28 轮）：满醒偈——一生只浮现一次的一句。
+          // 到点由演出组件置入 notifier，淡出/跳过时随整体收走；
+          // 不挡操作，任何触摸即跳过（0.9s 快速淡出）。
+          ValueListenableBuilder<bool>(
+            valueListenable: _game.fullAwakeEnding,
+            builder: (context, ending, _) => ValueListenableBuilder<String?>(
+              valueListenable: _game.fullAwakeKoan,
+              builder: (context, koan, _) => Positioned.fill(
+                child: IgnorePointer(
+                  child: Align(
+                    alignment: const Alignment(0, -0.08),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: AnimatedOpacity(
+                        opacity: (koan == null || ending) ? 0 : 1,
+                        duration: Duration(
+                          milliseconds: ending
+                              ? (_game.fullAwakeFast.value
+                                    ? (FullAwakeEvent.skipDur * 1000).round()
+                                    : (FullAwakeEvent.fadeDur * 1000).round())
+                              : (FullAwakeEvent.koanFade * 1000).round(),
+                        ),
+                        curve: Curves.easeOut,
+                        child: Text(
+                          koan ?? ' ',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: ZenTheme.starWhite.withValues(alpha: 0.62),
+                            fontSize: 14,
+                            letterSpacing: 4,
+                            height: 1.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           // 顶端极细渐变光线：苏醒度的无声表达。
           Positioned(
             top: 0,

@@ -128,6 +128,19 @@ class Koans {
 
   static final List<int> _farewellRecent = [];
 
+  /// 「满醒」（第 28 轮）：世界第一次完全苏醒的终幕偈语——
+  /// 一生只浮现一次的回礼。主题：被世界记得、安静即照亮。克制、留白。
+  static const List<String> _fullAwakePool = [
+    '你安静了这么久，世界替你记着。',
+    '一呼一吸之间，灯一盏一盏亮了。',
+    '世界醒来的样子，就是你安静的样子。',
+  ];
+
+  static final List<int> _fullAwakeRecent = [];
+
+  /// 「满醒」终幕偈语（第 28 轮）。
+  static String nextFullAwake() => _draw(_fullAwakePool, _fullAwakeRecent);
+
   /// 「晨光告别」偈语：长夜终了的道别（第 26 轮）。
   static String nextFarewell() => _draw(_farewellPool, _farewellRecent);
 
