@@ -2,7 +2,10 @@
 
 - [x] 第26轮：长夜的「晨光告别」演出（新增 lib/game/long_night_farewell.dart 纯函数 shouldBegin(idleSeconds, manuallyEnded)：长夜中安静满 90s 或点月亮结束即开始；UI 层每秒巡检闲置、随息呼吸循环也算活动；演出=低饱和暖金晨光 15s 自屏底漫入（峰值 alpha 0.16）+ 星兽眯眼（beast.squint 压低睁眼目标沿用 4s/只渐变）+ 声景 gain ramp 淡出 20s（新增 SoundscapeEngine.silence 供跳过快速压静）+ 告别偈语池 5 句 2s 淡入停 10s 整体 5s 淡出回普通态；任何触摸 0.9s 跳过；test/long_night_farewell_test.dart 4 项共 41 全过；analyze 19 基线无新增/build web 通过，commit 6ef99b8）
 
+- [x] 第46轮：GitHub Actions 部署流水线就绪（新建 .github/workflows/deploy-pages.yml：push master 自动 analyze→test→build web --base-href /Jingxin/→deploy-pages，permissions/concurrency 按 GitHub 官方推荐；与 ci.yml 合并为单文件；.gitignore 已忽略产物；本地 base-href 构建成功并模拟 Pages 目录冒烟 200；analyze 19 基线 0 error/test 146 全过/两种 build 均成功，commit 0ec1dfa 未 push。待授权 push + Settings→Pages 选 GitHub Actions 即上线，之后自动部署无需手动）
+
 ## 已完成
+
 
 - [ ] 第27轮：静之径「同频引路」——指尖陪伴互动（长按 ≥1.2s 无位移→光灵以极缓漂移（≤12px/s 一阶惯性）靠近指尖、30px 内停驻；松手原地停驻 2s 回归巡游；靠近时星尘尾迹 2.5s 柔散（低档粒子 14/高档 28）；长按点在径上→stillPath.warmNearPoint 续余温（沿用 dt/1.8 累积/16s 褪去，不改数值）；开场引导/相会演出互斥（ReunionEvent.active getter）；CompanionGuide 纯状态机 + CompanionDust 渲染层，不改 TapCallbacks 分发；test/companion_test.dart 6 项共 47 全过；analyze 19 基线无新增/build web 通过；附带修复 still_path 构造器 late final bbox 二次赋值的潜在 LateInitializationError，commit f2dc69b）
 

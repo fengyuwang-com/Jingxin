@@ -690,3 +690,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. Android 真机全链路验证（连续多轮候选，最高优先）。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. Web 端分享卡长按预览；或呼吸音深化：极轻档在晨光告别时随晨光一起缓缓涨回全量（现在是立即 ramp 回 1.0，可改为随 dawnSeconds 渐涨）。
+
+## 第 46 轮（2026-09-14）—— GitHub Pages 部署流水线就绪
+- 目标：建 .github/workflows/deploy-pages.yml，push 后自动部署 Web 版到 GitHub Pages，无需再手动。
+- 实现：触发=push master（paths 过滤 lib/**, web/**, pubspec.*）+ workflow_dispatch；步骤 checkout → subosito/flutter-action(stable, cache) → pub get → analyze（--no-fatal-warnings，只挡 error 不挡既有 19 条 warning/info）→ flutter test → flutter build web --release --base-href /Jingxin/ → upload-pages-artifact + actions/deploy-pages@v4（permissions contents:read pages:write id-token:write，environment github-pages，concurrency group=pages 防并发）。官方推荐 artifact+environment 方式。
+- 关键决策：deploy 流水线本身已含 analyze+test+build web 全套校验，与轻量 ci.yml 完全重复，故只建一个文件（ci.yml 不单设）。
+- .gitignore 核查：/build/、.dart_tool/ 等已忽略，不会把产物提交进仓库。
+- 本地验证：MSYS_NO_PATHCONV=1 flutter build web --release --base-href /Jingxin/ 成功（index.html base href="/Jingxin/"）；冒烟——本地 http.server 模拟 Pages 目录布局（Jingxin/ 指向 build/web），GET /Jingxin/ 与 /Jingxin/main.dart.js 均 200。注意：Git Bash 会把 /Jingxin/ 转成 Windows 路径，本地跑需 MSYS_NO_PATHCONV=1（CI 的 ubuntu 不受影响）。
+- 质量门槛：analyze 19 条基线、0 error；test 146/146；build web（默认 + base-href）均成功。
+- commit：0ec1dfa（ci: GitHub Pages 部署流水线就绪 [auto-night-46]，未 push）。
+- 启用步骤（等主人授权 push 后）：① push；② 仓库 Settings → Pages → Source 选 "GitHub Actions"；③ 之后每次 push 到 master 自动分析+测试+构建+部署，无需再手动。
+- 下一步建议（第 47 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先，一键上线）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 呼吸音深化：极轻档随晨光渐涨回全量；或 Web 端分享卡长按预览。
