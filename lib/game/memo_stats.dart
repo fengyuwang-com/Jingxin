@@ -103,6 +103,9 @@ Color regionDotColor(String region) {
   if (region.contains('两兽之间') || region.contains('惘')) {
     return const Color(0xFFe8c473); // 相会双星的金。
   }
+  if (region.contains('兽语')) {
+    return const Color(0xFFe8c473); // 兽语签（第 33 轮）：沿用星兽金。
+  }
   if (region.contains('渊')) return const Color(0xFF9b8fb8); // 焦虑之渊。
   if (region.contains('荒原')) return const Color(0xFFc9a97a); // 疲惫荒原。
   if (region.contains('雾林')) return const Color(0xFF8fc4b0); // 纷心雾林。
