@@ -239,6 +239,11 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
   /// 等比压低——星兽不是被惊醒地闭眼，而是像困倦那样缓缓眯起。
   double squint = 0.0;
 
+  /// 满醒睁眼增益 0..1（第 28 轮「满醒」终幕）：世界完全苏醒的一刻，
+  /// 把睁眼目标临时抬到全开——沿用每只眼约 4 秒的既有渐变，缓缓睁眼；
+  /// 演出结束归 0，眼睛按同一渐变缓缓合回原状。绝不瞬跳。
+  double wakeOverride = 0.0;
+
   double _time = 0;
   double _swimT = 0;
   int _lastCycleCount = 0;
@@ -263,8 +268,10 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
       state.update(dt, cycle: true, near: d.length < 420);
     }
 
-    // 眼睛极慢渐变开合（每只约 4 秒）。
-    final target = state.openedEyes;
+    // 眼睛极慢渐变开合（每只约 4 秒）。满醒终幕把目标临时抬到全开。
+    final wakeTarget =
+        (wakeOverride * StarBeastState.eyeCount).round().clamp(0, eyeOpen.length);
+    final target = math.max(state.openedEyes, wakeTarget);
     for (int i = 0; i < eyeOpen.length; i++) {
       final want = (i < target ? 1.0 : 0.0) * (1.0 - squint.clamp(0.0, 1.0));
       final cur = eyeOpen[i];

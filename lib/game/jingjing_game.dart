@@ -10,6 +10,7 @@ import 'anxiety_abyss.dart';
 import 'companion.dart';
 import 'breath_mic.dart';
 import 'awakening.dart';
+import 'full_awake.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
 import 'mist_guardian.dart';
@@ -35,7 +36,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
     : awakening = AwakeningState(),
       breathHint = ValueNotifier<String?>(null),
       awakeningValue = ValueNotifier(0),
-      shardMessage = ValueNotifier<String?>(null);
+      shardMessage = ValueNotifier<String?>(null),
+      fullAwakeKoan = ValueNotifier<String?>(null),
+      fullAwakeEnding = ValueNotifier(false),
+      fullAwakeFast = ValueNotifier(false);
 
   final Color seedColor;
   final AwakeningState awakening;
@@ -91,6 +95,23 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 「同频引路」（第 27 轮）：静之径附近的指尖陪伴互动。
   /// 状态机是纯逻辑（companion.dart），这里只持有实例并每帧喂输入。
   final CompanionGuide companion = CompanionGuide();
+
+  /// 「满醒」终幕（第 28 轮）：世界第一次完全苏醒的回礼演出
+  /// （一生一次；触发判定与记账在 full_awake.dart，纯函数可测）。
+  late final FullAwakeEvent fullAwake;
+
+  /// 满醒偈（演出到点浮现的一句），null=无——UI 层监听呈现。
+  final ValueNotifier<String?> fullAwakeKoan;
+
+  /// 满醒演出进入整体淡出（true 后 UI 层收走偈语与光效）。
+  final ValueNotifier<bool> fullAwakeEnding;
+
+  /// 满醒演出被触摸跳过（淡出用 0.9s 快速档）。
+  final ValueNotifier<bool> fullAwakeFast;
+
+  /// 晨光告别是否进行中（UI 层在演出起止时置位）——满醒演出的
+  /// 互斥判定用：同帧冲突时后到者让先。
+  bool farewellPlaying = false;
 
   /// 长按点的世界坐标（null=当前无按住）。每帧由屏幕触点换算，
   /// 相机移动时自然跟随。
@@ -364,6 +385,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
       onboarding = OnboardingOverlay(pref: onboardingPref);
       add(onboarding!);
     }
+
+    // 「满醒」终幕（第 28 轮）：最后装配，光潮与提亮渲染在最上层；
+    // idle 时只做一次纯函数触发判定，零渲染成本。
+    fullAwake = FullAwakeEvent(beast: beast, guardian: mistGuardian);
+    add(fullAwake);
   }
 
   /// 用户开启随息麦克风时取消引导（零打扰原则）：立即退场并打上
@@ -493,8 +519,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
       _touchWorld = null;
     }
 
-    // 演出互斥：开场引导 / 相会演出进行中不触发（也不打断已开始的）。
-    final blocked = onboarding != null || reunion.active;
+    // 演出互斥：开场引导 / 相会演出 / 满醒终幕进行中不触发（也不打断已开始的）。
+    final blocked =
+        onboarding != null || reunion.active || fullAwake.active;
     final tw2 = _touchWorld;
     var withinStop = false;
     if (tw2 != null) {

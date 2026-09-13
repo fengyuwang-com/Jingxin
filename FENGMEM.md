@@ -152,3 +152,9 @@
 - AI 行动: 新增 lib/game/long_night_farewell.dart（shouldBegin 纯函数+节奏常数）；koans.dart 新增 5 句告别偈池 nextFarewell；star_beast.dart 加 squint 系数压低睁眼目标；jingjing_game 加 setFarewell；soundscape 接口加 silence(seconds)（web 用既有 layer fadeTo 重跑 ramp，stub 空实现）；jingjing_screen 编排全程（闲置巡检计时器、_beginFarewell/_skipFarewell/_finishFarewell、晨光 TweenAnimationBuilder 渐变+偈语 AnimatedOpacity、演出中守卫声景切换/月亮/回前台重启声音）；test/long_night_farewell_test.dart 4 项
 - 产出: commit 6ef99b8（未 push）；analyze 19 基线持平 0 error / test 41 项全过(+4) / build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
 - 关键决策: 音频淡出复用既有 layer bus gain ramp（stop 长淡出 20s，跳过时 silence 重跑 ramp 快速压静而非瞬断）；结束长夜的月亮点击改为走告别演出而非直接退出；随息呼吸循环计入"活动"避免边呼吸边被天亮打断
+
+## 2026-09-13 21:15 — 第 27 轮
+- 用户要求: 静之径「同频引路」——静之径附近长按 ≥1.2s 无位移，光灵极缓漂移靠近指尖（30px 内停驻），松手停驻 2s 回归巡游；星尘尾迹柔散；长按点在径上续余温；与引导/相会互斥；analyze/test/build 门槛 + commit + 记录。
+- AI 行动: 新增 lib/game/companion.dart（CompanionGuide 纯状态机 + CompanionDust 尾迹渲染层）；jingjing_game.dart 接入 _updateCompanion 与接近移动通道（不动 TapCallbacks 分发）；still_path.dart 加 warmNearPoint/distanceToPoint 续温接口；reunion.dart 加 active getter；quality.dart 加 companionDust 档位参数；test/companion_test.dart 6 项。
+- 产出: 47/47 测试全过；analyze 19 基线无新增 0 error；build web 成功；commit f2dc69b（未 push）；UPGRADE-LOG/todo/FENGMEM 已更新。
+- 关键决策: 无位移判定=持续按住即成立（Flame TapCallbacks 无移动事件，最小侵入）；顺手修复 still_path 构造器 late final bbox 二次赋值的潜在 LateInitializationError（测试构造第二实例时暴露）；接近通道一阶惯性限速 12px/s、松手停驻期阻尼加严。
