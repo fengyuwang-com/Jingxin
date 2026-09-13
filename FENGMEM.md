@@ -599,3 +599,9 @@
 - AI 行动: perplex_insight.dart 追加 mistTraceAlpha/mistTraceBreath/mistTraceGrantAllowed 纯函数与常量；perplex_planet.dart 通达触发时记录原位坐标，gone 后组件留存推进雾痕（近旁 wrapDelta 判定 + 低通呼吸包络 + 闸门掉落 region='雾痕' 碎片），_renderMistTrace 灰紫实色椭圆（屏外剔除/超时短路/alpha 归零即移除）；新建 test/mist_trace_test.dart 16 项。
 - 产出: commit feat(game): 通达残影——雾痕与一次性的再遇馈赠 [auto-night-53]（未 push）；analyze 19 条基线 0 error；test 226/226（+16）；build web 成功；UPGRADE-LOG.md 第 53 轮已记；todo.md 入账后已清。
 - 关键决策: 雾痕坐标在 triggerInsight 成功瞬间记录（任务指定 dissolving 入口即此刻），gone 后 update 走专属雾痕分支、render 走 gone 专属路径——本体可见期绝不画痕；掉落馈赠配固定偈语'雾散的地方，你来过。'并浮 shardMessage，闸门做成纯函数便于单测一次性语义。
+
+## 2026-09-14 06:05 — 第 54 轮
+- 用户要求: 通宵自动升级第 54 轮：雾痕道别——淡出末段的余光脉冲（惑星线收束），纯函数 + 渲染 + 收束整理 + 可选偈语池扩充，质量门槛全过后 commit，绝不 push。
+- AI 行动: 新增 mistFarewellPulse 纯函数（末段 45s 内 seed 散列定时刻、3.5s sin 包络、峰值 0.10、量化 0.02）；perplex_planet 雾痕渲染叠加脉冲 + 8 粒定长池道别光尘；三处量化收敛为 _quantize 助手（行为不变）；koans 入睡池扩 5 句（主题"夜是一间亮着灯的房间"）；UPGRADE-LOG 注明惑星线收束。
+- 产出: commit fe0d935；测试 226→234 全过；analyze 19 条基线持平 0 error；flutter build web 成功；未 push 未 tag。
+- 关键决策: 脉冲窗口本身是生命末段一次性区间，天然保证每颗惑星至多一次道别，无需额外闸门；seed 用纯整数 Knuth 散列保确定性可测；惑星线（52 通达→53 雾痕→54 道别）到此封笔。
