@@ -4,3 +4,4 @@
 - [x] 第 56 轮：星花映境——花随心境区域而异（regionAtPoint 纯函数+六心境调色+出生地记忆+同区微差+11 条单测）——已完成，commit 209e0d3
 
 - [x] 第 57 轮：花径——星花连缀成路（flowerPathAlpha/flowerPathCandidates 纯函数+每秒节拍缓存+径线渲染+12 条单测）——已完成，commit bfb23c5
+- [x] 第 58 轮：花境图鉴——跨越夜晚的花之账（FlowerLedger 纯逻辑+9999 封顶容错+jingxin.flowerledger.v1 节流写盘+拾忆抽屉「花境」行+16 条单测）——已完成，commit d5c41b2
