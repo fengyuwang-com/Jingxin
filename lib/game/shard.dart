@@ -94,6 +94,7 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
     this.heath = false,
     this.mist = false,
     this.gift = false,
+    this.reunion = false,
   });
 
   /// 世界坐标（环绕周期内）。
@@ -113,12 +114,18 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
   /// 是否为星兽「惘」赠出的金色心镜碎片（第 17 轮）：惘语偈语池。
   final bool gift;
 
+  /// 是否为「相会」双星碎片（第 18 轮）：金色，专属偈语，
+  /// 收录区域记「两兽之间」。
+  final bool reunion;
+
   /// 0..1 被吸入进度；>=1 后由游戏层移除并回调禅语。
   double absorb = 0;
   bool _absorbing = false;
 
   /// 吸入完成后要浮现的偈语（预生成，按区域取池，避免吸入瞬间卡顿）。
-  late final String koan = gift
+  late final String koan = reunion
+      ? Koans.nextReunion()
+      : gift
       ? Koans.nextWang()
       : abyss
       ? Koans.nextAbyss()

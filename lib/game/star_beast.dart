@@ -156,6 +156,16 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
 
   final StarBeastState state = StarBeastState();
 
+  /// 渲染视差（reunion.dart 的星光连线端点用，避免魔法数重复）。
+  static const double parallax = 0.7;
+
+  /// 「相会」演出（第 18 轮）注入的位移向量：由 ReunionEvent 每帧
+  /// 赋值（向两兽连线中点移近/退回），本组件只读叠加，不拥有其状态。
+  final Vector2 reunionNudge = Vector2.zero();
+
+  /// 当前世界坐标（含 nudge，供相会演出读取端点）。
+  Vector2 get pos => _pos;
+
   /// 沉睡锚点：世界深处（失眠之海下方）。
   static final Vector2 anchor = Vector2(
     JingjingGame.worldPeriod.x * 0.5,
@@ -275,6 +285,9 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
       _pos = anchor +
           Vector2(math.sin(_time * 0.05) * 22, math.cos(_time * 0.041) * 14);
     }
+    // 相会演出位移（平时为零向量，零成本）。
+    _pos.add(reunionNudge);
+    game.wrap(_pos);
   }
 
   /// 世界坐标 -> 屏幕坐标（视差 0.7，比星岛更深远）。

@@ -90,6 +90,15 @@ class Koans {
 
   static final List<int> _wangRecent = [];
 
+  /// 「相会」（第 18 轮）：眠与惘的稀有时刻留下的双星碎片专属——
+  /// 主题：路是走亮的、光是相认的。克制、留白，勿鸡汤。
+  static const List<String> _reunionPool = [
+    '路是自己走亮的，灯是别人点亮的。',
+    '隔着整片海，光认得光。',
+  ];
+
+  static final List<int> _reunionRecent = [];
+
   /// 「入睡引导」极短句池（第 12 轮「闻声」）：长夜里极低频率轻声读出。
   /// 主题是睡眠接近感——描述性的、留白的，勿鸡汤勿命令式。
   static const List<String> _whisperPool = [
@@ -124,6 +133,9 @@ class Koans {
 
   /// 「惘语」：星兽惘的金色碎片偈语。
   static String nextWang() => _draw(_wangPool, _wangRecent);
+
+  /// 「相会」双星碎片偈语（第 18 轮）。
+  static String nextReunion() => _draw(_reunionPool, _reunionRecent);
 
   static String _draw(List<String> pool, List<int> recent) {
     if (recent.length >= pool.length - 3) recent.clear();

@@ -15,6 +15,7 @@ import 'mist_guardian.dart';
 import 'mist_wood.dart';
 import 'quality.dart';
 import 'regions.dart';
+import 'reunion.dart';
 import 'shard.dart';
 import 'soundscape.dart';
 import 'star_beast.dart';
@@ -75,6 +76,15 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 纷心雾林（第 13 轮）；雾沉降度由星兽「惘」读取（第 17 轮）。
   late final MistWood mistWood;
+
+  /// 星兽「惘」：雾林守林者（第 17 轮），相会演出读取其状态与端点。
+  late final MistGuardian mistGuardian;
+
+  /// 静之径（第 14 轮），相会演出驱动其短暂亮起与径上尘聚拢。
+  late final StillPath stillPath;
+
+  /// 「相会」演出（第 18 轮）：眠与惘的稀有时刻（触发即自动运行）。
+  late final ReunionEvent reunion;
 
   /// 已完成的平稳呼吸循环总数（星兽苏醒的独立事件源，不受碎片消费影响）。
   int cycleCount = 0;
@@ -240,8 +250,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
     mistWood = MistWood();
     add(mistWood);
     // 星兽「惘」：雾林接缝带的守林者（第 17 轮），显形跟随雾沉降。
-    add(MistGuardian());
-    add(StillPath()); // 静之径：区域间的余温旅程线（第 14 轮）。
+    mistGuardian = MistGuardian();
+    add(mistGuardian);
+    stillPath = StillPath(); // 静之径：区域间的余温旅程线（第 14 轮）。
+    add(stillPath);
     beast = StarBeast();
     add(beast);
     final rng = math.Random(42);
@@ -313,6 +325,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     // 声景视听联动层（最顶层渲染，极淡）：夜雨雨丝 / 篝火暖色偏移。
     add(_NightWeather());
+
+    // 「相会」演出（第 18 轮）：最后装配，星光连线与涟漪渲染在最上层；
+    // 平时 idle 只做轻量条件检查，零渲染成本。
+    reunion = ReunionEvent(beast: beast, guardian: mistGuardian, path: stillPath);
+    add(reunion);
   }
 
   /// 刚完成一次平稳呼吸循环且尚未被碎片消费——供 MindShard 吸入判定。
@@ -405,7 +422,8 @@ class JingjingGame extends FlameGame with TapCallbacks {
         ShardRecord(
           time: DateTime.now(),
           text: shard.koan,
-          region: regionNameFor(spiritPos),
+          // 相会双星碎片：专属收录区域「两兽之间」（第 18 轮）。
+          region: shard.reunion ? '两兽之间' : regionNameFor(spiritPos),
         ),
       );
       shardMessage.value = shard.koan;

@@ -122,6 +122,14 @@ class StillPath extends Component with HasGameReference<JingjingGame> {
   late final double _minY;
   late final double _maxY;
 
+  // ---- 相会回应（第 18 轮）：眠与惘在附近相会时，径短暂亮起、
+  // 径上尘聚拢成一小圈——像径在为它们高兴。由 ReunionEvent 驱动。
+  /// 0..1 径的亮起程度（演出期才有值）。
+  double reunionGlow = 0;
+
+  /// 径上尘聚拢的目标点（世界坐标；null=不聚拢）。
+  Vector2? reunionGather;
+
   // 复用的画笔与余温叠加 Path（每帧零分配）。
   final Paint _widePaint = Paint()
     ..style = PaintingStyle.stroke
@@ -187,9 +195,11 @@ class StillPath extends Component with HasGameReference<JingjingGame> {
     final size = game.size;
     if (size.x <= 0 || size.y <= 0) return;
 
-    // 透明度：开场淡入 × 苏醒度轻联动（世界越醒，旧迹越清晰一点点）。
-    final scale =
-        game.introEase * (0.8 + 0.2 * game.awakeningValue.value);
+    // 透明度：开场淡入 × 苏醒度轻联动（世界越醒，旧迹越清晰一点点）
+    // × 相会亮起（眠与惘相会时，径短暂亮起，像在为它们高兴）。
+    final scale = game.introEase *
+        (0.8 + 0.2 * game.awakeningValue.value) *
+        (1.0 + 1.4 * reunionGlow);
     if (scale <= 0.01) return;
 
     final cam = game.camPos;
@@ -261,7 +271,22 @@ class StillPath extends Component with HasGameReference<JingjingGame> {
     if (!anyVisible) return;
 
     // 径上尘：沿途极稀疏的缓慢明灭微点（≤10，屏外跳过）。
+    // 相会时：尘埃向相会点聚拢成一小圈（像径在为它们高兴）。
     final t = game.time;
+    final gather = reunionGather;
+    double? gx;
+    double? gy;
+    if (gather != null && reunionGlow > 0.01) {
+      var dx = gather.x - cam.x;
+      var dy = gather.y - cam.y;
+      if (dx > period.x / 2) dx -= period.x;
+      if (dx < -period.x / 2) dx += period.x;
+      if (dy > period.y / 2) dy -= period.y;
+      if (dy < -period.y / 2) dy += period.y;
+      gx = cx + dx;
+      gy = cy + dy;
+    }
+    var dustIndex = 0;
     for (final d in _dust) {
       final i0 = d.t.floor();
       final i1 = math.min(i0 + 1, _points.length - 1);
@@ -286,17 +311,26 @@ class StillPath extends Component with HasGameReference<JingjingGame> {
       if (sy < -period.y / 2) sy += period.y;
       final screenX = cx + sx;
       final screenY = cy + sy;
-      if (screenX < -6 ||
-          screenX > size.x + 6 ||
-          screenY < -6 ||
-          screenY > size.y + 6) {
+      // 相会聚拢：向相会点外的一小圈（半径 15，按序错开角度）缓移。
+      double px2 = screenX;
+      double py2 = screenY;
+      if (gx != null && gy != null) {
+        final ga = dustIndex * 2.4 + t * 0.15;
+        px2 += (gx + math.cos(ga) * 15 - screenX) * reunionGlow;
+        py2 += (gy + math.sin(ga) * 15 - screenY) * reunionGlow;
+      }
+      dustIndex++;
+      if (px2 < -6 ||
+          px2 > size.x + 6 ||
+          py2 < -6 ||
+          py2 > size.y + 6) {
         continue;
       }
       final twinkle = 0.5 + 0.5 * math.sin(t * 0.4 + d.phase);
       _dustPaint.color = const Color(
         0xFFcfeee2,
       ).withValues(alpha: 0.055 * twinkle * scale);
-      canvas.drawCircle(Offset(screenX, screenY), d.radius, _dustPaint);
+      canvas.drawCircle(Offset(px2, py2), d.radius, _dustPaint);
     }
   }
 }
