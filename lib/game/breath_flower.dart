@@ -43,7 +43,10 @@ double _smooth(double t) {
   return t * t * (3 - 2 * t);
 }
 
-double _quantize(double v) => (v * 50).round() / 50.0;
+double _quantize(double v) => flowerQuantize(v);
+
+/// 0.02 步进量化（公开版，供渲染端花园复用，收敛重复实现）。
+double flowerQuantize(double v) => (v * 50).round() / 50.0;
 
 /// 单帧推进"花开累积"（纯函数，状态在调用方）。
 ///
@@ -202,4 +205,81 @@ FlowerPalette flowerPaletteFor(FlowerMood mood) {
   final brighten = 0.84 + 0.16 * ((h >>> 24) & 0xFF) / 255.0;
   final phase = ((h >>> 8) & 0xFFFF) / 65536.0 * math.pi * 2;
   return (brighten, phase);
+}
+
+// ---- 花径（第 57 轮）：星花连缀成路 ----
+//
+// 两朵开得较高的花离得近（环面 wrap 距离 < [kFlowerPathMaxDist]）时，
+// 它们之间浮现一道极淡的径线——玩家回望时才被发现的痕迹。**径线
+// 不是目标、不做任何提示或引导**（写死语义，防后续轮误加引导系统）。
+// 任一朵收拢/谢幕（开度跌破门槛）则径线同步变淡——它跟着花走。
+
+/// 花径连线的最大环面距离（px）。
+const double kFlowerPathMaxDist = 220.0;
+
+/// 花径 alpha 峰值（最近处 0.09——比花瓣本身还淡）。
+const double kFlowerPathPeakAlpha = 0.09;
+
+/// 花径参与门槛：两朵花开度都须高于此值。
+const double kFlowerPathBloomGate = 0.4;
+
+/// 花径 alpha 的量化步进（与花一致）。
+const double kFlowerPathAlphaStep = 0.02;
+
+/// 花径 alpha（纯函数）。
+///
+/// [bloomA]/[bloomB] 为两朵花各自的"有效开度"（花谢/长夜闭合后的
+/// 张合值，渲染端直接复用 flowerVisual 的 open）。任一朵低于
+/// [kFlowerPathBloomGate] 则恒 0；alpha 随距离平滑衰减（近处峰值
+/// [kFlowerPathPeakAlpha]、远端趋 0），并按开度差进一步压低。输出
+/// 按 [kFlowerPathAlphaStep] 量化。
+double flowerPathAlpha(double dist, double bloomA, double bloomB) {
+  final bA = bloomA.clamp(0.0, 1.0);
+  final bB = bloomB.clamp(0.0, 1.0);
+  if (bA <= kFlowerPathBloomGate || bB <= kFlowerPathBloomGate) return 0;
+  if (dist >= kFlowerPathMaxDist) return 0;
+  final d = dist.clamp(0.0, kFlowerPathMaxDist);
+  final t = 1 - d / kFlowerPathMaxDist;
+  final fade =
+      ((math.min(bA, bB) - kFlowerPathBloomGate) / (1 - kFlowerPathBloomGate))
+          .clamp(0.0, 1.0);
+  final alpha = kFlowerPathPeakAlpha * _smooth(t) * fade;
+  return flowerQuantize(alpha);
+}
+
+/// 环面 wrap 距离（纯函数，内部助手）：单轴差值对周期取最短环绕。
+double _wrapAxis(double d, double period) {
+  if (period <= 0) return d;
+  final h = period / 2;
+  var x = d % period; // Dart % 恒非负。
+  if (x > h) x -= period;
+  return x.abs();
+}
+
+/// 花径候选对（纯函数）：从池内所有满足条件（两端开度均过门槛、
+/// 环面 wrap 距离 < [kFlowerPathMaxDist]）的花对，返回 (i, j, dist)
+/// 列表（i < j）。调用方应每秒节拍算一次并缓存，绝不每帧算。
+/// [positions] 用 (x, y) 记录——不依赖具体向量类型，各库通用。
+List<(int, int, double)> flowerPathCandidates(
+  List<(double, double)> positions,
+  List<double> blooms, {
+  (double, double) period = (2400, 1800),
+}) {
+  final out = <(int, int, double)>[];
+  final n = positions.length.clamp(0, blooms.length);
+  for (int i = 0; i < n; i++) {
+    final bi = blooms[i].clamp(0.0, 1.0);
+    if (bi <= kFlowerPathBloomGate) continue;
+    for (int j = i + 1; j < n; j++) {
+      final bj = blooms[j].clamp(0.0, 1.0);
+      if (bj <= kFlowerPathBloomGate) continue;
+      final dx = _wrapAxis(positions[i].$1 - positions[j].$1, period.$1);
+      final dy = _wrapAxis(positions[i].$2 - positions[j].$2, period.$2);
+      final dist = math.sqrt(dx * dx + dy * dy);
+      if (dist < kFlowerPathMaxDist) {
+        out.add((i, j, dist));
+      }
+    }
+  }
+  return out;
 }

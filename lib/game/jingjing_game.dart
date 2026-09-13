@@ -1340,7 +1340,10 @@ class _RainStreak {
 /// - 定长池 + 构造期预生成，每帧零分配；alpha 按 0.02 步进量化；
 /// - 花随全局呼吸相位轻微张合；呼吸紊乱时所有在屏花缓慢收拢变暗
 ///   （花谢不是惩罚——变暗但不消失），恢复后缓慢重开；
-/// - 长夜时段（nightAmount）星花自动闭合入眠：闭合不是消失。
+/// - 长夜时段（nightAmount）星花自动闭合入眠：闭合不是消失；
+/// - 花径（第 57 轮）：相邻（wrap 距离 < [kFlowerPathMaxDist]）且都
+///   开得较高的两朵花之间浮现极淡径线——玩家回望时发现的痕迹，
+///   不是目标、不做任何提示或引导。
 class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
   BreathFlowerGarden() {
     for (int i = 0; i < kFlowerPoolMax; i++) {
@@ -1373,6 +1376,12 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
   final Paint _corePaint = Paint();
   final Paint _glowPaint = Paint();
   final Paint _dustPaint = Paint();
+  final Paint _pathPaint = Paint()..strokeCap = StrokeCap.round;
+
+  // 花径（第 57 轮）：候选对每秒节拍算一次并缓存，绝不每帧 O(n²)。
+  // 径线不是目标、不做任何提示或引导——它是玩家回望时才发现的痕迹。
+  final List<(_Flower, _Flower)> _paths = [];
+  double _pathTimer = 1.0; // 首帧即先算一次。
 
   /// 延迟若干帧的光灵旧位置（环形缓冲最旧一帧）。
   Vector2 get _delayedPos =>
@@ -1476,6 +1485,28 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
         if (d.t >= _dustSeconds) d.active = false;
       }
     }
+
+    // 花径候选对：每秒一次 O(n²) 节拍（12 朵最多 66 对），结果缓存。
+    _pathTimer += dt;
+    if (_pathTimer >= 1.0) {
+      _pathTimer = 0;
+      _paths.clear();
+      final witherNow = flowerWitherProgress(chaoticSeconds: _chaos);
+      final openNow = flowerVisual(1.0, witherNow, night: game.nightAmount)
+          .$1;
+      final pos = <(double, double)>[];
+      final bl = <double>[];
+      final alive = <_Flower>[];
+      for (final f in _pool) {
+        if (!f.alive) continue;
+        pos.add((f.position.x, f.position.y));
+        bl.add(openNow);
+        alive.add(f);
+      }
+      for (final (i, j, _) in flowerPathCandidates(pos, bl)) {
+        _paths.add((alive[i], alive[j]));
+      }
+    }
   }
 
   @override
@@ -1508,6 +1539,48 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
             continue; // 屏外剔除。
           }
           _renderFlower(canvas, cx, cy, f, open, glow, sway, alpha, color);
+        }
+      }
+    }
+
+    // 花径：星花连缀的呼吸之路——玩家回望时才发现的痕迹，不做任何
+    // 提示或引导（语义写死）。alpha 用实时 wrap 距离与两花实时开度
+    // （花谢/长夜/FIFO 谢幕时径线自然随 bloom 消失，无需特判）。
+    if (_paths.isNotEmpty) {
+      final openNow = flowerVisual(1.0, wither, night: night).$1;
+      final pw = JingjingGame.worldPeriod;
+      for (final (fa, fb) in _paths) {
+        var dx = (fa.position.x - fb.position.x) % pw.x;
+        var dy = (fa.position.y - fb.position.y) % pw.y;
+        if (dx > pw.x / 2) dx -= pw.x;
+        if (dy > pw.y / 2) dy -= pw.y;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        final a = flowerQuantize(flowerPathAlpha(dist, openNow, openNow) *
+            intro);
+        if (a <= 0) continue;
+        // 中间色：两花调色的确定性中点（同色花则退化为该色）。
+        final mid = Color.lerp(fa.petalColor, fb.petalColor, 0.5)!;
+        _pathPaint
+          ..color = mid.withValues(alpha: a)
+          ..strokeWidth = 1.0
+          ..blendMode = BlendMode.screen;
+        for (int ox = -1; ox <= 1; ox++) {
+          for (int oy = -1; oy <= 1; oy++) {
+            final ax = size.x / 2 + fa.position.x + ox * period.x -
+                game.camPos.x;
+            final ay = size.y / 2 + fa.position.y + oy * period.y -
+                game.camPos.y;
+            final bx = ax - dx; // 同一镜像单元内的 B 端（环绕连续）。
+            final by = ay - dy;
+            // 屏外整对剔除：两端都远离屏幕才跳过。
+            const m = kFlowerPathMaxDist + 60;
+            final aOut = ax < -m || ax > size.x + m || ay < -m ||
+                ay > size.y + m;
+            final bOut = bx < -m || bx > size.x + m || by < -m ||
+                by > size.y + m;
+            if (aOut && bOut) continue;
+            canvas.drawLine(Offset(ax, ay), Offset(bx, by), _pathPaint);
+          }
         }
       }
     }
@@ -1572,7 +1645,8 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
     canvas.drawCircle(center, 2.2, _corePaint);
   }
 
-  static double _q(double v) => (v.clamp(0.0, 1.0) * 50).round() / 50.0;
+  // 量化收敛（第 57 轮）：委托 breath_flower 的公开量化，行为不变。
+  static double _q(double v) => flowerQuantize(v);
 }
 
 /// 一朵星花（定长池成员，字段复用，零每帧分配）。
