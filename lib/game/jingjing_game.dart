@@ -12,6 +12,7 @@ import 'day_tide.dart';
 import 'breath_mic.dart';
 import 'awakening.dart';
 import 'beast_gaze.dart';
+import 'breath_flower.dart';
 import 'full_awake.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
@@ -153,6 +154,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   final math.Random _random = math.Random(42);
   late final LightSpirit _spirit;
+
+  /// 星花花园（第 55 轮）：光灵平稳呼吸在身后种下呼吸的痕迹。
+  late final BreathFlowerGarden _flowerGarden = BreathFlowerGarden();
   late final _Starfield _starfield;
   double _time = 0;
 
@@ -267,6 +271,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 当前是否处于平稳呼吸（供星岛苏醒判定）。
   bool get breathSteady => _breathJitter > 0.004 && _breathJitter < 0.35;
 
+  /// 呼吸抖动的低通值（供星花判定"紊乱"：抖动过大即呼吸乱了）。
+  double get breathJitterLevel => _breathJitter;
+
   /// 当前是否按住（吸气中）——开场引导的提示词切换用（第 23 轮）。
   bool get breathPressing => _pressing;
 
@@ -342,6 +349,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
         ),
       );
     }
+    // 星花花园：画在光灵身后（先 add 先画，被光灵覆盖）——呼吸的
+    // 痕迹（第 55 轮），不给碎片不给分数，纯粹是世界的美与回应。
+    add(_flowerGarden);
+
     add(_spirit);
 
     // 同频引路的星尘尾迹（第 27 轮）：画在光灵之上、演出层之下，
@@ -1314,4 +1325,248 @@ class _RainStreak {
   final double speed;
   final double length;
   final double drift;
+}
+
+/// 星花花园（第 55 轮）——呼吸的痕迹。
+///
+/// 光灵平稳呼吸约 40s 注满一次"花开"，在光灵身后（延迟若干帧的旧
+/// 位置）种下一朵星花：花瓣数 5~7 由确定性 seed 决定，颜色取自
+/// CYBER-ZEN 冷色系（青/淡紫/月白）。定长池上限 [kFlowerPoolMax] 朵，
+/// 满了最旧的花化光尘谢幕（FIFO）。
+///
+/// 纪律（写死，防后续轮误加）：
+/// - 星花开花时**不给碎片、不给分数**——它纯粹是世界的美与回应
+///   （愿景支柱 5：温柔正反馈），不是经济系统的一部分；
+/// - 定长池 + 构造期预生成，每帧零分配；alpha 按 0.02 步进量化；
+/// - 花随全局呼吸相位轻微张合；呼吸紊乱时所有在屏花缓慢收拢变暗
+///   （花谢不是惩罚——变暗但不消失），恢复后缓慢重开；
+/// - 长夜时段（nightAmount）星花自动闭合入眠：闭合不是消失。
+class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
+  BreathFlowerGarden() {
+    for (int i = 0; i < kFlowerPoolMax; i++) {
+      _pool.add(_Flower());
+    }
+  }
+
+  static const int _trailLen = 180; // 180 帧 ≈ 3s 延迟（60fps）
+  static const double _dustSeconds = 1.6;
+  static const int _dustSlots = 4;
+
+  final List<_Flower> _pool = [];
+  final List<Vector2> _trail = List.generate(_trailLen, (_) => Vector2.zero());
+  final List<_FlowerDust> _dusts = List.generate(
+    _dustSlots,
+    (_) => _FlowerDust(),
+  );
+  int _trailHead = 0;
+  bool _trailFull = false;
+  int _spawnCounter = 0;
+  int _dustHead = 0;
+
+  // 花开/花谢状态（内存态，不持久化）。
+  double _dwell = 0;
+  double _steadySm = 0;
+  double _chaos = 0;
+
+  // 画笔预生成（零每帧分配）。
+  final Paint _petalPaint = Paint()..strokeCap = StrokeCap.round;
+  final Paint _corePaint = Paint();
+  final Paint _glowPaint = Paint();
+  final Paint _dustPaint = Paint();
+
+  /// 延迟若干帧的光灵旧位置（环形缓冲最旧一帧）。
+  Vector2 get _delayedPos =>
+      _trailFull ? _trail[_trailHead] : game.spiritPos;
+
+  void _spawnFlower() {
+    final idx = flowerPoolNextIndex(_spawnCounter);
+    final f = _pool[idx];
+    if (f.alive) {
+      // 池满：最旧的一朵化光尘谢幕（FIFO，圆环取模天然选中它）。
+      final d = _dusts[_dustHead];
+      _dustHead = (_dustHead + 1) % _dustSlots;
+      d
+        ..active = true
+        ..t = 0
+        ..pos.setFrom(f.position)
+        ..colorIndex = f.colorIndex;
+    }
+    final seed = _spawnCounter * 7 + 3;
+    f
+      ..alive = true
+      ..seed = seed
+      ..petals = flowerPetalCount(seed)
+      ..colorIndex = flowerColorIndex(seed)
+      ..rotPhase = (seed % 628) / 100.0
+      ..position.setFrom(_delayedPos);
+    _spawnCounter++;
+  }
+
+  @override
+  void update(double dt) {
+    final steady = game.breathSteady;
+    final chaotic = game.breathJitterLevel >= 0.35;
+
+    // 低通平稳度（与惑星通达同款滤波，绝不瞬跳）。
+    _steadySm +=
+        ((steady ? 1.0 : 0.0) - _steadySm) * math.min(1.0, dt * 0.8);
+
+    // 花开累积：注满即种花、归零循环。
+    final before = _dwell;
+    _dwell = flowerBloomDwellNext(
+      dwellSeconds: _dwell,
+      dt: dt,
+      breathSteady: steady,
+    );
+    if (before < kFlowerBloomSeconds && _dwell >= kFlowerBloomSeconds) {
+      _spawnFlower();
+      _dwell = 0; // 循环：重新累积下一次花开。
+    }
+
+    // 花谢记账：紊乱累积，平稳缓慢消退（花缓慢重开）。
+    _chaos = flowerChaosNext(
+      chaoticSeconds: _chaos,
+      dt: dt,
+      chaotic: chaotic,
+      breathSteady: steady,
+    );
+
+    // 光灵位置轨迹入环（复用缓冲，零分配）。
+    _trail[_trailHead].setFrom(game.spiritPos);
+    _trailHead = (_trailHead + 1) % _trailLen;
+    if (_trailHead == 0) _trailFull = true;
+
+    // 谢幕光尘推进。
+    for (final d in _dusts) {
+      if (d.active) {
+        d.t += dt;
+        if (d.t >= _dustSeconds) d.active = false;
+      }
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final intro = game.introEase;
+    if (intro <= 0.01) return; // 开场世界还黑着，星花未醒。
+    final size = game.size;
+    final period = JingjingGame.worldPeriod;
+    final wither = flowerWitherProgress(chaoticSeconds: _chaos);
+    final sway = flowerBreathSway(game.breathPhase);
+    final night = game.nightAmount;
+
+    for (final f in _pool) {
+      if (!f.alive) continue;
+      final (open, glow) = flowerVisual(1.0, wither, night: night);
+      if (open <= 0.001) continue; // 闭合入眠：不消失，只是不画。
+      final alpha = _q(open * 0.55 * intro);
+      if (alpha <= 0) continue;
+      final color = _flowerColor(f.colorIndex);
+      // 环绕绘制（世界锁定的 1.0 视差 + 3x3 镜像，同星岛约定）。
+      for (int ox = -1; ox <= 1; ox++) {
+        for (int oy = -1; oy <= 1; oy++) {
+          final wx =
+              f.position.x + ox * period.x - game.camPos.x;
+          final wy =
+              f.position.y + oy * period.y - game.camPos.y;
+          final cx = size.x / 2 + wx;
+          final cy = size.y / 2 + wy;
+          if (cx < -60 || cx > size.x + 60 || cy < -60 || cy > size.y + 60) {
+            continue; // 屏外剔除。
+          }
+          _renderFlower(canvas, cx, cy, f, open, glow, sway, alpha, color);
+        }
+      }
+    }
+
+    // 谢幕光尘：化开的一瞬，温柔地散去。
+    for (final d in _dusts) {
+      if (!d.active) continue;
+      final t = (d.t / _dustSeconds).clamp(0.0, 1.0);
+      final a = _q((1 - t) * 0.18 * intro);
+      if (a <= 0) continue;
+      final r = 6 + 26 * t;
+      _dustPaint
+        ..color = _flowerColor(d.colorIndex).withValues(alpha: a)
+        ..blendMode = BlendMode.screen;
+      for (int ox = -1; ox <= 1; ox++) {
+        for (int oy = -1; oy <= 1; oy++) {
+          final cx = size.x / 2 + d.pos.x + ox * period.x - game.camPos.x;
+          final cy = size.y / 2 + d.pos.y + oy * period.y - game.camPos.y;
+          if (cx < -60 || cx > size.x + 60 || cy < -60 || cy > size.y + 60) {
+            continue;
+          }
+          canvas.drawCircle(Offset(cx, cy), r, _dustPaint);
+        }
+      }
+    }
+  }
+
+  void _renderFlower(
+    Canvas canvas,
+    double cx,
+    double cy,
+    _Flower f,
+    double open,
+    double glow,
+    double sway,
+    double alpha,
+    Color color,
+  ) {
+    final center = Offset(cx, cy);
+    // 底辉：极淡的一圈，随呼吸张合微微舒缩。
+    _glowPaint
+      ..color = color.withValues(alpha: _q(glow * 0.10))
+      ..blendMode = BlendMode.screen;
+    canvas.drawCircle(center, (10 + 8 * open) * sway, _glowPaint);
+    // 花瓣：从花心放射的细光线，张合随花开进度与呼吸相位。
+    _petalPaint
+      ..color = color.withValues(alpha: alpha)
+      ..strokeWidth = 2.2;
+    final len = (9 + 13 * open) * sway;
+    for (int i = 0; i < f.petals; i++) {
+      final a = f.rotPhase + (i / f.petals) * math.pi * 2;
+      canvas.drawLine(
+        center,
+        Offset(cx + math.cos(a) * len, cy + math.sin(a) * len * 0.9),
+        _petalPaint,
+      );
+    }
+    // 花心：再暗也留一点芯光——变暗但不消失。
+    _corePaint
+      ..color = ZenTheme.starWhite.withValues(alpha: _q(glow * 0.5))
+      ..blendMode = BlendMode.screen;
+    canvas.drawCircle(center, 2.2, _corePaint);
+  }
+
+  static Color _flowerColor(int index) {
+    switch (index % 3) {
+      case 0:
+        return ZenTheme.nebulaCyan; // 青
+      case 1:
+        return ZenTheme.nebulaPurple; // 淡紫
+      default:
+        return ZenTheme.starWhite; // 月白
+    }
+  }
+
+  static double _q(double v) => (v.clamp(0.0, 1.0) * 50).round() / 50.0;
+}
+
+/// 一朵星花（定长池成员，字段复用，零每帧分配）。
+class _Flower {
+  final Vector2 position = Vector2.zero();
+  bool alive = false;
+  int seed = 0;
+  int petals = 5;
+  int colorIndex = 0;
+  double rotPhase = 0;
+}
+
+/// 谢幕光尘（定长槽复用）。
+class _FlowerDust {
+  final Vector2 pos = Vector2.zero();
+  bool active = false;
+  double t = 0;
+  int colorIndex = 0;
 }
