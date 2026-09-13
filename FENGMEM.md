@@ -569,3 +569,9 @@
 - 产出: commit 4968acc + docs commit（未 push）；analyze 19 条基线 0 error；test 156/156（+6）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
 - 关键决策: 预览与导出共用同一渲染（_renderCardImage）保证"看到的就是带走的"；缩放纯函数设计为"永不放大、宁可原大也不消失"；Web 提示指回「带走星图」按钮而非造预览内保存（浏览器长按图片语义不同、不抢现有 anchor download 路径）；预览层关闭态 IgnorePointer 零命中 + 隐式动画无每帧重建。
 - 下一步建议: 主人授权 push + 开启 Pages 验证首次部署（最高优先）；Android 真机验证；预览层内可加「收下」就地保存。
+
+## 2026-09-14 04:24 — 第 49 轮
+- 用户要求: 通宵自动升级第 49 轮：分享卡预览层「收下」就地保存（与晨光泛音二选一或合并，本轮选前者）。
+- AI 行动: 读 UPGRADE-LOG 第 47/48 轮与 git log；在 lib/game/star_card.dart 抽纯逻辑（按钮状态机 cardSavePhaseNext、文件名 saveCardFileName）；lib/screens/star_map_screen.dart 预览层加玻璃拟态「收下」小钮（仅 Web、三态、禁用防重复、1.5s 确认态淡回、失败轻提示）；决策「另渲染新离屏图」实现保存与预览 dispose 完全解耦。
+- 产出: commit e6a6539（未 push）；新增 test/star_card_save_test.dart 10 项；UPGRADE-LOG.md 第 49 轮记录；analyze 19 条基线持平 0 error，test 166/166，build web 成功。
+- 关键决策: 不复用预览图（其会在关闭 350ms 后 dispose），保存时另渲染一张生命周期局部于保存函数的新图——最简且并发安全；状态机 start 仅允许自 idle/failed，防重复提交与 done 误重启。

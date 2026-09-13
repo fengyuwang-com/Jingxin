@@ -732,3 +732,18 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 预览深化：预览层里直接放一枚「收下」小钮就地触发保存（现在是提示指回入口）；或惑星深化 / 星兽注视等第 47 轮候选。
+
+## 第 49 轮（2026-09-14）—— 预览层「收下」：看见即带走，不必折返
+- 理念：预览里看中的卡，就地轻轻收下——不再提示你退回去找入口，眼到、手到、心到。
+- 实现：
+  - 纯逻辑（lib/game/star_card.dart）：① 按钮状态机 cardSavePhaseNext(current, event)——idle/failed→saving→done/failed，reset 一律归位；start 仅允许自 idle/failed（saving 期间重复点击被忽略、done 态不重启），事件外状态严格保持不变，完整生命周期可单测。② saveCardFileName(now, shardCount) → jingxin-star-map-yyyy-mm-dd.png，与「带走星图」同款日期键（shardDateKey），格式稳定便于按天整理。
+  - 小钮（lib/screens/star_map_screen.dart 预览层内）：玻璃拟态药丸（ClipRRect + BackdropFilter 12px + StadiumBorder 淡青描边，与偈语卡同气质），置于安全区内卡片外底部（bottom 52，提示行上方）；仅 kIsWeb 显示，其他平台完全不出现、保持原有行为。三态内容：静候「收 下」→ saving 15px 转圈且 onTap 禁用 → done「已收下 ✓」青色确认态，1.5s 后经 reset 淡回静候；失败经 failed 态 + snackbar 轻提示（与导出同款文案），同样 1.5s 归位后可重试。AnimatedScale 0.97 极克制的按压反馈，无每帧重建。
+  - 关键决策——保存与预览图完全解耦：_saveFromPreview() 另调 _renderCardImage() 渲染一张新离屏图，生命周期（渲染 → toByteData → dispose）完全局部于保存函数。理由：预览图会在关闭预览 350ms 后被 dispose，若保存直接持有它就必须引入引用计数或「保存中禁止释放」标志，复杂且易漏；新图方案最简，保存期间关闭/重开预览天然并发安全（已验证 dispose 兜底不冲突）。
+  - 提示文案随功能更新：Web 预览提示从「点『带走星图』即可保存」改为「点『收下』即可保存这张卡 · 点任意处收起」。「带走星图」入口与预览互斥忙位逻辑不变。
+- 测试（test/star_card_save_test.dart 新增 10 项，156→166）：状态机全事件×全状态矩阵、防重复点击、done 不重启、reset 全归位、完整成功/失败生命周期；文件名格式、补零、确定性与碎片数无关性。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 166/166；flutter build web 成功。
+- commit：e6a6539（feat(game): 分享卡预览层就地收下保存 [auto-night-49]，未 push）。
+- 下一步建议（第 50 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 晨光泛音：满醒日印当天的晨光回涨带一点极轻的高八度泛音（第 47 轮遗留候选）；或星兽注视 / 惑星深化。
