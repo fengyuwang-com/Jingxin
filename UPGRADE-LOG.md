@@ -351,3 +351,61 @@
   1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/声景/拾忆记忆卡全链路。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 记忆卡深化：按夜晚分组重看（同一晚的碎片聚成一簇星点），或抽屉内碎片多时的滚动优化。
+
+## 第 25 轮（2026-09-13）— 拾忆按夜晚分组重看：「星河的章节」
+- 理念：碎片聚成夜晚，夜晚串成一条静下来的轨迹。
+- memo_stats.dart 新增纯函数（可测）：
+  - NightGroup / groupNightsByDate：按本地日期分组，夜降序、组内碎片新→旧。
+  - nightLabel：日期键 →「9月12日 · 3 枚」日期签文案。
+  - busiestNight / nightArcSweep：历史单夜最多碎片数 + 夜弧扫过角度（0..2π，封顶整圆）。
+- star_map_screen.dart「重看那一夜」升级为按夜晚分组的「章节」：
+  - 每夜一行：行首极小日期签（可点折叠/展开，带 chevron 指示），后随该夜星点（区域色相、Tooltip、点选记忆卡，行为不变）。
+  - 默认只展开最近一夜，其余收起，避免列表过长；首次展开时初始化折叠集。
+  - 行右端「夜弧」：_NightArcPainter 细弧，完成度=该夜碎片数/历史单夜最多数，极淡底环+青色弧，纯装饰。
+- 数据仍只读 jingxin.shards.v1，导出/合并格式（jx-memo-v1）未动；空态文案不变。
+- 测试：memo_stats_test.dart 新增 3 项（分组排序/日期签文案/夜弧归一化封顶）。总计 37 项全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 37/37；flutter build web 成功。
+- commit：70fc98b（未 push）。
+- 下一步建议（第 26 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/声景/拾忆分组重看全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 拾忆抽屉滚动优化：夜晚多时抽屉内容改滚动（SingleChildScrollView + 限高），或夜晚组间再加极淡分隔线/时间刻度。
+
+## 第 26 轮（2026-09-13）— 长夜的「晨光告别」演出
+- 理念：长夜不该"被退出"，而该"天亮"。
+- 触发（lib/game/long_night_farewell.dart，纯静态可测）：
+  - `LongNightFarewell.shouldBegin(idleSeconds, manuallyEnded)`：明确点月亮结束长夜 → 立即开始；否则长夜中安静满 90 秒开始。
+  - 闲置判定在 UI 层每秒巡检：触摸/移动即刷新时刻；随息开启时呼吸循环（cycleCount 变化）也算活动——还在呼吸的人还醒着，不催天亮。
+- 演出节奏（jingjing_screen 编排）：
+  - 晨光：低饱和暖金（0xFFcfa96b）自屏底 15s 极缓漫入，峰值 alpha 仅 0.16，CYBER-ZEN 克制。
+  - 星兽眯眼：JingjingGame.setFarewell(t) → beast.squint 把睁眼目标等比压低，沿用每只眼约 4s 的既有渐变——像困倦地眯起，不是惊醒闭眼；演出结束归 0 缓缓重睁。
+  - 声音：白噪音走既有 soundscape 层 gain ramp 淡出 20s（比视觉略长，光先亮、声后歇，绝不爆音）；新增 SoundscapeEngine.silence(seconds)——跳过时对仍在淡出中的层重跑 ramp 快速压静，幂等不瞬断。
+  - 告别偈语：koans.dart 新增 5 句池（「夜替你收好了什么，晨光就还给你什么。」等），随晨光 2s 淡入、停留 10s，然后整体 5s 淡出（共 17s）回普通世界态，_nightMode 正常清除（沿用既有退出收尾：whisper 停、朗读停、声景停、setNight(false)）。
+  - 跳过：演出中任何触摸 → 0.9s 快速整体淡出 + silence 快速静音，无突兀。
+- 细节守卫：演出中忽略声景切换与月亮重复点击；回前台若在演出中不再重新浮起声音；dispose 取消新增计时器。
+- 测试：新增 test/long_night_farewell_test.dart 4 项（未满阈值不开始 / 满 90s 开始 / 手动结束无条件开始 / 节奏常数自洽：声音最后消失、跳过快于正常淡出）。总计 41 项全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 41/41；flutter build web 成功。
+- commit：6ef99b8（未 push）。
+- 下一步建议（第 27 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/声景/晨光告别全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 晨光告别深化：随偈语在晨光里浮现 2~3 只极淡飞鸟剪影掠过（纯程序绘制），或把告别偈语接入闻声朗读（用 VoiceKind.whisper 低声读出）。
+
+## 第 27 轮（2026-09-13）— 静之径「同频引路」：触摸点成为呼吸伙伴
+- 理念：指尖不是操控，而是陪伴。长按不动时，光灵以极缓慢的漂移向指尖靠近——像被轻轻唤了过去，而不是被拖拽。
+- 互动流程（新增 lib/game/companion.dart）：
+  - CompanionGuide 纯逻辑状态机（无 Flame 依赖，可测）：idle →（按住 ≥1.2s 且无演出互斥）approaching →（松手）resting（2s）→ idle；再次按住从 resting 回 idle 重新起算，绝不瞬切。
+  - 移动手感：目标速度至多 12px/s，一阶惯性（dt*1.4）缓动、无急加速；进入指尖 30px 内停驻（moving=false，悬停）；呼吸节奏完全不受影响（breathProgress 照常推进，只抑制原有的吸气蓄力拉力）。
+  - 松手后：resting 期阻尼加严（exp(-dt*2.5)）让光灵轻轻收停在原地 2s，之后自然回归呼吸驱动的巡游。
+  - 互斥：开场引导（onboarding != null）或相会演出中（ReunionEvent 新增 active getter）不触发；接近中演出开始也立即退场，绝不与演出争光灵。
+- 星尘尾迹（CompanionDust）：接近中光灵身后留下细小星尘，2.5s sin 起落柔散（两端归零不闪烁）、alpha 峰值 0.14、微微上浮；粒子池固定（高档 28 / 低档 14，quality.dart 新增 companionDust 档位参数），零每帧分配、屏外跳过，不遮挡星图。
+- 续余温（still_path.dart）：新增公开接口 warmNearPoint(worldPoint, dt)——长按点落在径上（<40px，新增 distanceToPoint 环绕最短距离判定）时，给该段路径按既有速率（dt/1.8 累积、16s 缓褪）续温，视觉即路径像被走过一样微亮；不改任何既有数值。
+- 最小侵入：不改 TapCallbacks 分发逻辑（无位移判定=持续按住即成立，Flame TapCallbacks 本就不派发移动事件）；jingjing_game.dart 只新增 companion/_touchWorld 状态与 _updateCompanion 步骤，_updateDrift 分出接近通道。
+- 附带修复（测试暴露的潜在缺陷）：StillPath 构造器 bbox 的 _minX/_maxX/_minY/_maxY 原声明为 late final 却在 min/max 循环中二次赋值——任何第二次构造（以及运行期循环首次缩界时）都会抛 LateInitializationError；改为普通 double 字段并加注释。
+- 测试：新增 test/companion_test.dart 6 项（阈值不满不触发+阈值帧 moving 正确 / 30px 停驻+松手 2s 回归 / 演出互斥不触发+演出开始即退场 / resting 再按住重新起算 / 续温落点近处升温远处不受影响 / 续温速率 dt/1.8）。总计 47 项全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 47/47；flutter build web 成功。
+- commit：feat(game): 静之径同频引路——指尖陪伴互动 [auto-night-27]（未 push）。
+- 下一步建议（第 28 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/声景/同频引路/晨光告别全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 同频引路深化：光灵停驻在指尖 30px 内时，附近径上尘/星屑轻轻向光灵聚一聚（复用相会聚拢语言），或停驻满 4s 后光灵极缓地"回一个呼吸波"（一圈涟漪）。

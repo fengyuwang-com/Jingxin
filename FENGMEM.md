@@ -140,3 +140,15 @@
 - AI 行动: 新增 lib/game/memo_stats.dart（countNights/shardDateKeys/memorySummary/regionDotColor 纯函数）+ test/memo_stats_test.dart 5 项；star_map_screen.dart 拾忆抽屉加顶部汇总与「重看那一夜」星点折叠区，点选弹 _MemoryCard（_BreathRipplePainter 8s 三环涟漪+中心星点）；测试 import 包名用 jingxin_meditation（首跑误用 jingxin 已修）；analyze/test/build web 全过后 commit
 - 产出: analyze 19 条基线无新增 0 error / test 34 项全过(+5) / build web 成功；commit b2e7356（未 push）
 - 关键决策: 记忆卡入口放拾忆抽屉「重看那一夜」折叠区（星图主面点星的原偈语卡保持不动）；区域色相按 region 字符串 contains 匹配（惘赠碎片落雾林记录，金专留「两兽之间」）；夜晚数=本地日期去重照实计数
+
+## 2026-09-13 — 第 25 轮
+- 用户要求: 通宵第 25 轮——拾忆按夜晚分组重看「星河的章节」：单行星点流升级为按夜分行（日期签+夜弧+折叠，默认只展开最近一夜），分组逻辑抽纯函数加测试，格式不动
+- AI 行动: memo_stats.dart 新增 NightGroup/groupNightsByDate、nightLabel、busiestNight/nightArcSweep 纯函数；star_map_screen.dart 重写 _memoryChips 为分组章节列表（_collapsedNights 状态 + _NightArcPainter 细弧）+ 抽出 _memoryDot；test/memo_stats_test.dart 新增 3 项
+- 产出: commit 70fc98b（未 push）；analyze 19 基线持平 0 error / test 37 项全过(+3) / build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
+- 关键决策: 折叠状态按日期键存 Set、首次展开时初始化（最近一夜展开其余收起）；夜弧从正上方起顺时针、极淡底环克制装饰；星点行收起时直接不渲染（零成本）
+
+## 2026-09-13 — 第 26 轮
+- 用户要求: 通宵第 26 轮——长夜的「晨光告别」演出：90s 闲置或手动结束触发天亮演出（暖金晨光 15s 漫入、星兽眯眼、声景 20s 平滑淡出、告别偈语停留后整体淡出回普通态），触发判定抽纯函数、触摸可跳过、三件套门槛、commit、更新三记录
+- AI 行动: 新增 lib/game/long_night_farewell.dart（shouldBegin 纯函数+节奏常数）；koans.dart 新增 5 句告别偈池 nextFarewell；star_beast.dart 加 squint 系数压低睁眼目标；jingjing_game 加 setFarewell；soundscape 接口加 silence(seconds)（web 用既有 layer fadeTo 重跑 ramp，stub 空实现）；jingjing_screen 编排全程（闲置巡检计时器、_beginFarewell/_skipFarewell/_finishFarewell、晨光 TweenAnimationBuilder 渐变+偈语 AnimatedOpacity、演出中守卫声景切换/月亮/回前台重启声音）；test/long_night_farewell_test.dart 4 项
+- 产出: commit 6ef99b8（未 push）；analyze 19 基线持平 0 error / test 41 项全过(+4) / build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
+- 关键决策: 音频淡出复用既有 layer bus gain ramp（stop 长淡出 20s，跳过时 silence 重跑 ramp 快速压静而非瞬断）；结束长夜的月亮点击改为走告别演出而非直接退出；随息呼吸循环计入"活动"避免边呼吸边被天亮打断

@@ -53,6 +53,9 @@ class Quality {
         QualityTier.low => 10,
       };
 
+  /// 同频引路星尘尾迹的粒子池上限（低档减半，第 27 轮）。
+  int get companionDust => isLow ? 14 : 28;
+
   /// 静之径的径上尘数量。
   int get pathDust => switch (tier) {
         QualityTier.high => 10,

@@ -90,6 +90,9 @@ class ReunionEvent extends Component with HasGameReference<JingjingGame> {
   ReunionPhase _phase = ReunionPhase.idle;
   double _t = 0;
 
+  /// 演出是否进行中（非 idle）——同频引路（第 27 轮）的互斥判定用。
+  bool get active => _phase != ReunionPhase.idle;
+
   /// 本次游弋周期已相会过的记账（swimUntilEpoch；0=未触发过）。
   int _doneSwimEpoch = 0;
 

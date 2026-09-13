@@ -7,6 +7,7 @@ import 'package:flutter/material.dart' hide Draggable;
 
 import '../core/theme.dart';
 import 'anxiety_abyss.dart';
+import 'companion.dart';
 import 'breath_mic.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
@@ -87,6 +88,14 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 「相会」演出（第 18 轮）：眠与惘的稀有时刻（触发即自动运行）。
   late final ReunionEvent reunion;
 
+  /// 「同频引路」（第 27 轮）：静之径附近的指尖陪伴互动。
+  /// 状态机是纯逻辑（companion.dart），这里只持有实例并每帧喂输入。
+  final CompanionGuide companion = CompanionGuide();
+
+  /// 长按点的世界坐标（null=当前无按住）。每帧由屏幕触点换算，
+  /// 相机移动时自然跟随。
+  Vector2? _touchWorld;
+
   /// 「初次入静」开场呼吸引导（第 23 轮）：仅首次且未开随息时装配；
   /// 老用户/随息用户为 null，零打扰。
   OnboardingOverlay? onboarding;
@@ -153,6 +162,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
   Vector2 spiritPos = Vector2.zero();
   final Vector2 _camBase = Vector2.zero();
   Vector2 _spiritVelocity = Vector2.zero();
+  final Vector2 _goalVelocity = Vector2.zero();
   Vector2? _touchPoint;
 
   /// 渲染用相机坐标的复用缓冲（第 16 轮性能审计）：camPos 原来是
@@ -283,6 +293,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
       );
     }
     add(_spirit);
+
+    // 同频引路的星尘尾迹（第 27 轮）：画在光灵之上、演出层之下，
+    // 粒子池固定，光灵未接近指尖时零渲染成本。
+    add(CompanionDust());
 
     // 心镜碎片：本轮漫游程序放置 2~4 片，散布在世界中（远离光灵起点）。
     // 碎片按序号分配心境区域：i%4==1 沉入「焦虑之渊」深度带，
@@ -417,6 +431,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     _updateBreath(dt);
     _updateAwakening(dt);
+    _updateCompanion(dt);
     _updateDrift(dt);
     _updateShards(dt);
 
@@ -466,13 +481,73 @@ class JingjingGame extends FlameGame with TapCallbacks {
     }
   }
 
+  /// 同频引路（第 27 轮）：把触点换算成世界坐标喂给状态机；接近中
+  /// 且长按点落在静之径上时，给该段路径「续余温」（沿用既有机制）。
+  void _updateCompanion(double dt) {
+    final tp = _touchPoint;
+    if (tp != null && _pressing) {
+      final tw = _touchWorld ??= Vector2.zero();
+      tw.x = camPos.x + tp.x - size.x / 2;
+      tw.y = camPos.y + tp.y - size.y / 2;
+    } else {
+      _touchWorld = null;
+    }
+
+    // 演出互斥：开场引导 / 相会演出进行中不触发（也不打断已开始的）。
+    final blocked = onboarding != null || reunion.active;
+    final tw2 = _touchWorld;
+    var withinStop = false;
+    if (tw2 != null) {
+      final dx = tw2.x - spiritPos.x;
+      final dy = tw2.y - spiritPos.y;
+      final wx =
+          dx.abs() > worldPeriod.x / 2 ? dx - worldPeriod.x * dx.sign : dx;
+      final wy =
+          dy.abs() > worldPeriod.y / 2 ? dy - worldPeriod.y * dy.sign : dy;
+      withinStop =
+          wx * wx + wy * wy < CompanionGuide.stopDistance * CompanionGuide.stopDistance;
+    }
+    companion.update(
+      holding: _pressing,
+      withinStopDistance: withinStop,
+      blocked: blocked,
+      dt: dt,
+    );
+
+    // 长按点在径上（<onPathDistance）→ 额外续余温：该段微亮如被走过。
+    if (companion.state == CompanionState.approaching && tw2 != null) {
+      if (stillPath.distanceToPoint(tw2) < StillPath.onPathDistance) {
+        stillPath.warmNearPoint(tw2, dt);
+      }
+    }
+  }
+
   /// 呼吸即移动：吸气蓄力——光灵缓缓朝触点上浮；
   /// 呼气滑行——沿当前方向缓缓漂移，无急停。
+  /// 同频引路（第 27 轮）接近中：改走极缓漂移通道（缓动、无急加速，
+  /// 目标速度仅 12px/s），停驻距离内悬停；停驻期光灵轻轻收停在原地。
   void _updateDrift(double dt) {
-    final damping = math.exp(-dt * 0.22);
+    final companionActive = companion.state == CompanionState.approaching;
+    final damping = math.exp(-dt * (companion.state == CompanionState.resting ? 2.5 : 0.22));
     _spiritVelocity.scale(damping);
 
-    if (_pressing) {
+    if (companionActive) {
+      final target = _touchWorld;
+      if (companion.moving && target != null) {
+        // 极缓的追踪速度（一阶惯性，无急加速），至多 12px/s。
+        var dx = target.x - spiritPos.x;
+        var dy = target.y - spiritPos.y;
+        if (dx.abs() > worldPeriod.x / 2) dx -= worldPeriod.x * dx.sign;
+        if (dy.abs() > worldPeriod.y / 2) dy -= worldPeriod.y * dy.sign;
+        final dist = math.sqrt(dx * dx + dy * dy);
+        if (dist > CompanionGuide.stopDistance) {
+          final speed = math.min(12.0, dist * 0.35);
+          _goalVelocity.setValues(dx / dist * speed, dy / dist * speed);
+          _spiritVelocity +=
+              (_goalVelocity - _spiritVelocity) * math.min(1.0, dt * 1.4);
+        }
+      }
+    } else if (_pressing) {
       // 吸气：朝触点方向的柔和引力，随呼吸进度增强（蓄力）。
       final spiritScreen = Vector2(
         gameSize.x / 2 + (spiritPos.x - camPos.x),
