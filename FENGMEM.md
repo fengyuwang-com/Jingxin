@@ -20,3 +20,14 @@
 - AI 行动: 新建 lib/game/awakening.dart；改造 jingjing_game.dart（Flame TapCallbacks、平滑呼吸推进、循环检测、苏醒度映射）；jingjing_screen 加顶端极细光线与吸气/呼气提示词
 - 产出: analyze 0 error（19 基线）、build web 成功、UPGRADE-LOG.md/todo.md 已更新
 - 关键决策: 苏醒度不显示数字（避免分数感）；回落有 0.02 底线永不归零；平稳循环≥3.5s 才计入苏醒度
+
+## 2026-09-13 — 第 3 轮（通宵升级 auto-night-3）
+- 用户要求: 第一个心境区域「失眠之海」：光灵呼吸驱动漫游 + 程序生成星潮星海 + 沉睡星岛呼吸辉光亮起
+- AI 行动: jingjing_game.dart 增加漫游层（吸气蓄力朝触点上浮/呼气滑行、指数阻尼限速55、相机缓跟随、2400x1800周期环绕）；新建 lib/game/insomnia_sea.dart（InsomniaSea 3层正弦星潮+失眠星屑视差、StarIsle 星礁剪影靠近+呼吸平稳时逐个亮起，7座程序生成）
+- 产出: commit 1d5ce39；analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md 已更新
+- 关键决策: 呼吸即移动=吸气引力+浮力、呼气惯性滑行；星岛判定用|Δ呼吸|低通带（平稳呼吸才亮）；本轮只亮起不永久解锁
+## 2026-09-13 — 第 4 轮（通宵升级 auto-night-4）
+- 用户要求: 心镜碎片收集（2~4片程序放置、靠近+平稳呼吸循环轻吸入、禅语玻璃面板淡入淡出不打断漫游、shared_preferences存时间+禅语+区域，无上限无成就无计数）+ 星图回看（jingjing_screen左下角极小入口，全屏玻璃拟态"我的静境星图"，碎片按收集时间成星座，点星看偈语+日期）
+- AI 行动: 新建 lib/game/koans.dart（20句禅语池防重复）、lib/game/shard.dart（ShardCollection持久化/MindShard吸入动画/区域九宫格命名）、lib/screens/star_map_screen.dart（黄金角螺旋星座+玻璃偈语卡+空状态）；改造 jingjing_game.dart（碎片生成/consumeCycleEvent单次消费/shardMessage通知）；jingjing_screen 加左下角入口+禅语面板
+- 产出: commit df1313f；analyze 0 error（19基线无新增）；build web 成功；UPGRADE-LOG.md/todo.md 已更新
+- 关键决策: 一次平稳循环只能吸入一片（防止同帧双吸）；禅语在碎片构建时预生成避免卡顿；星图用黄金角螺旋按收集顺序排布（是风景不是列表）；游戏画面禅语面板不用 BackdropFilter（省性能），星图回看页用
