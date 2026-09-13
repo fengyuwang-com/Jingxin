@@ -134,3 +134,9 @@
 - AI 行动: 新增 lib/game/onboarding.dart（持久化/纯逻辑状态机/渲染层三件套）+ jingjing_game 装配与 getter + screen 随息取消；新增 5 项纯逻辑测试
 - 产出: commit 36cce35；analyze 19 条基线持平；test 29/29；build web 成功；UPGRADE-LOG/todo/FENGMEM 已更新
 - 关键决策: 复用 cycleCount 平稳循环判定驱动谢幕；随息用户开启麦克风即静默退场并打 onboarded 标记（永不再现）；提示文字 alpha 按 0.05 档量化缓存
+
+## 2026-09-13 — 第 24 轮
+- 用户要求: 通宵第 24 轮——拾忆星图回看深化「一夜的记忆」：拾忆抽屉点选碎片进记忆卡（玻璃拟态+时间戳+禅语+区域色相星点）、程序化呼吸纹 CustomPainter 三环涟漪极缓脉动、抽屉顶部汇总统计（碎片数+按日期去重夜晚数、空态文案）、数据仅用 jingxin.shards.v1、质量门槛三件套、commit、更新三记录
+- AI 行动: 新增 lib/game/memo_stats.dart（countNights/shardDateKeys/memorySummary/regionDotColor 纯函数）+ test/memo_stats_test.dart 5 项；star_map_screen.dart 拾忆抽屉加顶部汇总与「重看那一夜」星点折叠区，点选弹 _MemoryCard（_BreathRipplePainter 8s 三环涟漪+中心星点）；测试 import 包名用 jingxin_meditation（首跑误用 jingxin 已修）；analyze/test/build web 全过后 commit
+- 产出: analyze 19 条基线无新增 0 error / test 34 项全过(+5) / build web 成功；commit b2e7356（未 push）
+- 关键决策: 记忆卡入口放拾忆抽屉「重看那一夜」折叠区（星图主面点星的原偈语卡保持不动）；区域色相按 region 字符串 contains 匹配（惘赠碎片落雾林记录，金专留「两兽之间」）；夜晚数=本地日期去重照实计数

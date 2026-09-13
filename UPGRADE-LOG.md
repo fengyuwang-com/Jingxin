@@ -332,3 +332,22 @@
   1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导演出/随息/声景全链路。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 引导演出的真机观感微调：提示文字位置/透明度档位/星潮半径的可玩性调参。
+
+## 第 24 轮（2026-09-13）— 拾忆回看深化：「一夜的记忆」
+- 理念：碎片不只是收集品，回看时能"重走那一夜的呼吸"。
+- 新增 lib/game/memo_stats.dart（纯函数，可测）：
+  - countNights/shardDateKeys：按碎片拾取时刻的本地日期去重统计夜晚数。
+  - memorySummary：N=0 →「星图还空着，去呼吸吧」；否则「已拾 N 枚碎片 · 静了 M 个夜晚」。
+  - regionDotColor：来源区域星点色相，与游戏内区域 tint 一致（渊=冷紫 0xFF9b8fb8、海=青 0xFF67e8f9、荒原=暖沙 0xFFc9a97a、雾林=青灰 0xFF8fc4b0、两兽之间/惘=金 0xFFe8c473）。
+- star_map_screen.dart 拾忆抽屉改造：
+  - 顶部汇总统计一句淡字（memorySummary）。
+  - 新增「重看那一夜」折叠区：按时间排序的一串小星点（Wrap，色相=来源区域，Tooltip 显示日期+区域），点选浮起记忆卡。
+  - _MemoryCard：玻璃拟态底部浮层，显示时间戳、禅语、来源区域星点；卡内 CustomPainter 程序化「呼吸纹」——三圈同心圆环涟漪（相位错开）+ 中心星点，8s 周期极缓慢脉动，只描边不填充，克制动画。
+- 数据全部来自既有 shared_preferences 键 jingxin.shards.v1，导出/合并格式（jx-memo-v1）未动。
+- 测试：新增 test/memo_stats_test.dart 5 项（同日去重=1 夜 / 跨日乱序=3 夜+日期键格式 / 空态文案 / 非空「已拾 3 枚碎片 · 静了 2 个夜晚」 / 五类区域色相）。总计 34 项全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 34/34；flutter build web 成功。
+- commit：b2e7356（未 push）。
+- 下一步建议（第 25 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/声景/拾忆记忆卡全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 记忆卡深化：按夜晚分组重看（同一晚的碎片聚成一簇星点），或抽屉内碎片多时的滚动优化。
