@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import 'beast_gaze.dart';
 import 'jingjing_game.dart';
 import 'quality.dart';
 import 'shard.dart';
@@ -84,6 +85,9 @@ class MistGuardian extends Component with HasGameReference<JingjingGame> {
   final Paint _nodePaint = Paint();
   final Paint _glowPaint = Paint();
   final Paint _motePaint = Paint();
+  final Paint _gazeEyePaint = Paint();
+  final Paint _gazeThreadPaint = Paint();
+  final Path _gazeThreadPath = Path();
   Shader? _eyeShader;
   int _eyeShaderKey = -1;
 
@@ -195,7 +199,42 @@ class MistGuardian extends Component with HasGameReference<JingjingGame> {
     // 相会演出位移（平时为零向量，零成本）。
     _pos.add(reunionNudge);
     game.wrap(_pos);
+
+    // 星兽注视（第 51 轮）：惘的"苏醒度"即显形度 reveal；
+    // 在屏才演算，屏外整块跳过（回来后从原处继续）。
+    double gx = _pos.x - game.camPos.x * parallax;
+    double gy = _pos.y - game.camPos.y * parallax;
+    final period = JingjingGame.worldPeriod;
+    gx = gx % period.x;
+    gy = gy % period.y;
+    if (gx < -period.x / 2) gx += period.x;
+    if (gx > period.x / 2) gx -= period.x;
+    if (gy < -period.y / 2) gy += period.y;
+    if (gy > period.y / 2) gy -= period.y;
+    const gMargin = 460.0;
+    if (gx > -gMargin &&
+        gx < game.size.x + gMargin &&
+        gy > -gMargin &&
+        gy < game.size.y + gMargin) {
+      final gd = game.spiritPos - _pos;
+      game.wrapDelta(gd);
+      final gz = game.gazeMist;
+      gz.update(
+        dt: dt,
+        near: gd.length < 300,
+        breathSteady: game.breathSteady,
+        beastAwakening: reveal,
+      );
+      if (gz.consumeWhisperRequest()) {
+        game.showBeastWhisperFor(
+          kGazeWhispers[_gazeWhisperIdx++ % kGazeWhispers.length],
+          followMist: true,
+        );
+      }
+    }
   }
+
+  int _gazeWhisperIdx = 0;
 
   /// 送出金色心镜碎片：普通碎片逻辑复用，金色色调 + 惘语偈语。
   void _giveGift() {
@@ -328,7 +367,52 @@ class MistGuardian extends Component with HasGameReference<JingjingGame> {
       );
     }
 
+    // 注视（第 51 轮）：眼随注视进度/脉冲极克制地增亮——
+    // 纯色小辉光叠加，量化 alpha，不动已有的量化着色器缓存。
+    final gz = game.gazeMist;
+    final boost =
+        math.max(gz.pulseEnvelope, beastGazeVisual(gz.progress) * 0.35);
+    if (boost > 0.02) {
+      final qa = (boost * 25).round() / 25.0; // 0.04 步进量化
+      canvas.drawCircle(
+        eyeNode,
+        7.0,
+        _gazeEyePaint
+          ..color = const Color(0xFFbfe8d0).withValues(alpha: 0.20 * qa),
+      );
+    }
+
     canvas.restore();
+
+    // 注视脉冲的光丝（第 51 轮）：狐眼到光灵的一条极细弧线，
+    // 3.5s 内 sin 包络淡入淡出；Path 复用（reset），零每帧分配。
+    final env = gz.pulseEnvelope;
+    if (env > 0.02) {
+      final alpha = ((env * 0.30) * 50).round() / 50.0; // 0.02 步进量化
+      final to = Offset(
+        size.x / 2 + (game.spiritPos.x - game.camPos.x),
+        size.y / 2 + (game.spiritPos.y - game.camPos.y),
+      );
+      final from = Offset(
+        center.dx + eyeNode.dx,
+        center.dy + eyeNode.dy,
+      );
+      final mid = Offset(
+        (from.dx + to.dx) / 2,
+        (from.dy + to.dy) / 2 - 12.0 - 5.0 * math.sin(_time * 1.3),
+      );
+      _gazeThreadPath
+        ..reset()
+        ..moveTo(from.dx, from.dy)
+        ..quadraticBezierTo(mid.dx, mid.dy, to.dx, to.dy);
+      canvas.drawPath(
+        _gazeThreadPath,
+        _gazeThreadPaint
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8
+          ..color = const Color(0xFFbfe8d0).withValues(alpha: alpha),
+      );
+    }
   }
 }
 

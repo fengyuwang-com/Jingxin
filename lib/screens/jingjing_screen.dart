@@ -363,6 +363,8 @@ class _JingjingScreenState extends State<JingjingScreen>
       _syncWhisperTimer(); // 闻声：长夜里随机低频的入睡引导。
       _syncIdleTimer(); // 晨光告别：安静满 90 秒自动天亮。
       _beastWhisper.beginNight(); // 星兽低语：新的一夜重新记账。
+      _game.gazeSleep.beginNight(); // 星兽注视：新的一夜脉冲计数清零。
+      _game.gazeMist.beginNight();
       _syncBeastWhisperTimer();
     } else {
       // 结束长夜 = 晨光告别（第 26 轮）：长夜不该"被退出"，而该"天亮"。
