@@ -1,30 +1,69 @@
 import 'dart:math' as math;
 
 import 'package:flame/components.dart';
+import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart' hide Draggable;
 
 import '../core/theme.dart';
+import 'awakening.dart';
 
-/// 静境（Jingjing）游戏循环骨架。
+/// 静境（Jingjing）游戏循环。
 ///
-/// 第 1 轮：星空背景 + 一个可呼吸脉动的"光灵"原型。
-/// 呼吸节奏由正弦手动驱动；下一轮接入呼吸输入层（按住=吸气、松开=呼气）。
-class JingjingGame extends FlameGame {
-  JingjingGame({this.seedColor = ZenTheme.nebulaCyan});
+/// 第 2 轮：呼吸输入层——按住屏幕=吸气、松开=呼气，光灵平滑跟随；
+/// 空闲数秒后回归缓慢自动呼吸（引导而非惩罚）。完整平稳呼吸循环
+/// 缓慢提升"世界苏醒度"（AwakeningState），实时驱动星空亮度、
+/// 闪烁密度、背景色温与光灵光晕。
+class JingjingGame extends FlameGame with TapCallbacks {
+  JingjingGame({this.seedColor = ZenTheme.nebulaCyan})
+      : awakening = AwakeningState(),
+        breathHint = ValueNotifier<String?>(null),
+        awakeningValue = ValueNotifier(0);
 
   final Color seedColor;
+  final AwakeningState awakening;
+
+  /// 当前呼吸提示词（"吸气…"/"呼气…"），null 表示静息。
+  final ValueNotifier<String?> breathHint;
+
+  /// 苏醒度镜像，供 UI 层（极细光线/边缘光晕）监听。
+  final ValueNotifier<double> awakeningValue;
 
   final math.Random _random = math.Random(42);
   late final LightSpirit _spirit;
+  late final _Starfield _starfield;
   double _time = 0;
 
-  /// 呼吸阶段周期（秒），呼应 breathing_orb 的舒缓节奏。
+  // ---- 呼吸输入状态 ----
+  bool _pressing = false;
+  double _breathProgress = 0;
+  double _prevBreathProgress = 0;
+  double _idleTime = 0;
+
+  /// 自动呼吸混合权重：无输入越久越趋近 1（回归引导节奏）。
+  double _autoWeight = 1;
+
+  // 完整循环检测（先到峰、再落谷 = 一次平稳循环）。
+  bool _cyclePeakReached = false;
+  double _cycleTime = 0;
+
+  /// 吸气时长（秒）：按住约 3 秒满。
+  static const double inhaleDuration = 3.2;
+
+  /// 呼气时长（秒）：松开约 4 秒归零。
+  static const double exhaleDuration = 4.2;
+
+  /// 呼吸阶段周期（秒），空闲自动节奏。
   static const double breathPeriod = 8.0;
+
+  /// 认为循环"平稳"的最短时长（秒），过快的呼吸不计入苏醒度。
+  static const double steadyCycleMinTime = 3.5;
 
   @override
   Future<void> onLoad() async {
-    // 星空背景：散布静态星辰 + 少量缓慢闪烁的星。
+    await awakening.load();
+    awakeningValue.value = awakening.value;
+
     final stars = <_Star>[];
     for (int i = 0; i < 90; i++) {
       stars.add(
@@ -39,24 +78,122 @@ class JingjingGame extends FlameGame {
         ),
       );
     }
-    add(_Starfield(stars));
+    _starfield = _Starfield(stars);
+    add(_starfield);
 
     _spirit = LightSpirit(tint: seedColor);
     add(_spirit);
+  }
+
+  // 呼吸输入：按住=吸气，松开=呼气。
+  @override
+  void onTapDown(TapDownEvent event) {
+    _pressing = true;
+    _idleTime = 0;
+  }
+
+  @override
+  void onTapUp(TapUpEvent event) {
+    _pressing = false;
+  }
+
+  @override
+  void onTapCancel(TapCancelEvent event) {
+    _pressing = false;
   }
 
   @override
   void update(double dt) {
     super.update(dt);
     _time += dt;
-    // 正弦驱动呼吸：0..1，吸气时上升、呼气时回落。
-    final phase =
-        (math.sin(math.pi * 2 * _time / breathPeriod - math.pi / 2) + 1) / 2;
-    _spirit.breatheProgress = phase;
+
+    _updateBreath(dt);
+    _updateAwakening(dt);
+  }
+
+  void _updateBreath(double dt) {
+    _prevBreathProgress = _breathProgress;
+    _cycleTime += dt;
+
+    // 平滑向目标推进：跟随输入速度，从不瞬跳、不惩罚过快。
+    if (_pressing) {
+      _breathProgress =
+          (_breathProgress + dt / inhaleDuration).clamp(0.0, 1.0);
+      _idleTime = 0;
+    } else {
+      _breathProgress =
+          (_breathProgress - dt / exhaleDuration).clamp(0.0, 1.0);
+      // 完全呼尽且继续无输入，才逐渐进入空闲自动节奏。
+      if (_breathProgress <= 0.001) {
+        _idleTime += dt;
+      } else {
+        _idleTime = 0;
+      }
+    }
+
+    // 空闲 3 秒后淡入自动呼吸引导；有任何输入立即淡出。
+    final autoTarget = (_idleTime > 3.0) ? 1.0 : 0.0;
+    _autoWeight += (autoTarget - _autoWeight) * math.min(1.0, dt * 1.2);
+    if (_autoWeight > 0.001) {
+      final phase =
+          (math.sin(math.pi * 2 * _time / breathPeriod - math.pi / 2) + 1) / 2;
+      _breathProgress +=
+          (phase - _breathProgress) * math.min(1.0, _autoWeight * dt * 1.6);
+      _breathProgress = _breathProgress.clamp(0.0, 1.0);
+    }
+
+    _spirit.breatheProgress = _breathProgress;
+    _spirit.glowBoost = 0.75 + 0.5 * awakeningValue.value;
+    _starfield.awakening = awakeningValue.value;
+
+    // 完整循环检测：先升至峰（>0.88）再落回谷（<0.12），且足够平稳。
+    if (_prevBreathProgress < 0.88 && _breathProgress >= 0.88) {
+      _cyclePeakReached = true;
+    }
+    if (_cyclePeakReached &&
+        _prevBreathProgress > 0.12 &&
+        _breathProgress <= 0.12) {
+      if (_cycleTime >= steadyCycleMinTime) {
+        _lastCompletedCycle = true;
+      }
+      _cyclePeakReached = false;
+      _cycleTime = 0;
+    }
+
+    // 呼吸提示词：按运动方向淡入"吸气…/呼气…"。
+    final delta = _breathProgress - _prevBreathProgress;
+    if (delta > 0.0002) {
+      _setHint('吸气…');
+    } else if (delta < -0.0002) {
+      _setHint('呼气…');
+    } else if (_breathProgress <= 0.001 && !(_autoWeight > 0.01)) {
+      _setHint(null);
+    }
+  }
+
+  bool _lastCompletedCycle = false;
+
+  void _updateAwakening(double dt) {
+    awakening.update(dt, completedCycle: _lastCompletedCycle);
+    _lastCompletedCycle = false;
+    awakeningValue.value = awakening.value;
+  }
+
+  void _setHint(String? hint) {
+    if (breathHint.value != hint) {
+      breathHint.value = hint;
+    }
+  }
+
+  @override
+  void onRemove() {
+    awakening.save();
+    super.onRemove();
   }
 }
 
 /// 星空背景层，把归一化坐标铺满视口。
+/// 亮度、闪烁密度与背景色温随苏醒度渐变。
 class _Starfield extends Component
     with HasGameReference<JingjingGame> {
   _Starfield(this.stars);
@@ -64,26 +201,41 @@ class _Starfield extends Component
   final List<_Star> stars;
   double _elapsed = 0;
 
+  /// 0..1 世界苏醒度，由游戏循环同步。
+  double awakening = 0;
+
   @override
   void render(Canvas canvas) {
     final size = game.size;
-    // 深空底色。
+    final aw = awakening;
+
+    // 深空底色：苏醒度越高，背景色温越暖亮（黑 -> 靛蓝微光）。
+    final bg = Color.lerp(
+      ZenTheme.voidBlack,
+      const Color(0xFF101828),
+      0.35 * aw,
+    )!;
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.x, size.y),
-      Paint()..color = ZenTheme.voidBlack,
+      Paint()..color = bg,
     );
 
-    // 中央星云微光。
+    // 中央星云微光：随苏醒度扩散、色温偏暖。
+    final nebulaInner = Color.lerp(
+      ZenTheme.deepSpace,
+      ZenTheme.nebulaCyan.withValues(alpha: 0.55),
+      0.4 * aw,
+    )!;
     final nebulaPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          ZenTheme.deepSpace.withValues(alpha: 0.9),
-          ZenTheme.voidBlack,
+          nebulaInner.withValues(alpha: 0.85 + 0.15 * aw),
+          bg,
         ],
       ).createShader(
         Rect.fromCircle(
           center: Offset(size.x / 2, size.y / 2),
-          radius: size.length / 1.5,
+          radius: size.length / (1.6 - 0.2 * aw),
         ),
       );
     canvas.drawRect(
@@ -94,8 +246,15 @@ class _Starfield extends Component
     for (final star in stars) {
       final twinkle =
           0.55 + 0.45 * math.sin(_elapsed * star.twinkleSpeed * 2 + star.twinklePhase);
+      // 亮度与闪烁幅度随苏醒度增强；高苏醒时更多星星参与闪烁。
+      final active = star.twinkleSpeed > 1.6 - 1.1 * aw || aw > 0.85;
+      final twinkleAmp = active ? 0.25 + 0.5 * aw : 0.0;
+      final brightness =
+          (0.22 + 0.35 * aw) + twinkleAmp * twinkle;
       final paint = Paint()
-        ..color = ZenTheme.starWhite.withValues(alpha: 0.25 + 0.6 * twinkle);
+        ..color = ZenTheme.starWhite.withValues(
+          alpha: brightness.clamp(0.0, 1.0),
+        );
       canvas.drawCircle(
         Offset(star.position.x * size.x, star.position.y * size.y),
         star.radius,
@@ -124,15 +283,19 @@ class _Star {
   final double twinkleSpeed;
 }
 
-/// "光灵"原型：呼吸脉动的光球。
+/// "光灵"：呼吸脉动的光球。
 /// 吸气（progress 上升）时扩张上升并更亮，呼气时凝聚下沉。
+/// [glowBoost] 随世界苏醒度增强光晕强度。
 class LightSpirit extends Component with HasGameReference<JingjingGame> {
   LightSpirit({required this.tint});
 
   final Color tint;
 
-  /// 0..1，由游戏循环以正弦驱动（下一轮改为呼吸输入驱动）。
+  /// 0..1，由呼吸输入层驱动（平滑跟随，不瞬跳）。
   double breatheProgress = 0;
+
+  /// 苏醒度光晕增益（约 0.75..1.25）。
+  double glowBoost = 1;
 
   @override
   void render(Canvas canvas) {
@@ -145,7 +308,7 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     final orbCenter = Offset(center.dx, center.dy + rise);
     final maxRadius = math.min(size.x, size.y) * 0.18;
     final radius = maxRadius * expansion;
-    final glow = 0.35 + 0.65 * breatheProgress;
+    final glow = (0.35 + 0.65 * breatheProgress) * glowBoost;
 
     // 多层呼吸光晕。
     for (int i = 5; i >= 0; i--) {
@@ -154,8 +317,8 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
       final paint = Paint()
         ..shader = RadialGradient(
           colors: [
-            tint.withValues(alpha: opacity * 2),
-            ZenTheme.nebulaPurple.withValues(alpha: opacity),
+            tint.withValues(alpha: (opacity * 2).clamp(0.0, 1.0)),
+            ZenTheme.nebulaPurple.withValues(alpha: opacity.clamp(0.0, 1.0)),
             Colors.transparent,
           ],
           stops: const [0.0, 0.5, 1.0],
@@ -188,7 +351,8 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
         orbCenter.dx + math.cos(angle) * distance,
         orbCenter.dy + math.sin(angle) * distance,
       );
-      final opacity = (0.75 - breatheProgress * 0.45) * (0.4 + glow * 0.6);
+      final opacity = ((0.75 - breatheProgress * 0.45) * (0.4 + glow * 0.6))
+          .clamp(0.0, 1.0);
       canvas.drawCircle(
         p,
         1.5 + rng.nextDouble() * 2.5,
@@ -201,7 +365,7 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
       text: TextSpan(
         text: '光灵 · 随呼吸起伏',
         style: TextStyle(
-          color: ZenTheme.textMuted.withValues(alpha: 0.55 + 0.3 * glow),
+          color: ZenTheme.textMuted.withValues(alpha: (0.55 + 0.3 * glow).clamp(0.0, 1.0)),
           fontSize: 13,
           letterSpacing: 4,
         ),
