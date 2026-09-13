@@ -581,3 +581,9 @@
 - AI 行动: breath_sound.dart 加 breathDawnOvertoneGain（smoothstep，非满醒日恒 0）；soundscape 接口/stub/web 三处加 setBreathDawnOvertoneGain，_BreathVoice 加 overtoneOsc(2×主音)+overtoneGain(初 0.0001)挂 lullGain；jingjing_screen initState 读一次 FullAwakeCtl.loadCount，_syncBreathLull 每秒比对当天日期并推泛音，_finishFarewell 收声归零；test 新增 6 项。
 - 产出: commit（feat(game): 满醒日晨光泛音 [auto-night-50]，未 push）；analyze 19 条基线 0 error；test 172/172；build web 成功；UPGRADE-LOG.md 第 50 轮已记。
 - 关键决策: 听感权衡选「dawnProgress 到 1 后保持峰值」——晨光告别时声音整体已淡出，不存在正午独响场景，且与晨光回涨"涨回全量恒 1.0"语义一致（光声同亮同收）；满醒日解析复用既有 parseCount 不另抽函数。
+
+## 2026-09-14 05:14 — 第 51 轮
+- 用户要求: 通宵自动升级第 51 轮：星兽注视——光灵久伴星兽近旁且呼吸平稳时星兽"回望"：纯函数 beastGazeProgress（约 45s 注满，未半醒永 0，呼吸乱退得快/离开退得慢），progress 过 0.55 触发眼睛亮起+光丝脉冲（每夜至多 2 次），注满可低语（2 分钟冷却），全质量门槛后记日志与记忆。
+- AI 行动: 新建 lib/game/beast_gaze.dart（progress/dwellNext/visual/pulseEnvelope 纯函数 + BeastGazeCtl 内存态）；JingjingGame 持 gazeSleep/gazeMist，StarBeast/MistGuardian.update 每帧喂 near+breathSteady+苏醒度（屏外跳过）；渲染端眼睛辉光叠加（量化 alpha）+ 眼至光灵光丝（Path 复用）；新增 showBeastWhisperFor 指定跟随兽，长夜开启时 beginNight 清计数；test/beast_gaze_test.dart 新增 19 项（含"呼吸乱 8s 内 gaze 掉一半"手感断言）。
+- 产出: commit 1856111（feat(game): 星兽注视——久伴与平稳呼吸换来的回望 [auto-night-51]，未 push）；analyze 19 条基线 0 error；test 191/191；build web 成功；UPGRADE-LOG.md 第 51 轮已记；todo.md 入账后已清。
+- 关键决策: 退回速度做成"条件驱动的 dwell 流失 + 失稳低通软压低"双层——纯函数保持无状态可测，8s 掉一半由快退率 1.6/s 与软压低下限 0.55 共同保证且全程连续；脉冲演出不重建眼睛着色器缓存，只用纯色小辉光叠加，守零每帧分配纪律。

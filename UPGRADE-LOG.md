@@ -762,3 +762,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 晨光泛音深化：泛音随呼吸相位微起伏（与主音同相位差八度）；或星兽注视 / 惑星深化。
+
+## 第 51 轮（2026-09-14）—— 星兽注视：久伴与平稳呼吸换来的回望
+- 理念：把光灵停在星兽近旁足够久、呼吸又平稳时，星兽会"回望"——不是奖励动画，更像被夜里的什么安静地看见了。眠与惘各自独立记账。
+- 实现：
+  - 纯逻辑（lib/game/beast_gaze.dart）：beastGazeProgress({dwellSeconds, breathSteadiness, beastAwakening})——未半醒（苏醒度<0.5）恒 0；否则 smoothstep(dwell/45) 注满，失稳时按低通平稳度软压低（下限 0.55，绝不瞬跳）。beastGazeDwellNext 单帧推进有效驻留：近旁+平稳累积、平稳离开按 0.4/s 慢退、呼吸乱按 1.6/s 快退。beastGazeVisual 输出 0.02 步进量化、单调；beastGazePulseEnvelope 3.5s sin 包络。BeastGazeCtl 持有内存态：脉冲每夜至多 2 次（beginNight 清零，与低语同款记账）、注满低语冷却 2 分钟、掉回 0.9 以下重新武装。
+  - 接线：JingjingGame 持有 gazeSleep/gazeMist 两个控制器；StarBeast.update / MistGuardian.update 末尾每帧喂 near（环绕 wrapDelta，420/300）与 game.breathSteady，苏醒度分别取 state.value / reveal；屏外整块跳过（回来后从原处继续）。仅标量运算 + 一次 wrapDelta，零每帧分配。
+  - 演出（极克制）：progress 越过 0.55 触发注视脉冲——眼睛纯色小辉光叠加（量化 alpha 0.04 步进，不重建既有量化着色器缓存）+ 眼到光灵一条极细弧光丝（Path 复用 reset，0.02 步进量化 alpha，3.5s sin 包络自然消散）；progress 注满时经 showBeastWhisperFor（新增，指定跟随哪只兽）浮出一句极短低语（复用 BeastWhisperText 8s 淡入淡出），冷却 2 分钟。jingjing_screen 进入长夜时 beginNight 清脉冲计数。
+- 测试（test/beast_gaze_test.dart 新增 19 项，172→191）：未半醒恒 0、端点/半程/单调/连续性、失稳软压低连续、累积封顶、"呼吸乱 8s 内 gaze 掉一半"（多个起点，完整管线模拟写死）、离开退得慢（10s 内 >0.8）、中断恢复不归零、条件切换无跳变、脉冲触发与每夜 2 次上限、beginNight 重置、低语一次性+2 分钟冷却+重新武装、视觉端点/量化/单调/钳制、低语池非空。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 191/191；flutter build web 成功。
+- commit：1856111（feat(game): 星兽注视——久伴与平稳呼吸换来的回望 [auto-night-51]，未 push）。
+- 下一步建议（第 52 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 注视深化：注视期间星兽极缓朝光灵转头/轮廓微亮；或惘语偈语池扩充 / 惑星深化。
