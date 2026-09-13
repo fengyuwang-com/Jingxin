@@ -61,3 +61,9 @@
 - AI 行动: 发现第 9 轮 commit 已含 breath_mic 骨架（门面/web/stub/UI开关/涟漪/仲裁），本轮补齐 spec 差口：breath_mic.dart 加 MicSensitivity 三档+scale+MicSensitivityPreference 持久化（jingxin.mic.sens.v1）+setSensitivity 接口；breath_mic_web.dart 固定底噪改慢速自动增益（非对称基线 τ30s↑/τ1.5s↓+余量0.006+灵敏度缩放）；jingjing_game.dart 麦克风分支改「吹气是呼」（目标=1-包络）；jingjing_screen.dart 灵敏度三小字切换行+首次开启「只听气息，不留声音」+失败「随息未就绪，轻触亦可行」；顺手清 4 条 lint
 - 产出: analyze 0 error（19 条，低于基线 23）；flutter build web 成功；commit 07e483f [auto-night-10]；UPGRADE-LOG/todo/FENGMEM 已更新
 - 关键决策: 包络语义定为「吹气=呼气」（进度下沉、安静=吸气回升）遵循任务 spec；基线向上涨 30s 使短暂吹气拉不动底噪、下跌 1.5s 让房间转静立刻归位；开启状态不持久化每次会话重选（权限友好），灵敏度档位持久化
+
+## 2026-09-13 — 第 11 轮（通宵升级 auto-night-11）
+- 用户要求: 整体手感与视觉打磨 pass——挑 3~5 个最有价值的点，不改玩法、克制、宁少而精；analyze 0 error / build web 通过；commit + UPGRADE-LOG/todo/FENGMEM 更新
+- AI 行动: 读 UPGRADE-LOG/git log/全部 game+screens 源码后选定 5 点：①开场苏醒（introT 3.5s smoothstep：星按 revealDelay 错落亮起、光灵 intro 缓现、UI 淡字「你的呼吸，点亮这个世界」）；②光灵生命感（边缘 28 段正弦顶点微扰、速度反向尾迹 6 光尘、calmGlow 平静积累）；③相机呼吸微动（camPos 改 getter=_camBase+呼吸同相极小位移，各组件零改动）；④ZenMotion 统一转场 800ms easeOutCubic + WidgetsBindingObserver 后台停声景/回前台续长夜；⑤性能清理（预生成微粒参数、TextPainter 缓存、碎片逆序遍历、画笔复用+星云着色器量化缓存）+稀有眨眼事件（6% 平稳循环后星按平方亲和度同亮 0.9s）
+- 产出: commit c8d924c polish(game): 手感与视觉打磨 pass [auto-night-11]；analyze 0 error（19 条既有基线无新增）；flutter build web 成功；UPGRADE-LOG/todo 已更新
+- 关键决策: camPos 用「基准+微动」getter 而非改各组件投影（零侵入）；光灵边缘形变用顶点微扰不用贴图（CYBER-ZEN 克制）；眨眼无文字无音效纯视觉稀有事件（平方分布只少数星明显回应）；转场只统一不重做（500ms→800ms、easeOut→easeOutCubic）；下一步建议：TTS 朗读 / 第四区域 / 部署 GitHub Pages
