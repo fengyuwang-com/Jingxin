@@ -82,6 +82,48 @@ Size fitCardToScreen(
   return Size(card.width * scale, card.height * scale);
 }
 
+/// ── 预览层「收下」保存（第 49 轮）──────────────────────────────
+///
+/// 预览层内就地保存这张卡：按钮状态机与文件名皆为纯函数，
+/// 确定性可单测。
+
+/// 「收下」小钮的状态：静候 → 保存中 → 已收下 / 失败。
+enum CardSavePhase { idle, saving, done, failed }
+
+/// 「收下」小钮收到的事件。
+enum CardSaveEvent { start, succeed, fail, reset }
+
+/// 按钮状态机转换（纯函数）：
+/// - start：仅 idle / failed 允许进入 saving（saving 期间忽略重复点击，
+///   done 态不重启——已收下的卡不必再收一次，reset 归位后再说）；
+/// - succeed：仅 saving → done；
+/// - fail：仅 saving → failed；
+/// - reset：任何状态 → idle（关闭预览 / 确认态计时结束都归位）。
+CardSavePhase cardSavePhaseNext(CardSavePhase current, CardSaveEvent event) {
+  switch (event) {
+    case CardSaveEvent.start:
+      return current == CardSavePhase.idle || current == CardSavePhase.failed
+          ? CardSavePhase.saving
+          : current;
+    case CardSaveEvent.succeed:
+      return current == CardSavePhase.saving
+          ? CardSavePhase.done
+          : current;
+    case CardSaveEvent.fail:
+      return current == CardSavePhase.saving
+          ? CardSavePhase.failed
+          : current;
+    case CardSaveEvent.reset:
+      return CardSavePhase.idle;
+  }
+}
+
+/// 保存文件名：`jingxin-star-map-<日期键>.png`（与「带走星图」入口
+/// 同款日期键，yyyy-mm-dd）。碎片数只影响语义上的"这张卡是几星"，
+/// 文件名保持稳定格式，便于按天整理。纯函数、确定性。
+String saveCardFileName(DateTime now, int shardCount) =>
+    'jingxin-star-map-${shardDateKey(now)}.png';
+
 /// 卡顶小字（克制留白的一行标题）。
 const String starCardTitle = '静境 · 我的平静星图';
 
