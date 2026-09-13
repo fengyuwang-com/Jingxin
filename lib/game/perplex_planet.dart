@@ -222,6 +222,10 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
       _dustAngles.add(rng.nextDouble() * math.pi * 2);
       _dustFactors.add(0.55 + rng.nextDouble() * 0.45);
     }
+    for (int i = 0; i < _farewellCount; i++) {
+      _farewellAngles.add(rng.nextDouble() * math.pi * 2);
+      _farewellFactors.add(0.35 + rng.nextDouble() * 0.65);
+    }
   }
 
   final PerplexMachine machine = PerplexMachine();
@@ -264,6 +268,13 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
   double _traceBreathSm = 0; // 呼吸起伏包络低通（绝不瞬跳）。
   final Paint _tracePaint = Paint();
 
+  // ---- 雾痕道别（第 54 轮）：脉冲瞬间从定长池放几粒极小灰紫光尘。
+  // 角度/距离系数构造期预生成（与通达光尘同款），触发只置相位。
+  static const int _farewellCount = 8;
+  final List<double> _farewellAngles = [];
+  final List<double> _farewellFactors = [];
+  double _farewellT = -1; // <0 = 未触发；秒。
+
   final math.Random _rng = math.Random(DateTime.now().millisecondsSinceEpoch);
 
   // 复用画笔（零逐帧分配）。
@@ -282,7 +293,14 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
     final game = this.game;
 
     // 通达残影计时：自通达瞬间起累计（gone 之后继续淡出）。
-    if (_traceActive) _traceElapsedMs += dt * 1000;
+    if (_traceActive) {
+      _traceElapsedMs += dt * 1000;
+      // 雾痕道别：脉冲相位推进（3.5s 后收束归位）。
+      if (_farewellT >= 0) {
+        _farewellT += dt;
+        if (_farewellT >= kMistFarewellPulseMs / 1000) _farewellT = -1;
+      }
+    }
 
     if (machine.gone) {
       if (!_traceActive) {
@@ -295,6 +313,11 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
         removeFromParent();
         return;
       }
+      // 雾痕道别：淡出末段的余光脉冲触发（每颗惑星至多一次——
+      // 窗口本身就是生命末段一次性经过的区间，触发后包络走完即止）。
+      final farewellPulse =
+          mistFarewellPulse(_traceElapsedMs, seed: seed.toInt());
+      if (_farewellT < 0 && farewellPulse > 0) _farewellT = 0;
       final d = game.spiritPos - _tracePos;
       game.wrapDelta(d);
       final near =
@@ -641,7 +664,11 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
     }
 
     final alpha = mistTraceBreath(a, _traceBreathSm);
-    if (alpha <= 0) return;
+    // 雾痕道别（第 54 轮）：淡出末段的余光脉冲叠加到雾痕 alpha 上
+    // （脉冲峰值 ≤0.10，比雾痕本体还淡；窗口外恒 0）。
+    final pulse = mistFarewellPulse(_traceElapsedMs, seed: seed.toInt());
+    final totalAlpha = (alpha + pulse).clamp(0.0, 0.3);
+    if (totalAlpha <= 0) return;
     final wobble = 1 + 0.05 * _traceBreathSm;
     canvas.drawOval(
       Rect.fromCenter(
@@ -649,7 +676,34 @@ class PerplexPlanet extends Component with HasGameReference<JingjingGame> {
         width: 76 * wobble,
         height: 58 * wobble,
       ),
-      _tracePaint..color = const Color(0xFF8f86ad).withValues(alpha: alpha),
+      _tracePaint..color = const Color(0xFF8f86ad).withValues(alpha: totalAlpha),
     );
+
+    // 道别光尘：脉冲期间从雾痕散出几粒极小灰紫光尘（定长池预生成
+    // 参数，随脉冲 sin 包络缓缓散开熄灭——像花火般一闪而过的道别）。
+    if (_farewellT >= 0) {
+      final env = pulse > 0
+          ? pulse / kMistFarewellPeakAlpha
+          : 0.0; // 包络归一（峰值处恰为 1）。
+      if (env > 0) {
+        final spread = 10 + 26 * (_farewellT / (kMistFarewellPulseMs / 1000));
+        final da = (0.6 * env * 40).round() / 40.0;
+        for (int i = 0; i < _farewellCount; i++) {
+          final ang = _farewellAngles[i] + _farewellT * 0.35;
+          final dist = spread * _farewellFactors[i];
+          _sparkPaint
+            ..shader = null
+            ..color = const Color(0xFF9b8fb8).withValues(alpha: da);
+          canvas.drawCircle(
+            Offset(
+              center.dx + math.cos(ang) * dist,
+              center.dy + math.sin(ang) * dist * 0.92,
+            ),
+            0.7 + (i % 3) * 0.3,
+            _sparkPaint,
+          );
+        }
+      }
+    }
   }
 }

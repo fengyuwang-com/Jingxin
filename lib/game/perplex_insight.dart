@@ -52,6 +52,10 @@ double _smooth(double t) {
   return t * t * (3 - 2 * t);
 }
 
+/// 按 [step] 步进量化（四舍五入），雾痕/脉冲 alpha 共用（第 54 轮
+/// 收束整理：三处同款量化收敛为单一实现，行为不变）。
+double _quantize(double v, double step) => (v / step).round() * step;
+
 /// 单帧推进通达的有效驻留秒数（纯函数，状态在调用方）。
 ///
 /// 近旁且平稳 → 累积；平稳地离开 → 按 [kInsightLeftDecayPerSecond]
@@ -139,7 +143,7 @@ double mistTraceAlpha(num elapsedMs) {
   final ms = elapsedMs.toDouble();
   if (ms >= kMistTraceFadeMs) return 0;
   final a = kMistTraceStartAlpha * (1 - ms / kMistTraceFadeMs);
-  return (a / kMistTraceAlphaStep).round() * kMistTraceAlphaStep;
+  return _quantize(a, kMistTraceAlphaStep);
 }
 
 /// 雾痕的呼吸起伏映射（纯函数）：把呼吸包络 [breathEnvelope]（-1..1，
@@ -151,7 +155,7 @@ double mistTraceBreath(double alpha, double breathEnvelope) {
   if (alpha <= 0) return 0;
   final e = breathEnvelope.clamp(-1.0, 1.0);
   final v = alpha * (1 + kMistTraceBreathAmp * e);
-  return (v / kMistTraceAlphaStep).round() * kMistTraceAlphaStep;
+  return _quantize(v, kMistTraceAlphaStep);
 }
 
 /// 雾痕一次性馈赠闸门（纯函数）：仅在"近旁 + 平稳呼吸 + 尚未掉过"
@@ -162,6 +166,44 @@ bool mistTraceGrantAllowed({
   required bool breathSteady,
 }) {
   return !granted && near && breathSteady;
+}
+
+// ---------------------------------------------------------------------------
+// 雾痕道别（第 54 轮）——淡出末段的余光脉冲。
+//
+// 雾痕生命的最后一段里，以 seed 决定的某一刻极轻地亮一下——像花火
+// 般一闪而过的"道别"。比雾痕本体还淡，一闪之后随雾痕继续淡去。
+// ---------------------------------------------------------------------------
+
+/// 道别窗口长度（毫秒）：雾痕生命末段的最后 45 秒。
+const int kMistFarewellWindowMs = 45000;
+
+/// 一次道别脉冲的时长（毫秒）：3.5s 的 sin 包络。
+const int kMistFarewellPulseMs = 3500;
+
+/// 道别脉冲的 alpha 峰值上限：比雾痕本体（0.14）还淡。
+const double kMistFarewellPeakAlpha = 0.10;
+
+/// 道别脉冲 alpha 叠加（纯函数）：[elapsedMs] 自通达瞬间起算，
+/// [seed] 决定末段内伪随机的触发时刻（同 seed 同曲线，确定性）。
+///
+/// 仅在雾痕生命最后 [kMistFarewellWindowMs] 内、且距该触发时刻
+/// 不足 [kMistFarewellPulseMs] 时给出一个 sin 起落包络 × 峰值上限；
+/// 窗口外恒 0。输出按 [kMistTraceAlphaStep] 步进量化（峰值 0.10
+/// 恰为 5 步），渲染端把返回值叠加到雾痕 alpha 上。
+double mistFarewellPulse(num elapsedMs, {int seed = 0}) {
+  final windowStart = kMistTraceFadeMs - kMistFarewellWindowMs;
+  // seed → 0..1 的确定性伪随机分数（Knuth 乘法散列，纯整数运算）。
+  final h = ((seed & 0xFFFFFFFF) * 2654435761) & 0x7FFFFFFF;
+  final frac = h / 0x7FFFFFFF;
+  // 触发时刻在窗口内、且整段脉冲（3.5s）完整落在窗口里。
+  final pulseStart =
+      windowStart + frac * (kMistFarewellWindowMs - kMistFarewellPulseMs);
+  final t = elapsedMs.toDouble() - pulseStart;
+  if (t <= 0 || t >= kMistFarewellPulseMs) return 0;
+  final v =
+      math.sin(math.pi * t / kMistFarewellPulseMs) * kMistFarewellPeakAlpha;
+  return _quantize(v, kMistTraceAlphaStep);
 }
 
 /// 通达短语选取（纯函数）：从固定小池轮换；距上次浮出不足 15s 时
