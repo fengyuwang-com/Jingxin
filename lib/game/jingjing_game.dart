@@ -7,6 +7,7 @@ import 'package:flutter/material.dart' hide Draggable;
 
 import '../core/theme.dart';
 import 'awakening.dart';
+import 'insomnia_sea.dart';
 
 /// 静境（Jingjing）游戏循环。
 ///
@@ -50,6 +51,28 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 吸气时长（秒）：按住约 3 秒满。
   static const double inhaleDuration = 3.2;
 
+  /// 世界环绕周期（逻辑像素）：漫游无边界，坐标按此周期折叠。
+  static final Vector2 worldPeriod = Vector2(2400, 1800);
+
+  /// 漫游最大速度（逻辑像素/秒）：缓慢、无急停。
+  static const double maxDriftSpeed = 55;
+
+  /// 光灵世界坐标与相机坐标（相机缓慢跟随光灵）。
+  Vector2 spiritPos = Vector2.zero();
+  Vector2 camPos = Vector2.zero();
+  Vector2 _spiritVelocity = Vector2.zero();
+  Vector2? _touchPoint;
+
+  /// 呼吸平稳度：|Δprogress| 的低通值，低于阈值视为"平稳呼吸"。
+  double _breathJitter = 0;
+
+  /// 当前是否处于平稳呼吸（供星岛苏醒判定）。
+  bool get breathSteady =>
+      _breathJitter > 0.004 && _breathJitter < 0.35;
+
+  /// 游戏运行秒数（供组件做微光动画）。
+  double get time => _time;
+
   /// 呼气时长（秒）：松开约 4 秒归零。
   static const double exhaleDuration = 4.2;
 
@@ -82,6 +105,24 @@ class JingjingGame extends FlameGame with TapCallbacks {
     add(_starfield);
 
     _spirit = LightSpirit(tint: seedColor);
+
+    // 失眠之海：星潮背景 -> 星岛 -> 光灵（渲染顺序）。
+    final sea = InsomniaSea();
+    add(sea);
+    final rng = math.Random(42);
+    for (int i = 0; i < 7; i++) {
+      add(
+        StarIsle(
+          position: Vector2(
+            (0.12 + 0.76 * rng.nextDouble()) * worldPeriod.x,
+            (0.12 + 0.76 * rng.nextDouble()) * worldPeriod.y,
+          ),
+          radius: 42 + rng.nextDouble() * 46,
+          shapeSeed: 100 + i * 17,
+          tint: i.isEven ? ZenTheme.nebulaCyan : const Color(0xFF34d399),
+        ),
+      );
+    }
     add(_spirit);
   }
 
@@ -90,16 +131,19 @@ class JingjingGame extends FlameGame with TapCallbacks {
   void onTapDown(TapDownEvent event) {
     _pressing = true;
     _idleTime = 0;
+    _touchPoint = event.canvasPosition.clone();
   }
 
   @override
   void onTapUp(TapUpEvent event) {
     _pressing = false;
+    _touchPoint = null;
   }
 
   @override
   void onTapCancel(TapCancelEvent event) {
     _pressing = false;
+    _touchPoint = null;
   }
 
   @override
@@ -109,7 +153,65 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     _updateBreath(dt);
     _updateAwakening(dt);
+    _updateDrift(dt);
   }
+
+  /// 呼吸即移动：吸气蓄力——光灵缓缓朝触点上浮；
+  /// 呼气滑行——沿当前方向缓缓漂移，无急停。
+  void _updateDrift(double dt) {
+    final damping = math.exp(-dt * 0.22);
+    _spiritVelocity.scale(damping);
+
+    if (_pressing) {
+      // 吸气：朝触点方向的柔和引力，随呼吸进度增强（蓄力）。
+      final spiritScreen = Vector2(
+        gameSize.x / 2 + (spiritPos.x - camPos.x),
+        gameSize.y / 2 + (spiritPos.y - camPos.y),
+      );
+      final target = _touchPoint;
+      if (target != null) {
+        final dir = Vector2(target.x - spiritScreen.x, target.y - spiritScreen.y);
+        final len = dir.length;
+        if (len > 12) {
+          dir.scale(1.0 / len);
+          _spiritVelocity += dir * (46.0 * (0.35 + 0.65 * _breathProgress)) * dt;
+        }
+      }
+      // 吸气浮力：微微向上。
+      _spiritVelocity.y -= 9.0 * dt;
+    }
+
+    // 限速：永远缓慢。
+    final speed = _spiritVelocity.length;
+    if (speed > maxDriftSpeed) {
+      _spiritVelocity.scale(maxDriftSpeed / speed);
+    }
+
+    spiritPos += _spiritVelocity * dt;
+    _wrap(spiritPos);
+
+    // 相机极缓跟随：光灵在屏幕上只做小幅游移，世界在四周流动。
+    final camDelta = spiritPos - camPos;
+    _wrapDelta(camDelta);
+    camPos += camDelta * math.min(1.0, dt * 1.1);
+    // 相机与光灵保持在同一环绕单元，避免周期折叠时的坐标跳变。
+    camPos.x = spiritPos.x + (camPos.x - spiritPos.x) % worldPeriod.x;
+    camPos.y = spiritPos.y + (camPos.y - spiritPos.y) % worldPeriod.y;
+  }
+
+  void _wrap(Vector2 v) {
+    v.x = v.x % worldPeriod.x;
+    v.y = v.y % worldPeriod.y;
+  }
+
+  void _wrapDelta(Vector2 v) {
+    if (v.x > worldPeriod.x / 2) v.x -= worldPeriod.x;
+    if (v.x < -worldPeriod.x / 2) v.x += worldPeriod.x;
+    if (v.y > worldPeriod.y / 2) v.y -= worldPeriod.y;
+    if (v.y < -worldPeriod.y / 2) v.y += worldPeriod.y;
+  }
+
+  Vector2 get gameSize => size;
 
   void _updateBreath(double dt) {
     _prevBreathProgress = _breathProgress;
@@ -162,6 +264,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     // 呼吸提示词：按运动方向淡入"吸气…/呼气…"。
     final delta = _breathProgress - _prevBreathProgress;
+    // 呼吸平稳度：对 |Δprogress| 做低通，用于星岛苏醒判定。
+    final jitter = (delta.abs() / math.max(dt, 0.001)).clamp(0.0, 2.0);
+    _breathJitter += (jitter - _breathJitter) * math.min(1.0, dt * 1.5);
+
     if (delta > 0.0002) {
       _setHint('吸气…');
     } else if (delta < -0.0002) {
@@ -300,7 +406,13 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
   @override
   void render(Canvas canvas) {
     final size = game.size;
-    final center = Offset(size.x / 2, size.y / 2 - size.y * 0.04);
+    // 光灵世界坐标 -> 屏幕坐标：随漫游在屏上小幅游移。
+    final base = Offset(size.x / 2, size.y / 2 - size.y * 0.04);
+    final drift = Offset(
+      game.spiritPos.x - game.camPos.x,
+      game.spiritPos.y - game.camPos.y,
+    );
+    final center = base + drift;
 
     // 呼吸派生量。
     final expansion = 0.55 + 0.45 * breatheProgress;
