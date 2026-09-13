@@ -182,3 +182,9 @@
 - AI 行动: full_awake.dart 新增 countPrefKey=jingxin.fullawake.count.v1（唯一新键，格式 `次数|yyyyMMdd`，无键=1 向后兼容）+ FullAwakeCount 纯类 + bumpCount/loadCount + performanceActive 标志与 tokenAngle/tokenTapAllowed 纯函数；star_map_screen.dart 加 _AwakeTokenWidget/_AwakeTokenPainter/_AwakeTokenCard 与螺旋外缘定位；新增 test/awake_token_test.dart 4 项。
 - 产出: commit f90e33e；analyze 19 条基线 0 error；test 61/61；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新。
 - 关键决策: 计数键用字符串 `次数|yyyyMMdd` 单键同时存次数与最近日期（不新增第二个键）；计数 +1 挂在 FullAwakeEvent._begin 的 fullShow 分支（真正开演处）；演出互斥用静态 performanceActive 标志（跨屏幕可读，星图侧轻量判定）。
+
+## 2026-09-13 — 第 32 轮（通宵自动升级）
+- 用户要求: 长夜「星兽低语」：仅长夜生效，5~8 分钟随机抖动且玩家安静 ≥20s 时，较近的星兽身旁极淡浮现一句入睡偈（alpha ≤0.3、8s 淡入淡出、近期去重），闻声开启则极慢语速更低音量轻声念（复用 voice 路径与 duck），每夜至多 3 句，演出互斥，触摸即淡出，调度抽纯函数。
+- AI 行动: 新增 lib/game/long_night_whisper.dart（BeastWhisperCtl 纯逻辑 + BeastWhisperText 渲染组件）；jingjing_game.dart 加 showBeastWhisper（环绕最近距离选兽）与 onTapDown dismiss；jingjing_screen.dart 加一次性调度计时器（触发后重排、beginNight 重记账）；voice.dart/voice_web/voice_stub 的 speak 加可选 rate/volume；koans.dart 暴露 whisperPool；新增 test/beast_whisper_test.dart 6 项。
+- 产出: commit 3a5bfbf（未 push）；analyze 19 条基线 0 error；test 67/67；build web 成功；UPGRADE-LOG.md/todo.md/FENGMEM.md 已更新。
+- 关键决策: 抖动播种在 UI 层（时间种子）保证每夜不同；限额/去重记账放 Ctl（record 时 count+1）而非触发侧，避免测试歧义；TTS 复用 whisper 礼仪（触摸取消）但 rate 0.7/volume 0.32 比日常偈语更低；未新增任何存储键。
