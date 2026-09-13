@@ -50,11 +50,29 @@ class Koans {
 
   static final List<int> _abyssRecent = [];
 
+  /// 「疲惫荒原」专属偈语池（第 9 轮）：休息、允许、不勉强——
+  /// 灯台重燃与旷野余烬的隐喻，克制不鸡汤。
+  static const List<String> _heathPool = [
+    '火不必一直烧着，烬也是它的一部分。',
+    '累的时候，允许自己只是一粒尘埃。',
+    '荒原不要求抵达，走路本身就是休息。',
+    '灯熄了，不是结束，是在攒下一次的光。',
+    '不必勉强发光，暗也有暗的安稳。',
+    '风从旷野上过，没有带走谁。',
+    '停下来，是呼吸给你的一种允许。',
+    '灰烬记得火，你也记得怎么呼吸。',
+  ];
+
+  static final List<int> _heathRecent = [];
+
   /// 随机取一句，保证与最近取过的几句不重复。
   static String next() => _draw(_pool, _recent);
 
   /// 「焦虑之渊」碎片偈语。
   static String nextAbyss() => _draw(_abyssPool, _abyssRecent);
+
+  /// 「疲惫荒原」碎片偈语。
+  static String nextHeath() => _draw(_heathPool, _heathRecent);
 
   static String _draw(List<String> pool, List<int> recent) {
     if (recent.length >= pool.length - 3) recent.clear();

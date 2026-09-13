@@ -4,6 +4,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import '../game/breath_mic.dart';
 import '../game/jingjing_game.dart';
 import '../game/soundscape.dart';
 import 'star_map_screen.dart';
@@ -36,11 +37,27 @@ class _JingjingScreenState extends State<JingjingScreen> {
   /// 长夜模式：true 时世界缓缓入夜，声景极缓淡入。
   bool _nightMode = false;
 
+  // ---- 麦克风呼吸（第 9 轮）：完全可选、默认关闭、不持久化 ----
+  /// 麦克风引擎（懒创建，只在用户点击手势内 start）。
+  BreathMicEngine? _micEngine;
+
+  /// 当前平台是否显示入口（非 Web stub 不可用 → 图标隐藏）。
+  bool _micAvailable = false;
+
+  /// 麦克风模式开启中。
+  bool _micOn = false;
+
+  /// 轻提示文字（玻璃拟态 toast，如"未能听见你的呼吸"）。
+  String? _toastText;
+  Timer? _toastTimer;
+
   @override
   void initState() {
     super.initState();
     _game = JingjingGame(seedColor: widget.seedColor);
     _game.shardMessage.addListener(_onShardMessage);
+    // 麦克风可用性探测（不请求权限，只看平台是否可能支持）。
+    _micAvailable = BreathMicEngineImpl().isSupported;
     _pref.load().then((_) {
       if (!mounted) return;
       setState(() => _scene = _pref.scene);
@@ -71,9 +88,43 @@ class _JingjingScreenState extends State<JingjingScreen> {
   void dispose() {
     _game.shardMessage.removeListener(_onShardMessage);
     _koanTimer?.cancel();
+    _toastTimer?.cancel();
     _soundscape?.stop(fadeOut: 1.5);
+    unawaited(_micEngine?.stop()); // 彻底释放麦克风流与轨道。
     _game.awakening.save();
     super.dispose();
+  }
+
+  /// 开/关麦克风呼吸输入。getUserMedia 只在此点击手势的调用栈内触发；
+  /// 失败（权限拒绝/无设备/不支持）→ 轻提示并自动回到触控模式，
+  /// 绝不反复弹权限。开启状态不持久化，每次会话重新选择。
+  Future<void> _toggleMic() async {
+    if (_micOn) {
+      setState(() => _micOn = false);
+      _game.enableMicBreath(null);
+      unawaited(_micEngine?.stop());
+      return;
+    }
+    final engine = _micEngine ??= BreathMicEngineImpl();
+    final ok = await engine.start(); // 手势调用栈内请求权限。
+    if (!mounted) {
+      unawaited(engine.stop());
+      return;
+    }
+    if (!ok) {
+      _showToast('未能听见你的呼吸');
+      return;
+    }
+    setState(() => _micOn = true);
+    _game.enableMicBreath(engine);
+  }
+
+  void _showToast(String text) {
+    setState(() => _toastText = text);
+    _toastTimer?.cancel();
+    _toastTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (mounted) setState(() => _toastText = null);
+    });
   }
 
   /// 进入/退出长夜：世界渐暗 + 星更亮（game 侧渐变），白噪音淡入淡出。
@@ -303,6 +354,79 @@ class _JingjingScreenState extends State<JingjingScreen> {
               ),
             ),
           ),
+          // 轻提示 toast：玻璃拟态小字，如"未能听见你的呼吸"，自来自去。
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 170),
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _toastText == null ? 0 : 1,
+                    duration: const Duration(milliseconds: 700),
+                    curve: Curves.easeOut,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 500),
+                      child: _toastText == null
+                          ? const SizedBox.shrink()
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  color: ZenTheme.surfaceDim.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  border: Border.all(
+                                    color: ZenTheme.nebulaCyan.withValues(
+                                      alpha: 0.16,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  _toastText!,
+                                  style: TextStyle(
+                                    color: ZenTheme.textMuted.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    fontSize: 13,
+                                    letterSpacing: 3,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // 右下角极小的声息入口：麦克风呼吸的开与关，克制如一缕气息。
+          // 非 Web 平台（stub 不可用）整个入口隐藏，绝不弹窗打扰。
+          if (_micAvailable)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 12, bottom: 62),
+                  child: IconButton(
+                    tooltip: _micOn ? '回到触控呼吸' : '用真实的呼吸',
+                    icon: Icon(
+                      _micOn ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
+                      size: 20,
+                      color: ZenTheme.textMuted.withValues(
+                        alpha: _micOn ? 0.85 : 0.5,
+                      ),
+                    ),
+                    onPressed: _toggleMic,
+                  ),
+                ),
+              ),
+            ),
           // 右下角极小的月亮入口：长夜的开关，克制如一枚月痕。
           SafeArea(
             child: Align(

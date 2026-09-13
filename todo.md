@@ -20,3 +20,4 @@
 - [x] tag v1.0-pre-jingjing 已推送 GitHub（重构前最终版）
 - [x] 基线验证：pub get / analyze 0 error / flutter build web 通过
 - [x] 第8轮：多声景——夜雨与篝火（soundscape.dart 扩展为 SoundscapeEngine 三声景 sea/rain/campfire + select 交叉渐变 2.5s；Web 层架构全声景汇入 master gain 0.5 防爆音、层懒构建复用、噪声素材共用；夜雨=粉噪雨幕底+稀疏带通雨滴瞬态（90~410ms 随机音高）+25~60s 遥远低频雷滚；篝火=棕噪 220Hz 暖底+噼啪脉冲簇+0.05Hz 音量摇曳；长夜中玻璃拟态三小字切换（海潮·夜雨·篝火）持久化 jingxin.soundscape.v1；视听联动：夜雨 ≤18 条雨丝 alpha 0.10、篝火暖色偏移 alpha 0.055，随长夜程度消散；analyze 0 error/build web 通过）
+- [x] 第9轮：第三心境区域「疲惫荒原」——regions.dart 增 upper 上部带支持（ny 0.05~0.18，与渊镜像对称、上浮即达、smoothstep 淡入）；新建 weary_heath.dart：26 颗暗金余烬星尘（几乎静止≤30）+ ny 0.115 一条黎明地平线微光（16s 极缓明灭）+ 3~4 座灯台剪影「重燃」机制（靠近+平稳呼吸约22s≈2~3循环累积，可倒退不归零，lit 当次会话锁存，重燃后 5.5s 暖光脉动呼应篝火声景）；碎片按 i%3 分区（海/渊/荒原），koans.dart 新增 8 句荒原偈（休息/允许/不勉强）；analyze 0 error（23 条既有无新增）/build web 通过
