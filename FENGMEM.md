@@ -158,3 +158,15 @@
 - AI 行动: 新增 lib/game/companion.dart（CompanionGuide 纯状态机 + CompanionDust 尾迹渲染层）；jingjing_game.dart 接入 _updateCompanion 与接近移动通道（不动 TapCallbacks 分发）；still_path.dart 加 warmNearPoint/distanceToPoint 续温接口；reunion.dart 加 active getter；quality.dart 加 companionDust 档位参数；test/companion_test.dart 6 项。
 - 产出: 47/47 测试全过；analyze 19 基线无新增 0 error；build web 成功；commit f2dc69b（未 push）；UPGRADE-LOG/todo/FENGMEM 已更新。
 - 关键决策: 无位移判定=持续按住即成立（Flame TapCallbacks 无移动事件，最小侵入）；顺手修复 still_path 构造器 late final bbox 二次赋值的潜在 LateInitializationError（测试构造第二实例时暴露）；接近通道一阶惯性限速 12px/s、松手停驻期阻尼加严。
+
+## 2026-09-13 — 第 28 轮（通宵自动升级）
+- 用户要求: 「满醒」终幕演出——苏醒度首次到 1.0 时世界第一次完全苏醒，一生一次回礼。
+- AI 行动: 新增 full_awake.dart（FullAwakeCtl 纯函数触发/记账 + FullAwakeEvent 状态机演出）；JingjingGame 挂载组件与三个 notifier；StarBeast 加 wakeOverride；reunion/companion/晨光告别互斥；koans 满醒偈池 3 句；屏幕侧跳过与偈语呈现。
+- 产出: commit d4036e7；analyze 19 条基线持平 0 error；test 53/53；build web 成功。
+- 关键决策: 跳过也照打"已演过"标记（错过不补演）；已演过后任何再满值只做轻量波纹；读取偏好失败按未演过兜底；演出总长 27s（提亮 2.5s→光潮单圈 15s→双兽睁眼游近→偈语停留 8s→淡出 5s）。
+
+## 2026-09-13 — 第 29 轮（通宵自动升级）
+- 用户要求: 醒痕——满醒后世界常驻一枚「晨星」（慢闪暖白光点+光晕、呼吸相位轻回应、尘伴 60s 绕行、点击弹轮换短偈 5s/冷却 10s/演出互斥、零分配+剔除、analyze/test/build 门槛）。
+- AI 行动: 新增 lib/game/morning_star.dart（MorningStarCtl 纯逻辑：位置/命中/冷却/可见性 + KoanRotator 轮换 + MorningStar 渲染组件）；koans.dart 新增 morningStarPool 3 句；jingjing_game.dart onTapDown 加命中检测（互斥判定）并挂载组件；test/morning_star_test.dart 4 项。
+- 产出: analyze 19 条基线持平 0 error；test 57/57；build web 成功；commit 本次（未 push）；UPGRADE-LOG/todo/FENGMEM 已更新。
+- 关键决策: 只读既有 jingxin.fullawake.v1 标记不新增键；偈语呈现复用 shardMessage 既有禅语面板（5s 淡出免费获得）；位置程序生成 (0.585, 0.225)·period 与渊/荒原/雾林/静之径带外自证；冷却中命中吞掉点击避免穿透误触呼吸。

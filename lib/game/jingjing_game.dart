@@ -14,6 +14,7 @@ import 'full_awake.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
 import 'mist_guardian.dart';
+import 'morning_star.dart';
 import 'mist_wood.dart';
 import 'onboarding.dart';
 import 'quality.dart';
@@ -99,6 +100,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 「满醒」终幕（第 28 轮）：世界第一次完全苏醒的回礼演出
   /// （一生一次；触发判定与记账在 full_awake.dart，纯函数可测）。
   late final FullAwakeEvent fullAwake;
+
+  /// 「晨星」（第 29 轮）：满醒后世界里常驻的一枚醒痕
+  /// （点击弹短偈；命中与互斥判定在此，逻辑在 morning_star.dart）。
+  late final MorningStar morningStar;
 
   /// 满醒偈（演出到点浮现的一句），null=无——UI 层监听呈现。
   final ValueNotifier<String?> fullAwakeKoan;
@@ -390,6 +395,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // idle 时只做一次纯函数触发判定，零渲染成本。
     fullAwake = FullAwakeEvent(beast: beast, guardian: mistGuardian);
     add(fullAwake);
+
+    // 「晨星」（第 29 轮）：满醒后常驻的醒痕——只读"已演过"标记，
+    // 未满醒过时零渲染成本；画在演出层之上，不与演出争光（互斥在点击侧）。
+    morningStar = MorningStar();
+    add(morningStar);
   }
 
   /// 用户开启随息麦克风时取消引导（零打扰原则）：立即退场并打上
@@ -420,7 +430,23 @@ class JingjingGame extends FlameGame with TapCallbacks {
     _idleTime = 0;
     _lastTouchInputTime = _time;
     _touchPoint = event.canvasPosition.clone();
+
+    // 晨星（第 29 轮）：点击命中检测——与各演出互斥（演出中点击无效，
+    // 后到者让先的既有约定）。呼吸按压照常进行，互不惊扰。
+    if (onboarding == null &&
+        !reunion.active &&
+        !fullAwake.active &&
+        !farewellPlaying) {
+      final p = event.canvasPosition;
+      _tapWorldTmp
+        ..x = camPos.x + p.x - size.x / 2
+        ..y = camPos.y + p.y - size.y / 2;
+      morningStar.onTap(_tapWorldTmp);
+    }
   }
+
+  /// 点击命中检测用的复用缓冲（零分配）。
+  final Vector2 _tapWorldTmp = Vector2.zero();
 
   @override
   void onTapUp(TapUpEvent event) {
