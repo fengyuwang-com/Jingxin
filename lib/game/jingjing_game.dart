@@ -403,7 +403,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
     final mic = micEngine;
     final micLive = mic != null && micBreathEnabled && mic.isRunning;
     if (micLive) {
-      final env = mic!.envelope;
+      final env = mic.envelope;
       if ((env - micEnvelope).abs() > 0.008) _lastMicInputTime = _time;
       micEnvelope += (env - micEnvelope) * math.min(1.0, dt * 3.0);
     } else {
@@ -419,9 +419,12 @@ class JingjingGame extends FlameGame with TapCallbacks {
       _breathProgress = (_breathProgress + dt / inhaleDuration).clamp(0.0, 1.0);
       _idleTime = 0;
     } else if (micWins) {
-      // 麦克风模式：音量包络 = 呼吸目标，柔和跟随（约 0.4s 惯性）。
+      // 麦克风模式（随息）：吹气是呼——音量包络高 = 呼气段（进度下沉），
+      // 回落安静 = 吸气段（进度回升）。柔和跟随（约 0.4s 惯性），
+      // 相位来源可替换：下游苏醒度/漫游/星岛/碎片/星兽全部复用不变。
+      final micTarget = 1.0 - micEnvelope;
       _breathProgress +=
-          (micEnvelope - _breathProgress) * math.min(1.0, dt * 2.4);
+          (micTarget - _breathProgress) * math.min(1.0, dt * 2.4);
       _breathProgress = _breathProgress.clamp(0.0, 1.0);
       _idleTime = 0; // 有真实气息输入就不进入空闲自动节奏。
     } else {
