@@ -9,6 +9,7 @@ import '../core/theme.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
 import 'shard.dart';
+import 'star_beast.dart';
 
 /// 静境（Jingjing）游戏循环。
 ///
@@ -40,6 +41,12 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 本轮程序放置的碎片（2~4 片，极稀疏）。
   final List<MindShard> shards = [];
+
+  /// 星兽「眠」：失眠之海深处的长线存在（第 5 轮）。
+  late final StarBeast beast;
+
+  /// 已完成的平稳呼吸循环总数（星兽苏醒的独立事件源，不受碎片消费影响）。
+  int cycleCount = 0;
 
   final math.Random _random = math.Random(42);
   late final LightSpirit _spirit;
@@ -114,9 +121,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
     _spirit = LightSpirit(tint: seedColor);
 
-    // 失眠之海：星潮背景 -> 星岛 -> 光灵（渲染顺序）。
+    // 失眠之海：星潮背景 -> 星兽 -> 星岛 -> 光灵（渲染顺序）。
     final sea = InsomniaSea();
     add(sea);
+    beast = StarBeast();
+    add(beast);
     final rng = math.Random(42);
     for (int i = 0; i < 7; i++) {
       add(
@@ -208,6 +217,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
         ),
       );
       shardMessage.value = shard.koan;
+      beast.state.onShard();
     }
   }
 
@@ -247,23 +257,25 @@ class JingjingGame extends FlameGame with TapCallbacks {
     }
 
     spiritPos += _spiritVelocity * dt;
-    _wrap(spiritPos);
+    wrap(spiritPos);
 
     // 相机极缓跟随：光灵在屏幕上只做小幅游移，世界在四周流动。
     final camDelta = spiritPos - camPos;
-    _wrapDelta(camDelta);
+    wrapDelta(camDelta);
     camPos += camDelta * math.min(1.0, dt * 1.1);
     // 相机与光灵保持在同一环绕单元，避免周期折叠时的坐标跳变。
     camPos.x = spiritPos.x + (camPos.x - spiritPos.x) % worldPeriod.x;
     camPos.y = spiritPos.y + (camPos.y - spiritPos.y) % worldPeriod.y;
   }
 
-  void _wrap(Vector2 v) {
+  /// 按环绕周期把坐标折回世界单元（供星兽等组件复用）。
+  void wrap(Vector2 v) {
     v.x = v.x % worldPeriod.x;
     v.y = v.y % worldPeriod.y;
   }
 
-  void _wrapDelta(Vector2 v) {
+  /// 把位移向量折算成最短环绕差（供星兽等组件计算环绕距离）。
+  void wrapDelta(Vector2 v) {
     if (v.x > worldPeriod.x / 2) v.x -= worldPeriod.x;
     if (v.x < -worldPeriod.x / 2) v.x += worldPeriod.x;
     if (v.y > worldPeriod.y / 2) v.y -= worldPeriod.y;
@@ -315,6 +327,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
       if (_cycleTime >= steadyCycleMinTime) {
         _lastCompletedCycle = true;
         _pendingCycleEvent = true;
+        cycleCount++;
       }
       _cyclePeakReached = false;
       _cycleTime = 0;
@@ -352,6 +365,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
   @override
   void onRemove() {
     awakening.save();
+    beast.state.save();
     super.onRemove();
   }
 }
