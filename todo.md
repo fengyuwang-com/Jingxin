@@ -56,3 +56,11 @@
 ## 第 29 轮（2026-09-13）✅ 已完成
 - [x] 醒痕晨星：满醒后（读 jingxin.fullawake.v1）世界常驻一枚慢闪暖白晨星 + 60s 尘伴绕行（固定程序生成位置，区域/路径带外自证），点击 40px 命中弹醒星偈（新池 3 句轮换）5s 淡出、10s 冷却、演出互斥；零每帧分配+量化缓存+屏外剔除。新增 morning_star.dart + 4 项测试。analyze 19 基线持平，test 57/57，build web ✅，commit 见 UPGRADE-LOG。
 - 待办（第 30 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 星图页满醒纪念签或晨星随会话长亮。
+
+## 第 30 轮（2026-09-13）✅ 已完成
+- [x] 文档追平：README 补 20~29 轮功能（Android 构建/初次入静/一夜的记忆/星河的章节/晨光告别/同频引路/满醒终幕/醒痕）、架构树与升级史；拾忆抽屉限高屏高 55% + 内部滚动（star_map_screen.dart）；测试与 README 一致性巡检一致。analyze 19 基线持平，test 57/57，build web ✅，commit 18e44c7。
+- 待办（第 31 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 星图页满醒纪念签。
+
+## 第 31 轮（2026-09-13）✅ 已完成
+- [x] 星图「满醒纪念签」：full_awake.dart 新增唯一新键 jingxin.fullawake.count.v1（格式 `次数|yyyyMMdd`，无键=1 向后兼容，满醒开演处 +1）+ FullAwakeCount 纯类 + performanceActive 标志 + tokenAngle/tokenTapAllowed 纯函数；star_map_screen.dart 星座外缘金白光点+极细光晕伴点 90s 自转（螺旋外延定位、半径封顶），点击玻璃小卡（第 M 次满醒 · 于 9月13日 + 满醒偈池轮换）5s 淡出、15s 冷却、演出中不可点，未满醒零渲染。新增 test/awake_token_test.dart 4 项。analyze 19 基线 0 error，test 61/61，build web ✅，commit f90e33e（未 push）。
+- 待办（第 32 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 纪念签深化（多次满醒伴点微增或日期扩到精确时刻）。

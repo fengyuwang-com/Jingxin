@@ -446,3 +446,33 @@
   1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒终幕/晨星醒痕全链路。
   2. GitHub Pages 部署 Web 版（需主人确认 push）。
   3. 醒痕深化：星图页为满醒时刻留一行只读纪念签；或晨星随会话数极缓"长亮"一档（有记忆感，仍克制）。
+
+## 第 30 轮（2026-09-13）— 文档追平 + 拾忆抽屉限高
+- README 追平 20~29 轮：玩法补「初次入静」「拾忆回看（一夜的记忆卡 / 星河的章节 / 夜弧）」「同频引路」「长夜晨光告别」「满醒终幕 + 醒痕晨星」；快速开始补 Android arm64 瘦身包构建命令与构建链路说明；架构树补 onboarding / long_night_farewell / full_awake / morning_star / memo_stats；升级史改为 30 轮分段概述。
+- 拾忆抽屉限高（lib/screens/star_map_screen.dart）：抽屉内容包 ConstrainedBox（maxHeight=屏高 55%）+ SingleChildScrollView，夜数变多不再撑破屏幕；玻璃拟态、圆角、入场动画不变。
+- 测试与 README 一致性巡检：11 个测试文件与功能名逐一对照（onboarding/memo_stats/companion/long_night_farewell/full_awake/morning_star 等），README 描述与代码一致，无需改代码。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 57/57；flutter build web 成功。
+- commit：18e44c7（未 push）。
+- 下一步建议（第 31 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒终幕/晨星全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 星图页满醒纪念签：满醒时刻在星图页留一行只读淡字纪念（有记忆感，仍克制）。
+
+## 第 31 轮（2026-09-13）— 星图「满醒纪念签」
+- 理念：星图是玩家自己的平静星图，满醒过的人该有一枚印记。
+- 记账（full_awake.dart，本轮唯一新增存储键 `jingxin.fullawake.count.v1`）：
+  - 格式 `次数|yyyyMMdd` 字符串键，满醒演出真正开演处 +1（_begin 的 fullShow 分支，与 markPlayed 同点）；向后兼容：无键=1（老玩家只满醒过一次，不补日期），损坏内容也按 1 次无日期兜底。
+  - FullAwakeCount 纯类：解析/编码/印记文案（「第 M 次满醒 · 于 9月13日」）皆纯函数可测。
+  - 新增 FullAwakeCtl.performanceActive 静态标志：演出开始置位、_reset 清除——星图纪念签在演出期间不可点（后到者让先约定）。
+- 星图纪念签（star_map_screen.dart）：
+  - 显示条件只读既有"已演过"标记 jingxin.fullawake.v1；未满醒过完全不出现（连空星图沉睡提示也保持原样，零额外渲染）。
+  - 位置：黄金角螺旋再往外一枚（index=碎片数+6），半径封顶屏短边 38%，碎片多也不出屏；无碎片时同样可见。
+  - 视觉：中心一粒金白光点（2px 白心 + 4.5px 金晕）+ 半径 17px 极细环形光晕（alpha 0.14），环上一枚 1.1px 伴点随角度绕行——自转约 90s 一圈（tokenAngle 纯函数，周期首尾同角无缝衔接），克制。
+  - 点击：玻璃拟态小卡（金边、毛玻璃），印记文案 + 满醒偈（复用 Koans.nextFullAwake 池，一轮内不重复）；700ms 淡入，5s 后淡出（AnimatedOpacity 900ms），15s 冷却（自弹卡起算，含 5s 停留 + 10s 静默，tokenTapAllowed 纯函数）；演出中（performanceActive）点击直接吞掉。纯展示层 IgnorePointer 不拦截其他手势。
+- 测试：新增 test/awake_token_test.dart 4 项（计数向后兼容与编码往返 / 首次记账=1 与已有计数 +1 及损坏存储兜底 / 自转相位线性且周期首尾衔接 / 显示中不可点+15s 冷却满方可再点+冷却大于停留）。总计 61/61 全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 61/61；flutter build web 成功。
+- commit：f90e33e（未 push）。
+- 下一步建议（第 32 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导/随息/满醒终幕/纪念签全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 纪念签深化：多次满醒时印记按次数微增一枚伴点（M 次满醒 M 粒伴点，封顶 5，仍是极小印记）；或纪念签日期改为最近一次满醒的精确时刻（需在既有键内扩展，不新增键）。
