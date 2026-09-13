@@ -80,6 +80,19 @@ class AnxietyAbyss extends Component with HasGameReference<JingjingGame> {
 
   double _elapsed = 0;
 
+  // ---- 第 16 轮性能审计：画笔预建 + 全屏渐变着色器按量化深度缓存
+  //（渊的 bottomGlow 原每帧重建 LinearGradient 着色器——全屏绘制
+  // 每帧新建着色器是最贵的一类分配）。depth 变化平缓，缓存命中率高。
+  final Paint _veilPaint = Paint();
+  final Paint _bottomGlowPaint = Paint();
+  final Paint _starPaint = Paint();
+  final Paint _glowPaint = Paint();
+  final Paint _corePaint = Paint();
+  Shader? _bottomGlowShader;
+  int _bottomGlowKey = -1;
+  Shader? _heartShader;
+  int _heartKey = -1;
+
   /// 呼吸目标频率（与自动呼吸引导同周期：8 秒一次温柔脉动）。
   static const double breathFreq = 1 / 8.0;
 
@@ -168,11 +181,16 @@ class AnxietyAbyss extends Component with HasGameReference<JingjingGame> {
     if (depth <= 0.001) return;
 
     // ---- 渊的色调：全屏冷灰紫沉入 + 底部暗红微光 ----
-    final veil = Paint()
-      ..color = const Color(0xFF0b0a14).withValues(alpha: 0.52 * depth);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), veil);
-    final bottomGlow = Paint()
-      ..shader = LinearGradient(
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.x, size.y),
+      _veilPaint
+        ..color = const Color(0xFF0b0a14).withValues(alpha: 0.52 * depth),
+    );
+    // 底部暗红渐变：着色器按量化深度缓存（0.01 步进）。
+    final depthQ = (depth * 100).round();
+    if (depthQ != _bottomGlowKey) {
+      _bottomGlowKey = depthQ;
+      _bottomGlowShader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
@@ -181,7 +199,9 @@ class AnxietyAbyss extends Component with HasGameReference<JingjingGame> {
         ],
         stops: const [0.45, 1.0],
       ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), bottomGlow);
+    }
+    _bottomGlowPaint.shader = _bottomGlowShader;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), _bottomGlowPaint);
 
     // ---- 心跳微光：极慢脉动（约 9 秒一次），从不刺眼 ----
     for (final heart in _heartLights) {
@@ -195,21 +215,29 @@ class AnxietyAbyss extends Component with HasGameReference<JingjingGame> {
       final pulse =
           0.5 + 0.5 * math.sin(_elapsed * math.pi * 2 / 9.0 + heart.phase);
       final alpha = (0.08 + 0.13 * pulse) * depth;
-      final glow = Paint()
-        ..shader = RadialGradient(
+      // 心跳辉光着色器按量化 alpha 缓存（脉动极慢，命中率高）。
+      final alphaQ = (alpha * 100).round();
+      if (alphaQ != _heartKey) {
+        _heartKey = alphaQ;
+        _heartShader = RadialGradient(
           colors: [
             const Color(0xFFa4526b).withValues(alpha: alpha),
             const Color(0xFF4a2438).withValues(alpha: alpha * 0.5),
             Colors.transparent,
           ],
           stops: const [0.0, 0.5, 1.0],
-        ).createShader(Rect.fromCircle(center: p, radius: 64));
-      canvas.drawCircle(p, 64, glow);
+        ).createShader(Rect.fromCircle(center: Offset.zero, radius: 64));
+      }
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      canvas.drawCircle(Offset.zero, 64, _glowPaint..shader = _heartShader);
       canvas.drawCircle(
-        p,
+        Offset.zero,
         1.6,
-        Paint()..color = const Color(0xFFd8a0b0).withValues(alpha: alpha * 1.6),
+        _corePaint
+          ..color = const Color(0xFFd8a0b0).withValues(alpha: alpha * 1.6),
       );
+      canvas.restore();
     }
 
     // ---- 乱星：细密快速明灭，同化后归于温柔的呼吸脉动 ----
@@ -231,7 +259,7 @@ class AnxietyAbyss extends Component with HasGameReference<JingjingGame> {
       canvas.drawCircle(
         p,
         star.radius,
-        Paint()..color = base.withValues(alpha: bright.clamp(0.0, 0.34)),
+        _starPaint..color = base.withValues(alpha: bright.clamp(0.0, 0.34)),
       );
       // 同化高时的极柔小晕（呼吸辉光感）。
       if (star.sync > 0.35) {
@@ -299,6 +327,9 @@ class _StarFlower {
   /// 0..1 绽放程度。
   double bloom = 0;
 
+  // 花苞画笔复用（第 16 轮）。
+  final Paint _budPaint = Paint();
+
   late final List<_FlowerPetal> _petals = _buildPetals();
 
   List<_FlowerPetal> _buildPetals() {
@@ -315,15 +346,15 @@ class _StarFlower {
   }
 
   void render(Canvas canvas, Offset center, double time, double depth) {
-    if (bloom <= 0.004) {
-      // 未醒的花苞：极暗的一小簇，几乎只是渊底的一粒尘。
-      canvas.drawCircle(
-        center,
-        1.4,
-        Paint()..color = const Color(0xFF6a6280).withValues(alpha: 0.14 * depth),
-      );
-      return;
-    }
+      if (bloom <= 0.004) {
+        // 未醒的花苞：极暗的一小簇，几乎只是渊底的一粒尘。
+        canvas.drawCircle(
+          center,
+          1.4,
+          _budPaint..color = const Color(0xFF6a6280).withValues(alpha: 0.14 * depth),
+        );
+        return;
+      }
     final ease = bloom * bloom * (3 - 2 * bloom);
     final breathe = 0.75 + 0.25 * math.sin(time * 1.1);
 

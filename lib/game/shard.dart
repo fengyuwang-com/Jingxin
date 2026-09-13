@@ -124,6 +124,13 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
 
   bool get isAbsorbed => absorb >= 1;
 
+  // 微光晕着色器缓存（第 16 轮：按量化呼吸 alpha 缓存，碎片 ≤4 片）。
+  final Paint _glowPaint = Paint();
+  final Paint _bodyPaint = Paint();
+  final Paint _edgePaint = Paint();
+  Shader? _glowShader;
+  int _glowKey = -1;
+
   @override
   void update(double dt) {
     if (_absorbing) {
@@ -191,20 +198,24 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
     final alpha = (_absorbing ? (1.0 - absorb * 0.6) : 1.0);
 
     // 微光晕。
-    final glowPaint = Paint()
-      ..shader = RadialGradient(
+    final glowA = (0.30 * breathe * alpha);
+    final glowQ = (glowA * 100).round();
+    if (glowQ != _glowKey) {
+      _glowKey = glowQ;
+      _glowShader = RadialGradient(
         colors: [
-          tint.withValues(alpha: 0.30 * breathe * alpha),
+          tint.withValues(alpha: glowA),
           Colors.transparent,
         ],
-      ).createShader(Rect.fromCircle(center: center, radius: r * 4));
-    canvas.drawCircle(center, r * 4, glowPaint);
-
-    // 棱片本体：细长旋转的菱形，微微自转。
+      ).createShader(Rect.fromCircle(center: Offset.zero, radius: r * 4));
+    }
     canvas.save();
     canvas.translate(center.dx, center.dy);
+    canvas.drawCircle(Offset.zero, r * 4, _glowPaint..shader = _glowShader);
+
+    // 棱片本体：细长旋转的菱形，微微自转。
     canvas.rotate(game.time * 0.4 + phase);
-    final paint = Paint()
+    final paint = _bodyPaint
       ..color = Color.lerp(
         ZenTheme.starWhite,
         tint,
@@ -220,7 +231,7 @@ class MindShard extends Component with HasGameReference<JingjingGame> {
     canvas.drawPath(path, paint);
     canvas.drawPath(
       path,
-      Paint()
+      _edgePaint
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.8
         ..color = ZenTheme.starWhite.withValues(alpha: 0.5 * alpha),

@@ -195,6 +195,33 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
 
   final List<_BeastMote> _motes = [];
 
+  // ---- 第 16 轮性能审计：星座连线是静态形状——缓存为相对原点的
+  // Path（原每帧重建两条 Path）；节点星/星屑画笔复用；眼睛辉光
+  // 着色器按量化睁开度缓存（睁眼极慢，重建率极低）。
+  late final Path _bodyPath = _polylinePath(bodyNodes, close: true);
+  late final Path _tailPath = _polylinePath(tailNodes);
+  final Paint _linePaint = Paint();
+  final Paint _nodePaint = Paint();
+  final Paint _glowPaint = Paint();
+  final Paint _eyeCorePaint = Paint();
+  final Paint _ripplePaint = Paint();
+  final Paint _motePaint = Paint();
+  final List<Shader?> _eyeShaders = List.filled(eyeNodes.length, null);
+  final List<int> _eyeShaderKeys = List.filled(eyeNodes.length, -1);
+
+  static Path _polylinePath(List<Offset> nodes, {bool close = false}) {
+    final path = Path();
+    for (int i = 0; i < nodes.length; i++) {
+      if (i == 0) {
+        path.moveTo(nodes[i].dx, nodes[i].dy);
+      } else {
+        path.lineTo(nodes[i].dx, nodes[i].dy);
+      }
+    }
+    if (close) path.close();
+    return path;
+  }
+
   /// 每只眼的睁开度 0..1（极慢渐变，约 4 秒/只）。
   final List<double> eyeOpen = List.filled(StarBeastState.eyeCount, 0.0);
 
@@ -285,54 +312,33 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
     // 轮廓亮度：平时比背景星稍亮的隐约轮廓；越醒越清晰。
     final lineAlpha = (0.07 + 0.10 * openFrac + 0.03 * aw).clamp(0.0, 1.0);
     final nodeAlpha = (lineAlpha + 0.05).clamp(0.0, 1.0);
-    final linePaint = Paint()
+    _linePaint
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0
       ..color = ZenTheme.nebulaCyan.withValues(alpha: lineAlpha);
 
-    // 躯体轮廓：星座连线（闭合环）。
-    final body = Path();
-    for (int i = 0; i < bodyNodes.length; i++) {
-      final p = center + bodyNodes[i];
-      if (i == 0) {
-        body.moveTo(p.dx, p.dy);
-      } else {
-        body.lineTo(p.dx, p.dy);
-      }
-    }
-    body.close();
-    canvas.drawPath(body, linePaint);
-
-    // 尾迹。
-    final tail = Path();
-    for (int i = 0; i < tailNodes.length; i++) {
-      final p = center + tailNodes[i];
-      if (i == 0) {
-        tail.moveTo(p.dx, p.dy);
-      } else {
-        tail.lineTo(p.dx, p.dy);
-      }
-    }
-    canvas.drawPath(tail, linePaint);
+    // 躯体轮廓与尾迹：静态 Path 缓存，平移到中心绘制。
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.drawPath(_bodyPath, _linePaint);
+    canvas.drawPath(_tailPath, _linePaint);
 
     // 轮廓节点：稍亮的星点（含极缓明灭，像星座本身在呼吸）。
     for (int i = 0; i < bodyNodes.length; i++) {
       final tw =
           0.7 + 0.3 * math.sin(_time * 0.6 + i * 1.9);
-      final p = center + bodyNodes[i];
       canvas.drawCircle(
-        p,
+        bodyNodes[i],
         1.3,
-        Paint()
+        _nodePaint
           ..color = ZenTheme.starWhite.withValues(alpha: nodeAlpha * tw),
       );
     }
     for (int i = 0; i < tailNodes.length; i++) {
-      final p = center + tailNodes[i];
       canvas.drawCircle(
-        p,
+        tailNodes[i],
         1.1,
-        Paint()
+        _nodePaint
           ..color = ZenTheme.starWhite.withValues(alpha: nodeAlpha * 0.8),
       );
     }
@@ -340,22 +346,28 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
     // 眼睛：柔和辉光点，逐只极慢睁开；睁眼中伴随涟漪。
     for (int i = 0; i < eyeNodes.length; i++) {
       final open = eyeOpen[i];
-      final p = center + eyeNodes[i];
       if (open > 0.001) {
         final glowR = 5.0 + 9.0 * open;
-        final glow = Paint()
-          ..shader = RadialGradient(
+        final openQ = (open * 50).round(); // 0.02 步进
+        if (openQ != _eyeShaderKeys[i]) {
+          _eyeShaderKeys[i] = openQ;
+          _eyeShaders[i] = RadialGradient(
             colors: [
               ZenTheme.starWhite.withValues(alpha: 0.55 * open),
               ZenTheme.nebulaCyan.withValues(alpha: 0.30 * open),
               Colors.transparent,
             ],
-          ).createShader(Rect.fromCircle(center: p, radius: glowR));
-        canvas.drawCircle(p, glowR, glow);
+          ).createShader(Rect.fromCircle(center: eyeNodes[i], radius: glowR));
+        }
         canvas.drawCircle(
-          p,
+          eyeNodes[i],
+          glowR,
+          _glowPaint..shader = _eyeShaders[i],
+        );
+        canvas.drawCircle(
+          eyeNodes[i],
           1.6,
-          Paint()
+          _eyeCorePaint
             ..color = ZenTheme.starWhite.withValues(alpha: 0.8 * open),
         );
       }
@@ -364,9 +376,9 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
         final rippleR = 18.0 + 95.0 * open;
         final rippleA = 0.22 * math.sin(math.pi * open);
         canvas.drawCircle(
-          p,
+          eyeNodes[i],
           rippleR,
-          Paint()
+          _ripplePaint
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.0
             ..color = ZenTheme.nebulaCyan.withValues(alpha: rippleA),
@@ -381,17 +393,18 @@ class StarBeast extends Component with HasGameReference<JingjingGame> {
       final wob = 1.0 + 0.06 * math.sin(_time * 0.5 + mote.phase);
       final r = mote.baseRadius * converge * wob;
       final p = Offset(
-        center.dx + math.cos(a) * r,
-        center.dy + math.sin(a) * r * 0.7, // 略扁，像贴着海流
+        math.cos(a) * r,
+        math.sin(a) * r * 0.7, // 略扁，像贴着海流
       );
       final alpha = (0.10 + 0.16 * openFrac) *
           (0.6 + 0.4 * math.sin(_time * 0.9 + mote.phase));
       canvas.drawCircle(
         p,
         mote.size,
-        Paint()..color = ZenTheme.nebulaCyan.withValues(alpha: alpha.clamp(0.0, 1.0)),
+        _motePaint..color = ZenTheme.nebulaCyan.withValues(alpha: alpha.clamp(0.0, 1.0)),
       );
     }
+    canvas.restore();
   }
 }
 

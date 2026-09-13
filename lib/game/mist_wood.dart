@@ -4,6 +4,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import 'jingjing_game.dart';
+import 'quality.dart';
 import 'regions.dart';
 
 /// 「纷心雾林」——世界左/右接缝两侧的水平带（第 13 轮，第四心境区域）。
@@ -100,6 +101,15 @@ class MistWood extends Component with HasGameReference<JingjingGame> {
   /// 平稳呼吸 + 身处雾林 → 缓缓沉降；呼吸乱了 → 极缓回升。当次会话。
   double settle = 0;
 
+  // 第 16 轮性能审计：雾团/薄霭/萤火画笔复用 + 着色器量化缓存。
+  final Paint _veilPaint = Paint();
+  final Paint _fogPaint = Paint();
+  final Paint _hazePaint = Paint();
+  final Paint _flyPaint = Paint();
+  final Paint _flyGlowPaint = Paint();
+  Shader? _hazeShader;
+  int _hazeKey = -1;
+
   double _elapsed = 0;
 
   @override
@@ -157,13 +167,18 @@ class MistWood extends Component with HasGameReference<JingjingGame> {
     final settleEase = settle * settle * (3 - 2 * settle);
 
     // ---- 雾林色调：青灰/墨绿沉入，冷而不重 ----
-    final veil = Paint()
-      ..color = const Color(0xFF0a1210).withValues(alpha: 0.44 * depth);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), veil);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.x, size.y),
+      _veilPaint
+        ..color = const Color(0xFF0a1210).withValues(alpha: 0.44 * depth),
+    );
 
     // ---- 雾带：3 层视差的大而软的雾团，随沉降下沉、变薄 ----
     // 远层先画（被近层轻掩），同层内雾团横漂。
+    // 雾层数按画质档位：低档去掉最远的第 0 层（本就最淡）。
+    final layerOffset = Quality.current.fogLayers == 3 ? 0 : 1;
     for (final blob in _blobs) {
+      if (blob.layer < layerOffset) continue;
       final sinkNy = blob.baseNy +
           (groundNy - blob.baseNy) * settleEase * blob.sink;
       final p = _toScreen(
@@ -184,11 +199,12 @@ class MistWood extends Component with HasGameReference<JingjingGame> {
       final breathe = 0.85 + 0.15 * math.sin(_elapsed * 0.22 + blob.phase);
       final a = blob.baseAlpha * (1.0 - 0.75 * settleEase) * breathe * depth;
       if (a <= 0.004) continue;
-      canvas.save();
-      canvas.translate(p.dx, p.dy);
-      canvas.scale(1.0, blob.squash);
-      final fog = Paint()
-        ..shader = RadialGradient(
+      // 雾团辉光着色器按量化 alpha 缓存在雾团对象上（第 16 轮：原每帧
+      // 每团新建 RadialGradient——雾团大、重建贵）。呼吸与沉降变化平缓。
+      final aQ = (a * 200).round(); // 0.005 步进
+      if (aQ != blob.shaderKey) {
+        blob.shaderKey = aQ;
+        blob.shader = RadialGradient(
           colors: [
             const Color(0xFF7ea89a).withValues(alpha: a),
             const Color(0xFF4a6a60).withValues(alpha: a * 0.55),
@@ -196,7 +212,11 @@ class MistWood extends Component with HasGameReference<JingjingGame> {
           ],
           stops: const [0.0, 0.55, 1.0],
         ).createShader(Rect.fromCircle(center: Offset.zero, radius: blob.radius));
-      canvas.drawCircle(Offset.zero, blob.radius, fog);
+      }
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      canvas.scale(1.0, blob.squash);
+      canvas.drawCircle(Offset.zero, blob.radius, _fogPaint..shader = blob.shader);
       canvas.restore();
     }
 
@@ -208,20 +228,23 @@ class MistWood extends Component with HasGameReference<JingjingGame> {
       ).dy;
       if (groundY > -60 && groundY < size.y + 60) {
         final shimmer = 0.8 + 0.2 * math.sin(_elapsed * math.pi * 2 / 11.0);
-        final haze = Paint()
-          ..shader = LinearGradient(
+        final a = 0.10 * settleEase * shimmer * depth;
+        final aQ = (a * 200).round();
+        if (aQ != _hazeKey) {
+          _hazeKey = aQ;
+          _hazeShader = LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
               Colors.transparent,
-              const Color(0xFFbfe8d0).withValues(
-                alpha: 0.10 * settleEase * shimmer * depth,
-              ),
+              const Color(0xFFbfe8d0).withValues(alpha: a),
               Colors.transparent,
             ],
             stops: const [0.0, 0.55, 1.0],
           ).createShader(Rect.fromLTWH(0, groundY - 30, size.x, 60));
-        canvas.drawRect(Rect.fromLTWH(0, groundY - 30, size.x, 60), haze);
+        }
+        _hazePaint.shader = _hazeShader;
+        canvas.drawRect(Rect.fromLTWH(0, groundY - 30, size.x, 60), _hazePaint);
       }
     }
 
@@ -240,17 +263,16 @@ class MistWood extends Component with HasGameReference<JingjingGame> {
         calm,
       )!;
       final a = (0.08 + 0.16 * flick + 0.10 * calm) * depth;
-      canvas.drawCircle(p, fly.radius, Paint()..color = base.withValues(alpha: a));
+      canvas.drawCircle(p, fly.radius, _flyPaint..color = base.withValues(alpha: a));
       if (calm > 0.3) {
         final glowA = 0.10 * calm * flick * depth;
-        final glow = Paint()
-          ..shader = RadialGradient(
-            colors: [
-              base.withValues(alpha: glowA),
-              Colors.transparent,
-            ],
-          ).createShader(Rect.fromCircle(center: p, radius: fly.radius * 6));
-        canvas.drawCircle(p, fly.radius * 6, glow);
+        _flyGlowPaint.shader = RadialGradient(
+          colors: [
+            base.withValues(alpha: glowA),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: p, radius: fly.radius * 6));
+        canvas.drawCircle(p, fly.radius * 6, _flyGlowPaint);
       }
     }
 
@@ -316,6 +338,10 @@ class _FogBlob {
   final double sink;
   final int layer;
   final double baseNy;
+
+  /// 雾团辉光着色器的量化缓存（第 16 轮，见 render）。
+  Shader? shader;
+  int shaderKey = -1;
 }
 
 /// 「墨枝」：极简的枝状星座剪影——几条弧线 + 节点星。
@@ -329,6 +355,12 @@ class _InkBranch {
 
   late final List<_BranchArc> _arcs = _build();
   late final List<Vector2> _nodes = _buildNodes();
+
+  // 雾灯笼辉光着色器缓存（第 16 轮，见 render）。
+  final Paint nodeGlowPaint = Paint();
+  final Paint nodeCorePaint = Paint();
+  Shader? nodeShader;
+  int nodeShaderKey = -1;
 
   /// 从根到梢的几条二次贝塞尔弧（世界坐标，相对树根）。
   List<_BranchArc> _build() {
@@ -436,8 +468,11 @@ class _InkBranch {
         final c = Offset(_nodes[i].x, _nodes[i].y);
         final breathe = 0.75 + 0.25 * math.sin(time * 1.1 + i * 1.3);
         final a = ease * breathe * depth;
-        final glow = Paint()
-          ..shader = RadialGradient(
+        // 雾灯笼辉光着色器按量化 alpha 缓存（灯笼数少、明灭极缓）。
+        final aQ = (a * 100).round();
+        if (aQ != nodeShaderKey) {
+          nodeShaderKey = aQ;
+          nodeShader = RadialGradient(
             colors: [
               const Color(0xFFe8f6cc).withValues(alpha: 0.30 * a),
               const Color(0xFFa8c890).withValues(alpha: 0.14 * a),
@@ -445,11 +480,12 @@ class _InkBranch {
             ],
             stops: const [0.0, 0.5, 1.0],
           ).createShader(Rect.fromCircle(center: c, radius: 12 + 5 * ease));
-        canvas.drawCircle(c, 12 + 5 * ease, glow);
+        }
+        canvas.drawCircle(c, 12 + 5 * ease, nodeGlowPaint..shader = nodeShader);
         canvas.drawCircle(
           c,
           1.5 + 0.7 * ease,
-          Paint()
+          nodeCorePaint
             ..color = Color.lerp(
               const Color(0xFF8fb8a0),
               const Color(0xFFf4fadc),

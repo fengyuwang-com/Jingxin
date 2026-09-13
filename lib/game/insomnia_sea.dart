@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import 'jingjing_game.dart';
+import 'quality.dart';
 
 /// 「失眠之海」——海平面之下的星海（第 3 轮）。
 ///
@@ -14,8 +15,8 @@ import 'jingjing_game.dart';
 class InsomniaSea extends Component with HasGameReference<JingjingGame> {
   InsomniaSea() {
     final rng = math.Random(7);
-    // 失眠星屑：近景漂浮微粒，数量克制（移动端帧率友好）。
-    for (int i = 0; i < 26; i++) {
+    // 失眠星屑：近景漂浮微粒，数量按画质档位（低档削减）。
+    for (int i = 0; i < Quality.current.seaMotes; i++) {
       motes.add(
         SeaMote(
           position: Vector2(
@@ -33,6 +34,11 @@ class InsomniaSea extends Component with HasGameReference<JingjingGame> {
 
   final List<SeaMote> motes = [];
   double _elapsed = 0;
+
+  // ---- 第 16 轮性能审计：画笔全部预建复用（原每帧 new 约 30 个 Paint）。
+  final List<Paint> _bandPaints = List.generate(3, (_) => Paint());
+  final Paint _pointPaint = Paint();
+  final Paint _motePaint = Paint();
 
   @override
   void update(double dt) {
@@ -82,7 +88,10 @@ class InsomniaSea extends Component with HasGameReference<JingjingGame> {
       }
       path.lineTo(size.x, size.y);
       path.close();
-      canvas.drawPath(path, Paint()..color = bandColors[layer].withValues(alpha: 0.5));
+      canvas.drawPath(
+        path,
+        _bandPaints[layer]..color = bandColors[layer].withValues(alpha: 0.5),
+      );
 
       // 星带脊线上的微光点缀：每层少量星点，随波形起伏。
       for (int i = 0; i < 8; i++) {
@@ -94,7 +103,7 @@ class InsomniaSea extends Component with HasGameReference<JingjingGame> {
         canvas.drawCircle(
           Offset(sx, sy - 3 - 6 * tw),
           0.8 + 0.7 * tw,
-          Paint()
+          _pointPaint
             ..color = ZenTheme.nebulaCyan.withValues(
               alpha: (0.10 + 0.16 * aw) * (0.4 + 0.6 * tw),
             ),
@@ -119,7 +128,7 @@ class InsomniaSea extends Component with HasGameReference<JingjingGame> {
       canvas.drawCircle(
         p,
         mote.radius,
-        Paint()
+        _motePaint
           ..color = Color.lerp(
             ZenTheme.nebulaCyan,
             const Color(0xFF34d399),
@@ -174,7 +183,28 @@ class StarIsle extends Component with HasGameReference<JingjingGame> {
   double glow = 0;
 
   late final List<Offset> _silhouette = _buildSilhouette();
+
+  /// 剪影缓存为相对原点的静态 Path（第 16 轮：原每帧重建 Path）。
+  late final Path _silhouettePath = () {
+    final path = Path();
+    final last = _silhouette.last;
+    path.moveTo(last.dx, last.dy);
+    for (final p in _silhouette) {
+      path.lineTo(p.dx, p.dy);
+    }
+    path.close();
+    return path;
+  }();
   late final List<_IsleStar> _isleStars = _buildStars();
+
+  // 画笔与着色器缓存（第 16 轮：glow 辉光着色器按量化 glow 缓存，
+  // glow 变化极缓，重建率极低）。
+  final Paint _glowPaint = Paint();
+  final Paint _silhouettePaint = Paint();
+  final Paint _starPaint = Paint();
+  final Paint _edgePaint = Paint();
+  Shader? _glowShaderCache;
+  double _glowShaderKey = -1;
 
   List<Offset> _buildSilhouette() {
     final rng = math.Random(shapeSeed);
@@ -228,31 +258,32 @@ class StarIsle extends Component with HasGameReference<JingjingGame> {
 
     // 苏醒辉光（呼吸辉光）：靠近且平稳呼吸时从内部微微透亮。
     if (glow > 0.01) {
-      final glowPaint = Paint()
-        ..shader = RadialGradient(
+      final glowQ = (glow * 50).round().toDouble(); // 0.02 步进
+      if (glowQ != _glowShaderKey) {
+        _glowShaderKey = glowQ;
+        _glowShaderCache = RadialGradient(
           colors: [
-            tint.withValues(alpha: 0.30 * glow),
-            const Color(0xFF34d399).withValues(alpha: 0.12 * glow),
+            tint.withValues(alpha: 0.30 * glowQ / 50),
+            const Color(0xFF34d399).withValues(alpha: 0.12 * glowQ / 50),
             Colors.transparent,
           ],
           stops: const [0.0, 0.55, 1.0],
         ).createShader(
-          Rect.fromCircle(center: center, radius: radius * 1.5 * scale),
+          Rect.fromCircle(center: Offset.zero, radius: radius * 1.5 * scale),
         );
-      canvas.drawCircle(center, radius * 1.5 * scale, glowPaint);
+      }
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.drawCircle(Offset.zero, radius * 1.5 * scale, _glowPaint..shader = _glowShaderCache);
+      canvas.restore();
     }
 
     // 星岛剪影（深夜靛蓝，比海稍深）。
-    final path = Path();
-    final last = _silhouette.last;
-    path.moveTo(center.dx + last.dx * scale, center.dy + last.dy * scale);
-    for (final p in _silhouette) {
-      path.lineTo(center.dx + p.dx * scale, center.dy + p.dy * scale);
-    }
-    path.close();
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
     canvas.drawPath(
-      path,
-      Paint()
+      _silhouettePath,
+      _silhouettePaint
         ..color = Color.lerp(
           const Color(0xFF0a101c),
           const Color(0xFF13253f),
@@ -261,29 +292,30 @@ class StarIsle extends Component with HasGameReference<JingjingGame> {
     );
 
     // 岛内"沉睡星点"：随辉光逐个亮起。
-    for (final star in _isleStars) {
-      final lit = (glow * _isleStars.length).clamp(0.0, _isleStars.length.toDouble());
-      final index = _isleStars.indexOf(star);
-      final a = (lit - index).clamp(0.0, 1.0);
+    final lit = (glow * _isleStars.length).clamp(0.0, _isleStars.length.toDouble());
+    for (int i = 0; i < _isleStars.length; i++) {
+      final star = _isleStars[i];
+      final a = (lit - i).clamp(0.0, 1.0);
       if (a <= 0) continue;
       final tw = 0.6 + 0.4 * math.sin(game.time * 1.4 + star.phase);
       canvas.drawCircle(
-        center + star.offset * scale,
+        star.offset * scale,
         star.radius * scale,
-        Paint()..color = ZenTheme.starWhite.withValues(alpha: 0.75 * a * tw),
+        _starPaint..color = ZenTheme.starWhite.withValues(alpha: 0.75 * a * tw),
       );
     }
 
     // 剪影边缘微光：辉光高时轮廓泛起青绿。
     if (glow > 0.05) {
       canvas.drawPath(
-        path,
-        Paint()
+        _silhouettePath,
+        _edgePaint
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2
           ..color = tint.withValues(alpha: 0.35 * glow),
       );
     }
+    canvas.restore();
   }
 
   @override
