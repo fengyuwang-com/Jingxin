@@ -2,9 +2,10 @@
 // 日期行、输出尺寸常量。离屏渲染本体不做单测（一次性行为）。
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' show Size;
+import 'package:flutter/material.dart' show Offset, Size;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jingxin_meditation/core/theme.dart';
 import 'package:jingxin_meditation/game/shard.dart';
 import 'package:jingxin_meditation/game/star_card.dart';
 
@@ -72,5 +73,54 @@ void main() {
     expect(starCardPixelRatio, 2);
     expect((starCardSize.width * starCardPixelRatio).round(), 1080);
     expect((starCardSize.height * starCardPixelRatio).round(), 1620);
+  });
+
+  group('时辰印记与满醒金印（第 39 轮）', () {
+    test('角度映射：正午在上（-π/2），午夜在下（+π/2），环绕连续', () {
+      expect(tideMarkAngle(720), closeTo(-math.pi / 2, 1e-9)); // 12:00 上
+      expect(tideMarkAngle(0), closeTo(math.pi / 2, 1e-9)); // 0:00 下
+      // 环绕：23:59:59 与 0:00 的角度只差一分钟弧长，无跳变。
+      final a = tideMarkAngle(1439);
+      final b = tideMarkAngle(0);
+      var diff = (a - b).abs() % (2 * math.pi);
+      if (diff > math.pi) diff = 2 * math.pi - diff;
+      expect(diff, closeTo(2 * math.pi / 1440, 1e-9));
+      // 点的位置随角度落在环上。
+      const c = Offset(100, 100);
+      final noon = tideMarkPoint(720, c, tideMarkRingRadius);
+      expect(noon.dy, lessThan(c.dy)); // 正午点在环心上方
+      expect(noon.dx, closeTo(c.dx, 1e-9));
+      final midnight = tideMarkPoint(0, c, tideMarkRingRadius);
+      expect(midnight.dy, greaterThan(c.dy)); // 午夜点在环心下方
+      expect(midnight.dx, closeTo(c.dx, 1e-9));
+    });
+
+    test('黄昏暖色：18:45 峰值偏暖，正午是中性星白', () {
+      final noon = tideMarkDotColor(720);
+      final dusk = tideMarkDotColor(18 * 60 + 45); // 18:45 峰值
+      final night = tideMarkDotColor(0);
+      // 正午 / 深夜都是星白（无暖混）。
+      expect(noon, ZenTheme.starWhite);
+      expect(night, ZenTheme.starWhite);
+      // 黄昏：红分量抬升、蓝分量压低（暖色方向）。
+      expect(dusk.r, greaterThan(dusk.b));
+      expect(dusk.r, lessThan(1.0));
+    });
+
+    test('印记位置：时辰印记在右下、满醒金印在左下，与日期行对齐', () {
+      final size = starCardSize;
+      final tideC = tideMarkCenter(size);
+      expect(tideC.dx, greaterThan(size.width / 2));
+      expect(tideC.dy, closeTo(size.height - 58, 1e-9)); // 与日期行同一行
+      final sealC = fullAwakeSealCenter(size);
+      expect(sealC.dx, lessThan(size.width / 2));
+      expect(sealC.dy, tideC.dy); // 左右对称对齐
+    });
+
+    test('两枚印记都在出血区内（边缘留白 ≥ 12px）', () {
+      expect(marksWithinSafeArea(starCardSize), isTrue);
+      // 防御性：极端窄卡也应报告越界而非悄悄出血。
+      expect(marksWithinSafeArea(const Size(70, 70)), isFalse);
+    });
   });
 }
