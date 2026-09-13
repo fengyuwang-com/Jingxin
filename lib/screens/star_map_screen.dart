@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -6,6 +7,8 @@ import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../game/awakening.dart';
+import '../game/full_awake.dart';
+import '../game/koans.dart';
 import '../game/memento.dart';
 import '../game/memo_stats.dart';
 import '../game/shard.dart';
@@ -35,6 +38,9 @@ class _StarMapScreenState extends State<StarMapScreen> {
   bool _beastSwimming = false;
   ShardRecord? _selected;
   bool _loaded = false;
+  // 「满醒纪念签」（第 31 轮）：演过满醒终幕才有的印记，未满醒零渲染。
+  bool _fullAwakePlayed = false;
+  FullAwakeCount _fullAwakeCount = const FullAwakeCount(count: 1);
 
   @override
   void initState() {
@@ -45,13 +51,23 @@ class _StarMapScreenState extends State<StarMapScreen> {
   Future<void> _load() async {
     await _collection.load();
     await _beastState.load();
+    final played = await FullAwakeCtl.loadPlayed();
+    final count = await FullAwakeCtl.loadCount();
     if (!mounted) return;
     setState(() {
       _records = List<ShardRecord>.of(_collection.records);
       _beastEyes = _beastState.openedEyes;
       _beastSwimming = _beastState.swimming;
+      _fullAwakePlayed = played;
+      _fullAwakeCount = count;
       _loaded = true;
     });
+  }
+
+  @override
+  void dispose() {
+    _tokenTimer?.cancel();
+    super.dispose();
   }
 
   /// 「拾忆」玻璃底部抽屉（第 15 轮）：导出 / 足迹 / 带回。
@@ -84,6 +100,65 @@ class _StarMapScreenState extends State<StarMapScreen> {
       cx + math.cos(angle) * radius,
       cy + math.sin(angle) * radius * 0.82,
     );
+  }
+
+  // ---- 满醒纪念签（第 31 轮） ----
+  Timer? _tokenTimer;
+  bool _tokenCardShown = false;
+  DateTime? _tokenTapAt;
+  String? _tokenKoan;
+
+  /// 纪念签位置：黄金角螺旋再往外一枚（index = 碎片数 + 6），
+  /// 半径封顶避免碎片很多时被推出屏幕。
+  Offset _tokenOffset(Size size) {
+    final index = _records.length + 6;
+    const goldenAngle = 2.39996;
+    final angle = index * goldenAngle;
+    final radius = math.min(
+      26.0 * math.sqrt(index + 1),
+      size.shortestSide * 0.38,
+    );
+    final cx = size.width / 2;
+    final cy = size.height * 0.44;
+    return Offset(
+      cx + math.cos(angle) * radius,
+      cy + math.sin(angle) * radius * 0.82,
+    );
+  }
+
+  Widget _buildAwakeToken(Size size) {
+    final pos = _tokenOffset(size);
+    return Positioned(
+      left: pos.dx - 30,
+      top: pos.dy - 30,
+      width: 60,
+      height: 60,
+      child: _AwakeTokenWidget(onTap: _showTokenCard),
+    );
+  }
+
+  /// 点纪念签：演出期间不可点（后到者让先）；小卡显示中或 15s
+  /// 冷却未满也不可点。弹卡后 5s 淡出。
+  void _showTokenCard() {
+    if (FullAwakeCtl.performanceActive) return;
+    final since = _tokenTapAt == null
+        ? double.infinity
+        : DateTime.now().difference(_tokenTapAt!).inMilliseconds / 1000.0;
+    if (!FullAwakeCtl.tokenTapAllowed(
+      showing: _tokenCardShown,
+      secondsSinceTap: since,
+    )) {
+      return;
+    }
+    _tokenTapAt = DateTime.now();
+    _tokenTimer?.cancel();
+    setState(() {
+      _tokenCardShown = true;
+      _tokenKoan = Koans.nextFullAwake();
+    });
+    _tokenTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _tokenCardShown = false);
+    });
   }
 
   String _formatDate(DateTime t) {
@@ -120,7 +195,9 @@ class _StarMapScreenState extends State<StarMapScreen> {
                 if (!_loaded) {
                   return const SizedBox.shrink();
                 }
-                if (_records.isEmpty) {
+                final hasStars = _records.isNotEmpty;
+                // 未满醒过且尚无星：保持原样的沉睡提示（零额外渲染）。
+                if (!hasStars && !_fullAwakePlayed) {
                   return Center(
                     child: Text(
                       '星图尚在沉睡……\n当光灵在漫游中轻轻拾起心镜碎片，\n这里会亮起第一颗星。',
@@ -136,8 +213,25 @@ class _StarMapScreenState extends State<StarMapScreen> {
                 }
                 return Stack(
                   children: [
-                    for (int i = 0; i < _records.length; i++)
-                      _buildStar(i, size),
+                    // 满醒纪念签（第 31 轮）：星座外缘一枚小小的印记。
+                    // 未满醒过则完全不出现（零渲染成本）。
+                    if (_fullAwakePlayed) _buildAwakeToken(size),
+                    if (hasStars)
+                      for (int i = 0; i < _records.length; i++)
+                        _buildStar(i, size),
+                    if (!hasStars)
+                      Center(
+                        child: Text(
+                          '星图尚在沉睡……\n当光灵在漫游中轻轻拾起心镜碎片，\n这里会亮起第一颗星。',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: ZenTheme.textMuted.withValues(alpha: 0.55),
+                            fontSize: 14,
+                            height: 2,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
                   ],
                 );
               },
@@ -183,6 +277,30 @@ class _StarMapScreenState extends State<StarMapScreen> {
                     text: _selected!.text,
                     date: _formatDate(_selected!.time),
                     region: _selected!.region,
+                  ),
+                ),
+              ),
+            ),
+          // 「满醒纪念签」小卡（第 31 轮）：玻璃拟态，印记文案 + 一句满醒偈，
+          // 5s 后淡出；纯展示层不拦截点击。
+          if (_fullAwakePlayed)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 110,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _tokenCardShown ? 1 : 0,
+                  duration: Duration(
+                    milliseconds: _tokenCardShown ? 700 : 900,
+                  ),
+                  curve: Curves.easeOut,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 56),
+                    child: _AwakeTokenCard(
+                      imprint: _fullAwakeCount.memorialText,
+                      koan: _tokenKoan ?? '',
+                    ),
                   ),
                 ),
               ),
@@ -1113,4 +1231,148 @@ class _NightArcPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NightArcPainter old) => old.sweep != sweep;
+}
+
+/// 「满醒纪念签」（第 31 轮）：星座外缘一枚小小的印记——
+/// 一粒金白光点 + 极细环形光晕，缓慢自转（约 90s 一圈），克制。
+/// 只有演过满醒终幕的玩家才会看到它。
+class _AwakeTokenWidget extends StatefulWidget {
+  const _AwakeTokenWidget({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_AwakeTokenWidget> createState() => _AwakeTokenWidgetState();
+}
+
+class _AwakeTokenWidgetState extends State<_AwakeTokenWidget>
+    with SingleTickerProviderStateMixin {
+  /// 自转周期 90s——极缓，只是"活着"的一瞥。
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: Duration(
+      milliseconds: (FullAwakeCtl.tokenSpinPeriod * 1000).round(),
+    ),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _spin,
+        builder: (context, _) => CustomPaint(
+          size: const Size(60, 60),
+          painter: _AwakeTokenPainter(angle: FullAwakeCtl.tokenAngle(_spin.value * FullAwakeCtl.tokenSpinPeriod)),
+        ),
+      ),
+    );
+  }
+}
+
+/// 纪念签画笔：中心一粒金白光点，外缘一圈极细光晕，
+/// 光晕上一枚微小的伴点缓慢绕行（自转的可视线索）。全部低透明度。
+class _AwakeTokenPainter extends CustomPainter {
+  _AwakeTokenPainter({required this.angle});
+
+  /// 当前自转角（弧度）。
+  final double angle;
+
+  static const Color _gold = Color(0xFFe8c87e);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    // 极细环形光晕。
+    canvas.drawCircle(
+      center,
+      17,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9
+        ..color = _gold.withValues(alpha: 0.14),
+    );
+    // 中心金白光点（带一点点呼吸感由外层不承担，保持静）。
+    canvas.drawCircle(
+      center,
+      4.5,
+      Paint()..color = _gold.withValues(alpha: 0.10),
+    );
+    canvas.drawCircle(
+      center,
+      2.0,
+      Paint()..color = ZenTheme.starWhite.withValues(alpha: 0.85),
+    );
+    // 伴点：环上极小一粒，随 angle 绕行——自转的唯一线索。
+    final dx = math.cos(angle) * 17;
+    final dy = math.sin(angle) * 17;
+    canvas.drawCircle(
+      Offset(center.dx + dx, center.dy + dy),
+      1.1,
+      Paint()..color = _gold.withValues(alpha: 0.55),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_AwakeTokenPainter old) => old.angle != angle;
+}
+
+/// 纪念签小卡：玻璃拟态，印记文案 + 一句满醒偈。极小、克制。
+class _AwakeTokenCard extends StatelessWidget {
+  const _AwakeTokenCard({required this.imprint, required this.koan});
+
+  final String imprint;
+  final String koan;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: ZenTheme.surfaceDim.withValues(alpha: 0.58),
+          border: Border.all(color: _tokenGold.withValues(alpha: 0.20)),
+        ),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                imprint,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _tokenGold.withValues(alpha: 0.9),
+                  fontSize: 13,
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                koan,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: ZenTheme.textHigh,
+                  fontSize: 15,
+                  height: 1.7,
+                  letterSpacing: 3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static const Color _tokenGold = Color(0xFFe8c87e);
 }
