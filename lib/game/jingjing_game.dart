@@ -11,6 +11,7 @@ import 'companion.dart';
 import 'day_tide.dart';
 import 'breath_mic.dart';
 import 'awakening.dart';
+import 'beast_gaze.dart';
 import 'full_awake.dart';
 import 'insomnia_sea.dart';
 import 'long_night.dart';
@@ -101,6 +102,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 星兽「惘」：雾林守林者（第 17 轮），相会演出读取其状态与端点。
   late final MistGuardian mistGuardian;
+
+  /// 星兽「注视」（第 51 轮）：久伴 + 平稳呼吸换来的回望。
+  /// 各兽一个控制器（纯逻辑在 beast_gaze.dart），内存态不持久化。
+  final BeastGazeCtl gazeSleep = BeastGazeCtl();
+  final BeastGazeCtl gazeMist = BeastGazeCtl();
 
   /// 静之径（第 14 轮），相会演出驱动其短暂亮起与径上尘聚拢。
   late final StillPath stillPath;
@@ -442,11 +448,16 @@ class JingjingGame extends FlameGame with TapCallbacks {
   /// 极淡地浮现一句入睡偈（UI 层调度触发；此处只选兽与渲染）。
   /// 重复触发时旧低语直接退场（synth 只有一句，礼仪一致）。
   void showBeastWhisper(String text) {
-    beastWhisper?.removeFromParent();
     // 距玩家较近的那只星兽（环绕最短距离判定）。
     final dSleep = _wrapDistance2(beast.pos, spiritPos);
     final dWang = _wrapDistance2(mistGuardian.pos, spiritPos);
-    beastWhisper = BeastWhisperText(text: text, followMist: dWang < dSleep);
+    showBeastWhisperFor(text, followMist: dWang < dSleep);
+  }
+
+  /// 指定跟随某只星兽的低语（第 51 轮「注视」用：谁回望谁低语）。
+  void showBeastWhisperFor(String text, {required bool followMist}) {
+    beastWhisper?.removeFromParent();
+    beastWhisper = BeastWhisperText(text: text, followMist: followMist);
     add(beastWhisper!);
   }
 
