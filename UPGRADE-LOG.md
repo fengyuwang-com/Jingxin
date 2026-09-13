@@ -834,3 +834,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 星花支线深化：花开与心境区域联动（不同区域种出不同色系/瓣形的花）；或星花连缀成"花径"——相邻花之间浮现极淡的径线。
+
+## 第 56 轮（2026-09-14）—— 星花映境：花随心境区域而异
+- 理念：花记得它出生的地方。种花瞬间按光灵旧位所处的心境区域取一组确定性调色/瓣形微调，之后花不再随光灵移动换色——星花支线第二轮，世界因心境而异。
+- 实现：
+  - 纯函数（lib/game/regions.dart）：抽出 `GameRegion.regionAtPoint(x, y)`（原 regionAt 逻辑收敛为纯双参版本，regionAt 委托之，行为不变）。世界是环绕环面：坐标先对周期取模（Dart % 恒非负，负/超界坐标自动落回），再按深度带从两端向中间匹配，雾林水平带命中接缝两侧（含跨缝环绕点），都不命中回落失眠之海。
+  - 纯函数（lib/game/breath_flower.dart 追加）：`FlowerMood` 六心境枚举（海/渊/荒原/雾林/静之径/惘）+ 不可变 `FlowerPalette`（花瓣色/花心色/瓣形微调 petalAdjust ∈ -1..1，加到基础瓣数 5..7 后夹 4..8）+ `flowerPaletteFor`（六组确定性低饱和 CYBER-ZEN 调色：海·月白蓝 0xFF9fd8e8、渊·深青 0xFF5f8fa8、荒原·暖沙金 0xFFd8c098、雾林·灰青绿 0xFF8fc4b0、径·淡金白 0xFFddd6c2、惘·灰紫 0xFF9b8fb8）+ `flowerKinVariance(seed)`（同区微差：亮度因子 0.84..1.0 + 旋转相位 0..2π，Knuth 散列确定性，避免整齐划一）。
+  - 接线（jingjing_game.dart BreathFlowerGarden._spawnFlower）：种花瞬间按旧位解析心境——drifting/dissolving 惑星 wrapDelta<120px → 惘；静之径上（<40px）→ 静之径；否则 GameRegion.regionAt → 四深度带。调色/瓣形/相位在出生时一次性确定并写进 _Flower（petalColor/coreColor 复用字段，零每帧分配）；谢幕光尘沿用谢幕之花出生地的花瓣色。语义「花记得它出生的地方」写进 _Flower 与 _spawnFlower 注释。
+- 测试（test/flower_mood_test.dart 新增 11 项，255→266）：regionAtPoint 四深度带归属、负/超界环绕（含 -0.95h→荒原、x 跨缝两向）、深度带边界点（0.80/0.79、0.18/0.19）、雾林门带边界（0.28/0.72/带外回落海）、regionAt 与 regionAtPoint 一致；六心境调色确定性+互不相同+瓣形微调界内+饱和度/亮度上限（不刺眼）；flowerKinVariance 确定性/界内/分散度（200 seed >50 种亮度）。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 266/266；flutter build web 成功。
+- commit：209e0d3（feat(game): 星花映境——花随心境区域而异 [auto-night-56]，未 push）。
+- 下一步建议（第 57 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 星花支线深化：相邻花之间浮现极淡「花径」连线；或按区域统计已开花数做「花境图鉴」式的温和回顾。
