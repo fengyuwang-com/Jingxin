@@ -13,6 +13,7 @@ import 'breath_mic.dart';
 import 'awakening.dart';
 import 'beast_gaze.dart';
 import 'breath_flower.dart';
+import 'breath_flower_landmark.dart';
 import 'flower_ledger_store.dart';
 import 'full_awake.dart';
 import 'insomnia_sea.dart';
@@ -350,6 +351,9 @@ class JingjingGame extends FlameGame with TapCallbacks {
         ),
       );
     }
+    // 花开之地（第 59 轮）：画在星花层之下——图鉴余温的世界侧呼应，
+    // 「这里曾开过很多花」的极淡静止光晕，不是目标也不是提示。
+    add(LandmarkLayer(store: _flowerGarden.ledgerStore));
     // 星花花园：画在光灵身后（先 add 先画，被光灵覆盖）——呼吸的
     // 痕迹（第 55 轮），不给碎片不给分数，纯粹是世界的美与回应。
     add(_flowerGarden);
@@ -1390,6 +1394,9 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
   // 只是回忆，不是资源。
   final FlowerLedgerStore _ledgerStore = FlowerLedgerStore();
 
+  /// 花之账的存取（花开之地层读取同一份账本刷余温亮度，第 59 轮）。
+  FlowerLedgerStore get ledgerStore => _ledgerStore;
+
   @override
   Future<void> onLoad() async {
     await _ledgerStore.load();
@@ -1685,4 +1692,101 @@ class _FlowerDust {
   bool active = false;
   double t = 0;
   Color petalColor = const Color(0xFF9fd8e8);
+}
+
+/// 花开之地（第 59 轮）：图鉴余温落在世界上。
+///
+/// 对花境账本里开过花（计数 > 0）的每个心境区域，在世界的确定性
+/// 一处（[landmarkSpotFor]，纯函数可测）画一枚极淡的静止光晕——
+/// 「这里曾开过很多花」的余温。**它不是目标、不是提示、不做任何
+/// 引导，不参与任何经济/进度系统**（写死语义，防后续轮误加）。
+///
+/// 性能纪律：Paint 构造期预生成、每帧零分配；落点/亮度每秒节拍刷
+/// 一次（绝不每帧重算）；alpha 全链 0.02 量化 + BlendMode.screen；
+/// 屏外剔除 + 3x3 环绕镜像沿用星岛约定；长夜时随 nightAmount 让位
+/// （复用 DayTide.tideEffectiveAlpha 的长夜让位思路）——余温入眠。
+class LandmarkLayer extends Component with HasGameReference<JingjingGame> {
+  LandmarkLayer({required FlowerLedgerStore store}) : _store = store;
+
+  final FlowerLedgerStore _store;
+
+  /// 每秒节拍的刷新计时（首拍即刷，读盘完成即同步点亮）。
+  double _beat = 1.0;
+
+  // 构造期预生成（零每帧分配；颜色/alpha 只改 Paint 字段）。
+  final Paint _paint = Paint()..blendMode = BlendMode.screen;
+
+  /// 当前有余温的区域落点（每次节拍重建，至多六条——量小可忽略）。
+  final List<({double x, double y, double alpha, Color color})> _spots = [];
+
+  /// 从花之账刷新余温落点（每秒一次，不每帧）。
+  void _refresh() {
+    if (!_store.loaded) return;
+    final period = JingjingGame.worldPeriod;
+    _spots.clear();
+    for (final mood in FlowerMood.values) {
+      final i = mood.index;
+      final count =
+          i < _store.ledger.length ? _store.ledger[i] : 0;
+      final s = landmarkSpotFor(
+        mood,
+        count,
+        worldW: period.x,
+        worldH: period.y,
+      );
+      if (s.alpha <= 0) continue;
+      _spots.add(
+        (
+          x: s.x,
+          y: s.y,
+          alpha: s.alpha,
+          color: flowerPaletteFor(mood).petal,
+        ),
+      );
+    }
+  }
+
+  @override
+  void update(double dt) {
+    _beat += dt;
+    if (_beat >= 1.0) {
+      _beat = 0;
+      _refresh();
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (_spots.isEmpty) return;
+    final intro = game.introEase;
+    if (intro <= 0.01) return; // 开场世界还黑着，余温未醒。
+    final size = game.size;
+    final period = JingjingGame.worldPeriod;
+    final night = game.nightAmount;
+    for (final s in _spots) {
+      // 长夜让位（复用 tideEffectiveAlpha 的思路，但不复用其
+      // maxAlpha=0.05 封顶——余温自己的峰值是 0.08）：
+      // 有效 alpha = 基础 alpha × (1 - nightAmount)，长夜全开时为 0。
+      final alpha = flowerQuantize(
+        (s.alpha * intro * (1.0 - night.clamp(0.0, 1.0))).clamp(0.0, 1.0),
+      );
+      if (alpha <= 0) continue;
+      _paint.color = s.color.withValues(alpha: alpha);
+      // 环绕绘制（世界锁定 1.0 视差 + 3x3 镜像，同星岛约定）。
+      for (int ox = -1; ox <= 1; ox++) {
+        for (int oy = -1; oy <= 1; oy++) {
+          final cx = size.x / 2 + s.x + ox * period.x - game.camPos.x;
+          final cy = size.y / 2 + s.y + oy * period.y - game.camPos.y;
+          if (cx < -90 || cx > size.x + 90 || cy < -90 || cy > size.y + 90) {
+            continue; // 屏外剔除。
+          }
+          // 静止双层光晕：中心稍实、外圈更淡（零分配的柔边近似）。
+          canvas.drawCircle(Offset(cx, cy), 12, _paint);
+          _paint.color = s.color.withValues(alpha: flowerQuantize(alpha * 0.5));
+          canvas.drawCircle(Offset(cx, cy), 32, _paint);
+          _paint.color = s.color.withValues(alpha: alpha);
+        }
+      }
+    }
+  }
 }
