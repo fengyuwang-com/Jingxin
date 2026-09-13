@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -6,7 +7,9 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../game/breath_mic.dart';
 import '../game/jingjing_game.dart';
+import '../game/koans.dart';
 import '../game/soundscape.dart';
+import '../game/voice.dart';
 import 'star_map_screen.dart';
 
 /// 静境游戏画面：全屏 Flame GameWidget 展示呼吸光灵，可返回首页。
@@ -63,6 +66,18 @@ class _JingjingScreenState extends State<JingjingScreen>
   String? _toastText;
   Timer? _toastTimer;
 
+  // ---- 闻声（第 12 轮）：引导词轻声朗读，完全可选、默认关闭 ----
+  /// 朗读引擎（Web 用浏览器原生 SpeechSynthesis；非 Web stub 静音，
+  /// isSupported=false → UI 直接隐藏开关）。
+  final VoiceEngine _voice = VoiceEngineImpl();
+
+  /// 朗读开关持久化（key jingxin.voice.v1，默认关）。
+  final VoicePreference _voicePref = VoicePreference();
+  bool _voiceOn = false;
+
+  /// 长夜入睡引导的随机低频朗读计时器（90~150 秒一次）。
+  Timer? _whisperTimer;
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +98,14 @@ class _JingjingScreenState extends State<JingjingScreen>
       setState(() => _scene = _pref.scene);
       _game.setSoundscapeScene(_pref.scene);
     });
+    // 闻声：朗读时把声景 master gain 轻压下去，读完缓缓恢复。
+    _voice.onSpeakingStart = (_) => _soundscape?.duck(active: true);
+    _voice.onSpeakingEnd = (_) => _soundscape?.duck(active: false);
+    _voicePref.load().then((_) {
+      if (!mounted) return;
+      setState(() => _voiceOn = _voicePref.enabled);
+      _syncWhisperTimer();
+    });
   }
 
   /// 碎片被吸入：禅语玻璃面板淡入，停留数秒后自行淡出。
@@ -97,6 +120,8 @@ class _JingjingScreenState extends State<JingjingScreen>
 
   void _showKoan(String koan) {
     setState(() => _koanText = koan);
+    // 闻声：开启朗读时轻声读出这句禅语（禅语不因触摸取消，让它读完）。
+    if (_voiceOn) _voice.speak(koan, kind: VoiceKind.koan);
     _koanTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) setState(() => _koanText = null);
     });
@@ -111,7 +136,9 @@ class _JingjingScreenState extends State<JingjingScreen>
     _game.shardMessage.removeListener(_onShardMessage);
     _koanTimer?.cancel();
     _toastTimer?.cancel();
+    _whisperTimer?.cancel();
     _soundscape?.stop(fadeOut: 1.5);
+    _voice.cancelAll(); // 退出静境：一切朗读停止。
     unawaited(_micEngine?.stop()); // 彻底释放麦克风流与轨道。
     _game.awakening.save();
     super.dispose();
@@ -125,6 +152,7 @@ class _JingjingScreenState extends State<JingjingScreen>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.inactive) {
       unawaited(_soundscape?.stop(fadeOut: 0.8));
+      _voice.cancelAll(); // 切后台：朗读立即停止，绝不从后台冒出声音。
     } else if (state == AppLifecycleState.resumed && _nightMode) {
       final engine = _soundscape ??= SoundscapeEngineImpl();
       unawaited(engine.start(fadeIn: 3.0));
@@ -188,8 +216,37 @@ class _JingjingScreenState extends State<JingjingScreen>
       final engine = _soundscape ??= SoundscapeEngineImpl();
       await engine.select(_scene); // 未播放时只记录选择
       unawaited(engine.start(fadeIn: 4.0));
+      _syncWhisperTimer(); // 闻声：长夜里随机低频的入睡引导。
     } else {
+      _whisperTimer?.cancel();
+      _voice.cancelAll(); // 退出长夜：声景淡出的同时朗读也停。
       unawaited(_soundscape?.stop(fadeOut: 3.0));
+    }
+  }
+
+  /// 长夜入睡引导：每 90~150 秒随机一次，轻声读一句极短句。
+  /// 极低频率——引导词是夜里偶尔飘过的一句，不是旁白。
+  void _syncWhisperTimer() {
+    _whisperTimer?.cancel();
+    if (!_nightMode || !_voiceOn) return;
+    _whisperTimer = Timer(Duration(seconds: 90 + math.Random().nextInt(61)), () {
+      if (!mounted || !_nightMode || !_voiceOn) return;
+      _voice.speak(Koans.nextWhisper(), kind: VoiceKind.whisper);
+      _syncWhisperTimer();
+    });
+  }
+
+  /// 开/关「闻声」：持久化；关闭时停掉一切朗读与长夜计时器。
+  Future<void> _toggleVoice() async {
+    final on = !_voiceOn;
+    setState(() => _voiceOn = on);
+    await _voicePref.save(on);
+    if (on) {
+      _showToast('闻声已开');
+      _syncWhisperTimer();
+    } else {
+      _whisperTimer?.cancel();
+      _voice.cancelAll();
     }
   }
 
@@ -210,7 +267,14 @@ class _JingjingScreenState extends State<JingjingScreen>
       backgroundColor: ZenTheme.voidBlack,
       body: Stack(
         children: [
-          Positioned.fill(child: GameWidget(game: _game)),
+          // 游戏本体：包一层 Listener——用户任何触摸交互时，若正在
+          // 朗读入睡引导则立即取消（禅语朗读不受影响，让它读完）。
+          Positioned.fill(
+            child: Listener(
+              onPointerDown: (_) => _voice.cancelWhisper(),
+              child: GameWidget(game: _game),
+            ),
+          ),
           // 长夜遮罩：整体缓缓转入深夜色调（更暗），不挡任何操作。
           Positioned.fill(
             child: IgnorePointer(
@@ -573,6 +637,37 @@ class _JingjingScreenState extends State<JingjingScreen>
               ),
             ),
           ),
+          // 左下角极小的喇叭入口（第 12 轮「闻声」）：禅语轻声朗读的
+          // 开关，与随息/长夜入口同一风格的角落图标。浏览器尚未加载出
+          // 任何可用声音时（available=false）整个入口隐藏，绝不弹窗。
+          if (_voice.isSupported)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 12, bottom: 62),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _voice.available,
+                    builder: (context, available, _) {
+                      if (!available) return const SizedBox.shrink();
+                      return IconButton(
+                        tooltip: _voiceOn ? '闻声 · 轻声念' : '闻声',
+                        icon: Icon(
+                          _voiceOn
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_off_rounded,
+                          size: 20,
+                          color: ZenTheme.textMuted.withValues(
+                            alpha: _voiceOn ? 0.85 : 0.5,
+                          ),
+                        ),
+                        onPressed: _toggleVoice,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
           // 右下角极小的月亮入口：长夜的开关，克制如一枚月痕。
           SafeArea(
             child: Align(
@@ -610,7 +705,16 @@ class _JingjingScreenState extends State<JingjingScreen>
                     Navigator.of(context).push(
                       PageRouteBuilder<void>(
                         transitionDuration: ZenMotion.page,
-                        pageBuilder: (_, _, _) => const StarMapScreen(),
+                        pageBuilder: (_, _, _) => StarMapScreen(
+                          // 闻声（可选）：点星时轻声读那句偈语——仅当
+                          // 用户开了朗读才传，否则完全静默。
+                          onSpeakKoan: _voiceOn
+                              ? (koan) => _voice.speak(
+                                  koan,
+                                  kind: VoiceKind.koan,
+                                )
+                              : null,
+                        ),
                         transitionsBuilder: (_, animation, _, child) =>
                             FadeTransition(
                               opacity: CurvedAnimation(

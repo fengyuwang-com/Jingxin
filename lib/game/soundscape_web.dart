@@ -28,6 +28,9 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
   SoundscapeScene _scene = SoundscapeScene.sea;
   bool _playing = false;
 
+  /// 是否处于朗读 duck 状态（start 时也尊重该状态）。
+  bool _ducked = false;
+
   @override
   SoundscapeScene get scene => _scene;
 
@@ -53,8 +56,8 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
       layer.fadeTo(layer.targetVolume, fadeIn);
 
       _playing = true;
-      // master 保持常开（0.5），淡入淡出全部由各层 bus 负责。
-      master.gain.value = 0.5;
+      // master 保持常开（0.5，朗读 duck 时 0.3），淡入淡出全部由各层 bus 负责。
+      master.gain.value = _ducked ? 0.3 : 0.5;
     } catch (_) {
       // 浏览器不支持/被策略拦截：静默降级，不打扰长夜。
       _playing = false;
@@ -103,6 +106,24 @@ class SoundscapeEngineImpl implements SoundscapeEngine {
       layer.fadeTo(layer.targetVolume, crossfade);
     } catch (_) {
       // 切换失败静默降级。
+    }
+  }
+
+  @override
+  void duck({required bool active}) {
+    _ducked = active;
+    final ctx = _ctx;
+    final master = _master;
+    if (ctx == null || master == null || !_playing) return;
+    try {
+      final now = ctx.currentTime;
+      // duck 约 1 秒压下去，恢复约 2 秒缓缓浮回来——比朗读本身更柔。
+      final seconds = active ? 1.0 : 2.0;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(master.gain.value, now);
+      master.gain.linearRampToValueAtTime(active ? 0.3 : 0.5, now + seconds);
+    } catch (_) {
+      // duck 失败无伤大雅：朗读照常进行。
     }
   }
 

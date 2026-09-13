@@ -65,6 +65,26 @@ class Koans {
 
   static final List<int> _heathRecent = [];
 
+  /// 「入睡引导」极短句池（第 12 轮「闻声」）：长夜里极低频率轻声读出。
+  /// 主题是睡眠接近感——描述性的、留白的，勿鸡汤勿命令式。
+  static const List<String> _whisperPool = [
+    '眼皮沉了。',
+    '世界收灯了。',
+    '不必想，只需要在。',
+    '海把今天轻轻收起来了。',
+    '呼吸慢下来，夜就更深一点。',
+    '没有什么需要你现在做完。',
+    '星星一颗一颗熄了，留给你的刚刚好。',
+    '潮水退到很远的地方去了。',
+    '你不用守着什么，夜替你守着。',
+    '困意是来接你的，不着急。',
+  ];
+
+  static final List<int> _whisperRecent = [];
+
+  /// 入睡引导极短句（长夜朗读用，与碎片禅语互不干扰）。
+  static String nextWhisper() => _draw(_whisperPool, _whisperRecent);
+
   /// 随机取一句，保证与最近取过的几句不重复。
   static String next() => _draw(_pool, _recent);
 
