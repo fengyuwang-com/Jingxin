@@ -1,4 +1,6 @@
 # Jingxin TODO
+- [x] 第23轮：初次入静——开场呼吸引导演出（新增 lib/game/onboarding.dart：OnboardingPreference 键 jingxin.onboarded.v1 仅首次且未开随息装配/老用户随息用户零打扰/开启随息即 cancelOnboarding 永不再现；OnboardingDirector 纯逻辑状态机可测；OnboardingOverlay 渲染层「按住·吸/松开·呼」随呼吸相位淡入淡出 0.05 档量化缓存，3 个平稳循环（复用 cycleCount 平稳判定）后渐隐谢幕禅意短句「呼吸还在，世界就醒着。」，60s 内完成触发星潮三圈波纹奖励；jingjing_game 装配+breathPressing/breathPhase getter；analyze 19 基线无新增/test 29 项全过(+5)/build web 通过，commit 36cce35）
+
 
 ## 愿景（2026-09-13 定稿）
 把静心从冥想工具重构成游戏《静境》：呼吸即唯一操作、无失败无分数、苏醒度即进度、心境星图 + 心镜碎片、睡前长夜收尾。视觉保持 CYBER-ZEN。

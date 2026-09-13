@@ -315,3 +315,20 @@
 - 测试：新增 test/weary_heath_test.dart（4 项边界：保底 0.08、微进度冷回 0、零不生火、恰在余温线守住）。总计 24 项全过。
 - 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 24/24；flutter build web 成功。
 - commit：8b28d28（未 push）。
+
+## 第 23 轮（2026-09-13）— 初次入静：开场呼吸引导演出（onboarding）
+- 理念：无教程弹窗、无文字轰炸，用世界本身教玩家呼吸。
+- 触发（零打扰）：仅当 shared_preferences `jingxin.onboarded.v1` 不存在（首次）且本次未开启随息麦克风时装配；老用户与随息用户完全不装配，谢幕后永不再现。用户在引导中开启随息 → 引导立即静默退场并打标记（`JingjingGame.cancelOnboarding`）。
+- 演出（新增 lib/game/onboarding.dart）：
+  - 引导期：光灵下方浮现极简半透明节奏提示——「按住 · 吸」，用户按下时切换「松开 · 呼」（新公开 getter breathPressing/breathPhase）；alpha 随呼吸相位 sin(progress·π) 淡入淡出，按 0.05 档位量化缓存（准周期暖机后零成本）。
+  - 谢幕：复用游戏侧平稳循环判定（cycleCount 只统计 ≥3.5s 的循环），前 3 个循环后提示渐隐，浮现自创禅意短句「呼吸还在，世界就醒着。」（风格同 koans.dart），停留 7s 后打上 onboarded 标记并整体退场。
+  - 提前谢幕奖励：60s 内完成 3 个平稳循环（OnboardingDirector 记账 elapsed≤60）→ 谢幕时光灵处三圈青色星潮波纹错落扩散（3.2s，与相会涟漪同视觉语言）。
+- 结构：OnboardingPreference（持久化）/ OnboardingDirector（纯逻辑状态机，可测）/ OnboardingOverlay（Flame 渲染层，画笔与文字预排版，done 后 removeFromParent 零成本）。
+- 装配：jingjing_game.dart onLoad 末尾条件装配（渲染最上层）；jingjing_screen.dart 随息开启时调用 cancelOnboarding。
+- 测试：新增 test/onboarding_test.dart 5 项纯逻辑（未满 3 循环不谢幕 / ≤60s 提前谢幕 / >60s 无奖励 / cycleCount 跳变补齐+finished 锁存 / 初始 cycleCount 增量兼容）。总计 29 项全过。
+- 质量门槛：flutter analyze 19 条（基线持平，0 error）；flutter test 29/29；flutter build web 成功。
+- commit：36cce35（未 push）。
+- 下一步建议（第 24 轮）三选一：
+  1. Android 真机验证：adb install arm64 瘦身包，跑通触控/引导演出/随息/声景全链路。
+  2. GitHub Pages 部署 Web 版（需主人确认 push）。
+  3. 引导演出的真机观感微调：提示文字位置/透明度档位/星潮半径的可玩性调参。
