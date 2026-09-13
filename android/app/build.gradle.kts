@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.meditation.jingxin_meditation"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // No native code in this app: skip NDK (auto-download from dl.google.com is blocked/slow here).
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

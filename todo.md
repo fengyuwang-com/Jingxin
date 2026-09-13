@@ -5,10 +5,11 @@
 
 ## 队列
 - [ ] 通宵升级循环运行中：每 20 分钟一轮《静境》游戏化增量（automation-1ded3cbe-a45e-4b61-8964-f74fc9a7ca6a），进度看 UPGRADE-LOG.md 和 git log
-- [ ] （可选）flutter doctor --android-licenses 正在后台签署
 - [ ] （可选）装 Visual Studio C++ 工作负载以支持 Windows 桌面构建
 
 ## 已完成
+
+- [x] 第20轮：Android 构建链路验证（licenses 全签 doctor [√]；修 JDK25↔Gradle8.14 不兼容→Adoptium21 + 项目 gradle.properties 固定；独立 GRADLE_USER_HOME .gradle-jingxin 隔离全局 JDK25 强制配置；web/index.html title「静境 · 用呼吸玩」+description；analyze 0 error/test 20 过/build web 过，commit f155a18；APK 因 AGP 自动下载 NDK r27（dl.google.com 慢）仍在后台进行，下轮收尾）
 
  - [x] 第18轮：「相会」——眠与惘的稀有时刻（新增 lib/game/reunion.dart：纯函数触发判定 ReunionTrigger（眠游弋期+惘 reveal>0.85+苏醒度>0.5+光灵离两兽连线中点<260，且仅在平稳呼吸循环瞬间评估）+ 小状态机演出 ReunionPhase（approach 26s 各移近≤200px→glow 8s 星光细线+静之径短暂亮起+径上尘聚拢小圈+中点星→3 圈青色深海鸣涟漪 3.2s→retreat 16s 各退回），全程无文字无锁定；双星碎片金色 0xFFe8c96a 走拾取/星图全链路 region「两兽之间」+ 相会偈语池 2 句；swimUntilEpoch 记账每游弋周期至多一次；test/reunion_test.dart 6 项；analyze 0 error（19基线）/test 20 全过/build web 通过，commit e51c665）
 - [x] 第17轮：星兽惘——雾林守林者（新增 lib/game/mist_guardian.dart：11 节点星座狐+5 节细尾，锚点 nx0.06/ny0.50 视差 0.80 比林稍深，平时 alpha≤0.06 青灰微光；苏醒与眠差异化=显形度直接跟随雾林沉降度（升限速 60s 最短渐进、雾回升退回雾里），显形后向光灵走出几步≤140px+尾轻摆+眼亮柔光；完全显形>0.85+靠近<300+平稳循环→2.8s 点头轻触送金色心镜碎片（MindShard gift 标记+惘语池 3 句：被看见/不孤单），每显形期至多一次；性能按 16 轮纪律（Path 缓存/画笔复用/眼辉光量化缓存/屏外跳过/低档雾尘 5）；analyze 0 error（19 基线）/test 14 全过/build web 通过）
