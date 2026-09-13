@@ -8,6 +8,7 @@ import 'package:flutter/material.dart' hide Draggable;
 import '../core/theme.dart';
 import 'awakening.dart';
 import 'insomnia_sea.dart';
+import 'long_night.dart';
 import 'shard.dart';
 import 'star_beast.dart';
 
@@ -38,6 +39,13 @@ class JingjingGame extends FlameGame with TapCallbacks {
 
   /// 心镜碎片收集史（持久化），星图回读用。
   final ShardCollection shardCollection = ShardCollection();
+
+  /// 长夜记忆：是否进入过长夜（只存不用，供后续睡前章节统计）。
+  final LongNightMemory longNight = LongNightMemory();
+
+  /// 长夜程度（0..1）：setNight 后极缓滑向目标，驱动深夜色调/星亮/光晕收拢。
+  double nightAmount = 0;
+  bool _nightTarget = false;
 
   /// 本轮程序放置的碎片（2~4 片，极稀疏）。
   final List<MindShard> shards = [];
@@ -103,6 +111,7 @@ class JingjingGame extends FlameGame with TapCallbacks {
   Future<void> onLoad() async {
     await awakening.load();
     await shardCollection.load();
+    await longNight.load();
     awakeningValue.value = awakening.value;
 
     final stars = <_Star>[];
@@ -201,6 +210,16 @@ class JingjingGame extends FlameGame with TapCallbacks {
     _updateAwakening(dt);
     _updateDrift(dt);
     _updateShards(dt);
+
+    // 长夜渐变：约 4 秒缓缓滑向目标，不瞬跳。
+    final nightGoal = _nightTarget ? 1.0 : 0.0;
+    nightAmount += (nightGoal - nightAmount) * math.min(1.0, dt * 0.8);
+    if ((nightAmount - nightGoal).abs() < 0.002) nightAmount = nightGoal;
+  }
+
+  /// 进入/退出长夜（声音淡入淡出由 UI 层的声景引擎负责）。
+  void setNight(bool on) {
+    _nightTarget = on;
   }
 
   /// 碎片吸入完成：记录收集史 + 通知 UI 浮现禅语。不打断漫游。
@@ -392,7 +411,10 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
       const Color(0xFF101828),
       0.35 * aw,
     )!;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), Paint()..color = bg);
+    // 长夜：整体转入更深的夜色（比苏醒底色更暗）。
+    final night = game.nightAmount;
+    final deepBg = Color.lerp(bg, const Color(0xFF030711), 0.85 * night)!;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), Paint()..color = deepBg);
 
     // 中央星云微光：随苏醒度扩散、色温偏暖。
     final nebulaInner = Color.lerp(
@@ -405,7 +427,7 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
           RadialGradient(
             colors: [
               nebulaInner.withValues(alpha: 0.85 + 0.15 * aw),
-              bg,
+              deepBg,
             ],
           ).createShader(
             Rect.fromCircle(
@@ -420,9 +442,12 @@ class _Starfield extends Component with HasGameReference<JingjingGame> {
           0.55 +
           0.45 * math.sin(_elapsed * star.twinkleSpeed * 2 + star.twinklePhase);
       // 亮度与闪烁幅度随苏醒度增强；高苏醒时更多星星参与闪烁。
-      final active = star.twinkleSpeed > 1.6 - 1.1 * aw || aw > 0.85;
+      final active =
+          star.twinkleSpeed > 1.6 - 1.1 * aw || aw > 0.85 || night > 0.5;
       final twinkleAmp = active ? 0.25 + 0.5 * aw : 0.0;
-      final brightness = (0.22 + 0.35 * aw) + twinkleAmp * twinkle;
+      // 长夜：星更亮，暗星也被轻轻托起。
+      final brightness =
+          (0.22 + 0.35 * aw + 0.22 * night) + twinkleAmp * twinkle;
       final paint = Paint()
         ..color = ZenTheme.starWhite.withValues(
           alpha: brightness.clamp(0.0, 1.0),
@@ -485,8 +510,10 @@ class LightSpirit extends Component with HasGameReference<JingjingGame> {
     final rise = -size.y * 0.05 * breatheProgress;
     final orbCenter = Offset(center.dx, center.dy + rise);
     final maxRadius = math.min(size.x, size.y) * 0.18;
-    final radius = maxRadius * expansion;
-    final glow = (0.35 + 0.65 * breatheProgress) * glowBoost;
+    // 长夜：光晕收拢变柔——外层辉光更小更淡，本体稍收。
+    final nightSoften = 1.0 - 0.3 * game.nightAmount;
+    final radius = maxRadius * expansion * nightSoften;
+    final glow = (0.35 + 0.65 * breatheProgress) * glowBoost * nightSoften;
 
     // 多层呼吸光晕。
     for (int i = 5; i >= 0; i--) {

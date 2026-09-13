@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../game/jingjing_game.dart';
+import '../game/soundscape.dart';
 import 'star_map_screen.dart';
 
 /// 静境游戏画面：全屏 Flame GameWidget 展示呼吸光灵，可返回首页。
@@ -23,6 +24,13 @@ class JingjingScreen extends StatefulWidget {
 class _JingjingScreenState extends State<JingjingScreen> {
   late final JingjingGame _game;
   Timer? _koanTimer;
+
+  /// "海之白噪音"声景（Web 合成实现；非 Web 平台静音降级）。
+  /// 懒创建：首次进入长夜（用户手势内）才真正初始化 AudioContext。
+  SeaSoundscape? _soundscape;
+
+  /// 长夜模式：true 时世界缓缓入夜，白噪音极缓淡入。
+  bool _nightMode = false;
 
   @override
   void initState() {
@@ -54,8 +62,25 @@ class _JingjingScreenState extends State<JingjingScreen> {
   void dispose() {
     _game.shardMessage.removeListener(_onShardMessage);
     _koanTimer?.cancel();
+    _soundscape?.stop(fadeOut: 1.5);
     _game.awakening.save();
     super.dispose();
+  }
+
+  /// 进入/退出长夜：世界渐暗 + 星更亮（game 侧渐变），白噪音淡入淡出。
+  /// 首次点击（用户手势）时才创建 AudioContext，规避浏览器自动播放限制。
+  Future<void> _toggleNight() async {
+    final entering = !_nightMode;
+    setState(() => _nightMode = entering);
+    _game.setNight(entering);
+    if (entering) {
+      await _game.longNight.markVisited();
+      unawaited(
+        (_soundscape ??= SeaSoundscapeImpl()).start(fadeIn: 4.0),
+      );
+    } else {
+      unawaited(_soundscape?.stop(fadeOut: 3.0));
+    }
   }
 
   @override
@@ -65,6 +90,18 @@ class _JingjingScreenState extends State<JingjingScreen> {
       body: Stack(
         children: [
           Positioned.fill(child: GameWidget(game: _game)),
+          // 长夜遮罩：整体缓缓转入深夜色调（更暗），不挡任何操作。
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedContainer(
+                duration: const Duration(seconds: 4),
+                curve: Curves.easeOut,
+                color: _nightMode
+                    ? const Color(0xFF02040C).withValues(alpha: 0.42)
+                    : const Color(0xFF02040C).withValues(alpha: 0),
+              ),
+            ),
+          ),
           // 顶端极细渐变光线：苏醒度的无声表达。
           Positioned(
             top: 0,
@@ -144,6 +181,48 @@ class _JingjingScreenState extends State<JingjingScreen> {
                         ? const SizedBox.shrink()
                         : _KoanGlassPanel(text: _koanText!),
                   ),
+                ),
+              ),
+            ),
+          ),
+          // 长夜提示：世界睡了，你也可以睡了。极淡、缓缓浮现。
+          Positioned(
+            bottom: 86,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: _nightMode ? 1 : 0,
+                duration: const Duration(seconds: 3),
+                curve: Curves.easeOut,
+                child: Text(
+                  '世界睡了，你也可以睡了',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: ZenTheme.textMuted.withValues(alpha: 0.45),
+                    fontSize: 13,
+                    letterSpacing: 5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // 右下角极小的月亮入口：长夜的开关，克制如一枚月痕。
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: IconButton(
+                  tooltip: _nightMode ? '退出长夜' : '长夜',
+                  icon: Icon(
+                    _nightMode ? Icons.nightlight_round : Icons.nightlight_outlined,
+                    size: 20,
+                    color: ZenTheme.textMuted.withValues(
+                      alpha: _nightMode ? 0.85 : 0.5,
+                    ),
+                  ),
+                  onPressed: _toggleNight,
                 ),
               ),
             ),
