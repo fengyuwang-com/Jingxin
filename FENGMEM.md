@@ -562,3 +562,10 @@
 - AI 行动: 读 UPGRADE-LOG 末三轮与 git log；在 lib/game/breath_sound.dart 新增 breathDawnProgress/breathDawnFactor 纯函数（smoothstep，daylight≤0 不回涨、≥0.5 全量）；改 lib/screens/jingjing_screen.dart 的 _syncBreathLull 用 DayTide.daylight 复合夜间系数；Web 发声复用第 45 轮 lullGain+setTargetAtTime 路径零改动；test/breath_sound_test.dart 新增 4 项测试。
 - 产出: commit e76ee55（未 push）；analyze 19 条基线 0 error；test 150/150；build web 成功；UPGRADE-LOG.md 追加第 47 轮记录。
 - 关键决策: 复合公式 factor = nightFactor + (1-nightFactor)×dawnProgress（天亮前严格等于夜间系数、回涨后恒 1.0），不乘法复合以保单调无跳变；kBreathDawnFullDaylight=0.5（约上午 9:00 回涨完成）；Android 无对应音量逻辑不强加。
+
+## 2026-09-14 05:10 — 第 48 轮
+- 用户要求: 通宵自动升级第 48 轮——Web 端分享卡长按预览：长按「带走星图」全屏看卡（黑幕+等比缩放安全区内、点击/关闭钮淡出、隐式动画），Web 提示保存行为、桌面 hover 显示；保存入口不被阻塞；纯函数抽缩放比并补单测；门槛全过、不 push。
+- AI 行动: star_card.dart 加 fitCardToScreen 纯函数（不放大/非法退原尺寸）；star_map_screen.dart 抽 _renderCardImage 共用、IconButton 外包 onLongPressStart、加全屏预览层（AnimatedOpacity/AnimatedScale、LayoutBuilder+RawImage、350ms 后释放 ui.Image、kIsWeb 提示/MouseRegion hover）；新建 test/star_card_preview_test.dart 6 项。
+- 产出: commit 4968acc + docs commit（未 push）；analyze 19 条基线 0 error；test 156/156（+6）；build web 成功；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 预览与导出共用同一渲染（_renderCardImage）保证"看到的就是带走的"；缩放纯函数设计为"永不放大、宁可原大也不消失"；Web 提示指回「带走星图」按钮而非造预览内保存（浏览器长按图片语义不同、不抢现有 anchor download 路径）；预览层关闭态 IgnorePointer 零命中 + 隐式动画无每帧重建。
+- 下一步建议: 主人授权 push + 开启 Pages 验证首次部署（最高优先）；Android 真机验证；预览层内可加「收下」就地保存。
