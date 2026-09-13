@@ -47,7 +47,14 @@ class _JingjingScreenState extends State<JingjingScreen> {
   /// 麦克风模式开启中。
   bool _micOn = false;
 
-  /// 轻提示文字（玻璃拟态 toast，如"未能听见你的呼吸"）。
+  /// 随息灵敏度（3 档，持久化 jingxin.mic.sens.v1）。
+  final MicSensitivityPreference _micSensPref = MicSensitivityPreference();
+  MicSensitivity _micSens = MicSensitivity.medium;
+
+  /// 本次会话是否已开启过随息（首次开启时给一行"只听气息，不留声音"）。
+  bool _micEverOn = false;
+
+  /// 轻提示文字（玻璃拟态 toast，如"随息未就绪，轻触亦可行"）。
   String? _toastText;
   Timer? _toastTimer;
 
@@ -58,6 +65,9 @@ class _JingjingScreenState extends State<JingjingScreen> {
     _game.shardMessage.addListener(_onShardMessage);
     // 麦克风可用性探测（不请求权限，只看平台是否可能支持）。
     _micAvailable = BreathMicEngineImpl().isSupported;
+    _micSensPref.load().then((_) {
+      if (mounted) setState(() => _micSens = _micSensPref.value);
+    });
     _pref.load().then((_) {
       if (!mounted) return;
       setState(() => _scene = _pref.scene);
@@ -96,27 +106,41 @@ class _JingjingScreenState extends State<JingjingScreen> {
   }
 
   /// 开/关麦克风呼吸输入。getUserMedia 只在此点击手势的调用栈内触发；
-  /// 失败（权限拒绝/无设备/不支持）→ 轻提示并自动回到触控模式，
-  /// 绝不反复弹权限。开启状态不持久化，每次会话重新选择。
+  /// 失败（权限拒绝/无设备/不支持）→ 一行淡字提示并自动回到触控模式，
+  /// 绝不弹错误对话框、绝不反复请求。开启状态不持久化（每次会话重新
+  /// 选择），灵敏度档位持久化。
   Future<void> _toggleMic() async {
     if (_micOn) {
       setState(() => _micOn = false);
       _game.enableMicBreath(null);
-      unawaited(_micEngine?.stop());
+      unawaited(_micEngine?.stop()); // 不用时彻底释放轨道。
       return;
     }
     final engine = _micEngine ??= BreathMicEngineImpl();
+    engine.setSensitivity(_micSens);
     final ok = await engine.start(); // 手势调用栈内请求权限。
     if (!mounted) {
       unawaited(engine.stop());
       return;
     }
     if (!ok) {
-      _showToast('未能听见你的呼吸');
+      // 静默回退到触控模式：一行淡字，绝不弹错误对话框。
+      _showToast('随息未就绪，轻触亦可行');
       return;
     }
     setState(() => _micOn = true);
     _game.enableMicBreath(engine);
+    if (!_micEverOn) {
+      _micEverOn = true;
+      _showToast('只听气息，不留声音'); // 隐私说明：一次、一行、极淡。
+    }
+  }
+
+  /// 切换随息灵敏度：立即生效并持久化，不打断呼吸。
+  Future<void> _selectMicSensitivity(MicSensitivity s) async {
+    setState(() => _micSens = s);
+    _micEngine?.setSensitivity(s);
+    await _micSensPref.save(s);
   }
 
   void _showToast(String text) {
@@ -427,6 +451,79 @@ class _JingjingScreenState extends State<JingjingScreen> {
                 ),
               ),
             ),
+          // 随息灵敏度三小字（低 · 中 · 高）：仅随息开启时浮现，
+          // 玻璃拟态、克制；切换立即生效并持久化。
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 96),
+                child: IgnorePointer(
+                  ignoring: !_micOn,
+                  child: AnimatedOpacity(
+                    opacity: _micOn ? 1 : 0,
+                    duration: const Duration(seconds: 2),
+                    curve: Curves.easeOut,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: ZenTheme.surfaceDim.withValues(alpha: 0.28),
+                          border: Border.all(
+                            color: ZenTheme.nebulaCyan.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6, right: 2),
+                              child: Text(
+                                '随息',
+                                style: TextStyle(
+                                  color: ZenTheme.textMuted.withValues(
+                                    alpha: 0.32,
+                                  ),
+                                  fontSize: 11,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                            ),
+                            for (final s in MicSensitivity.values)
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => _selectMicSensitivity(s),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 8,
+                                  ),
+                                  child: Text(
+                                    s.label,
+                                    style: TextStyle(
+                                      color: ZenTheme.textMuted.withValues(
+                                        alpha: s == _micSens ? 0.9 : 0.35,
+                                      ),
+                                      fontSize: 12,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           // 右下角极小的月亮入口：长夜的开关，克制如一枚月痕。
           SafeArea(
             child: Align(

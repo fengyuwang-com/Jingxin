@@ -7,6 +7,9 @@ import 'breath_mic.dart';
 /// 用户永远不会遇到弹窗或报错。
 class BreathMicEngineImpl implements BreathMicEngine {
   @override
+  void setSensitivity(MicSensitivity sensitivity) {}
+
+  @override
   bool get isSupported => false;
 
   @override

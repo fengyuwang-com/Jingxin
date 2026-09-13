@@ -123,3 +123,19 @@
   1. 麦克风呼吸检测输入层：用麦克风音量/频谱作为呼吸输入的可选来源（需处理权限与降级），让"用呼吸玩"从按住屏幕进化到真正的呼吸
   2. 整体手感/视觉打磨 pass：统一 easing 曲线、暗角/颗粒氛围层、首启引导（第一口气教程的克制呈现）
   3. 引导词朗读 TTS：呼吸提示词与偈语的轻声朗读（Web Speech API，可开关，音量极低）
+
+## 2026-09-13 第10轮：随息——麦克风呼吸检测输入层（可选）
+- 做了什么：
+  - 条件导入输入层：新增 lib/game/breath_mic.dart（BreathMicEngine 门面 + `export stub if dart.library.js_interop`）——Web 实现 breath_mic_web.dart 用 dart:js_interop + package:web 取 getUserMedia({audio})，AnalyserNode 时间域 40ms 轮询取 RMS；非 Web 平台 breath_mic_stub.dart 静默不可用（isSupported=false，UI 直接隐藏入口），analyze/build 不受影响
+  - 隐私克制：绝不录音/存储/传输——采样缓冲每帧覆盖，唯一存活状态是包络标量；AnalyserNode 刻意不连 destination（不回放不啸叫）；getUserMedia 只在用户点击手势调用栈内触发；首次开启给一行淡字"只听气息，不留声音"（toast，2.6s 自去）
+  - 音量→呼吸相位映射（吹气是呼）：RMS → 慢速自动增益去底噪（非对称低通基线：向上涨 τ=30s 跟随环境、短暂吹气拉不动；向下跌 τ=1.5s，房间转静立刻归位）→ 安全余量 0.006 → 灵敏度缩放（低 1.7×/中 1.0×/高 0.55×）→ smoothstep 软膝 → 两级低通（τ≈0.25s + τ≈0.55s，总时间常数 ≥0.5s）杜绝抖动；游戏侧再低通一次双保险；包络高=呼气段（进度下沉）、回落安静=吸气段（进度回升）
+  - 灵敏度 3 档：MicSensitivity（低/中/高，包络满量程尺度缩放），随息开启时底部浮现玻璃拟态小字「随息 低·中·高」，切换立即生效并持久化（shared_preferences key jingxin.mic.sens.v1）；开启状态本身不持久化（每次会话重新选择）
+  - 双输入共存：game 侧"最近活跃者"仲裁——触控（按住/松开）与气息各自记最后活跃时刻，触控随时接管，气息重新起伏时自然交还；空闲 3s 自动呼吸引导逻辑不变
+  - 相位来源可替换（最小重构确认）：麦克风只改写 _breathProgress 的目标来源，苏醒度、漫游引力/滑行、星岛苏醒、碎片吸入、星兽苏醒、渊/荒原机制全部复用不变；光灵加"声息涟漪"（包络驱动的两圈极淡涟漪，alpha 峰值 0.15）
+  - 降级与释放：权限拒绝/无设备/不支持/任何异常 → start 返回 false + 一行淡字"随息未就绪，轻触亦可行"，绝不弹错误对话框；关闭或退出游戏页（dispose）一律 stop()——disconnect 节点 + 所有 track.stop() + AudioContext.close()，彻底释放麦克风流
+- 质量门槛：flutter analyze 0 error（19 条既有 warning/info，比第 9 轮基线 23 还少 4——顺手清理了 breath_mic/jingjing_game 里的 4 条 lint）；flutter build web 成功
+- commit: feat(game): 随息——麦克风呼吸检测输入层 [auto-night-10]
+- 下一步建议（第11轮）三选一：
+  1. 整体手感/视觉打磨 pass：统一 easing 曲线、暗角/颗粒氛围层、首启引导（第一口气教程的克制呈现）
+  2. 引导词 TTS 朗读：呼吸提示词与偈语的轻声朗读（Web Speech API，可开关，音量极低）
+  3. 开场引入动画：进入静境时星空从一粒光缓缓展开的 10 秒序曲（无文字无按钮）
