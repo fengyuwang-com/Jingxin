@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../game/shard.dart';
+import '../game/star_beast.dart';
 
 /// 「我的静境星图」——静境星图回看（第 4 轮）。
 ///
@@ -20,7 +21,10 @@ class StarMapScreen extends StatefulWidget {
 
 class _StarMapScreenState extends State<StarMapScreen> {
   final ShardCollection _collection = ShardCollection();
+  final StarBeastState _beastState = StarBeastState();
   List<ShardRecord> _records = [];
+  int _beastEyes = 0;
+  bool _beastSwimming = false;
   ShardRecord? _selected;
   bool _loaded = false;
 
@@ -32,9 +36,12 @@ class _StarMapScreenState extends State<StarMapScreen> {
 
   Future<void> _load() async {
     await _collection.load();
+    await _beastState.load();
     if (!mounted) return;
     setState(() {
       _records = List<ShardRecord>.of(_collection.records);
+      _beastEyes = _beastState.openedEyes;
+      _beastSwimming = _beastState.swimming;
       _loaded = true;
     });
   }
@@ -153,6 +160,26 @@ class _StarMapScreenState extends State<StarMapScreen> {
                 ),
               ),
             ),
+          // 海深处极淡的一行：星兽苏醒的隐约线索（无数字、无进度）。
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 34),
+                child: Text(
+                  StarBeastState.whisper(
+                    _beastEyes,
+                    isSwimming: _beastSwimming,
+                  ),
+                  style: TextStyle(
+                    color: ZenTheme.textMuted.withValues(alpha: 0.32),
+                    fontSize: 12,
+                    letterSpacing: 3,
+                  ),
+                ),
+              ),
+            ),
+          ),
           // 返回。
           SafeArea(
             child: Align(
