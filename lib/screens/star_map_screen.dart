@@ -686,7 +686,14 @@ class _MementoDrawerState extends State<_MementoDrawer> {
                   child: child,
                 ),
               ),
-              child: Column(
+              // 限高滚动（第 30 轮）：夜数变多时抽屉不撑破屏幕，
+              // 最高约屏高 55%，超出部分内部滚动，玻璃拟态与圆角不变。
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.55,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -825,6 +832,8 @@ class _MementoDrawerState extends State<_MementoDrawer> {
                     ),
                   ),
                 ],
+              ),
+                ),
               ),
             ),
           ),
