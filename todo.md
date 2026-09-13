@@ -97,3 +97,7 @@
 ## 第 41 轮（2026-09-14）✅ 已完成
 - [x] PWA 可安装化：manifest 静境/zh-CN/standalone/深色 #0a0a0f；tool/gen_icons.py 纯 PIL 生成 192/512 + maskable + Icon-180 + favicon.ico（深空底+青白光球渐晕）；index.html 补 theme-color/apple meta；确认 flutter_service_worker.js 在 build 产物；本地服冒烟 12 项资源连续两次 200 后 taskkill。analyze 19 基线 0 error，test 108/108，build web ✅，commit（未 push）。
 - 待办（第 42 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览。
+
+## 第 42 轮（2026-09-14）✅ 已完成
+- [x] 久别重逢：新键 jingxin.lastvisit.v1（yyyyMMddHHmm，每次进入写回）；距上次 ≥72h 再进时演出约 10s——星兽缓缓睁眼望向你（复用 wakeOverride 4s/只渐变）+ 世界苏醒度演出期间仅视觉 +0.10（不改持久化）+ 久别偈新池 3 句淡入淡出；判定抽 LongAbsenceJudgement 纯函数（parseStamp 损坏串兜底/formatStamp/evaluate），与开场引导（首次优先）/满醒/晨光告别/相会互斥。新增 test/long_absence_test.dart 13 项。analyze 19 基线 0 error，test 121/121，build web ✅，commit（未 push）。
+- 待办（第 43 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ Web 端分享卡长按预览。

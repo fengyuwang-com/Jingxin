@@ -242,3 +242,10 @@
 - 产出: commit feat(web): PWA 可安装化与图标 [auto-night-41]（未 push）；analyze 19 基线 0 error；test 108/108；build web 成功。
 - 关键决策: 不手写 SW（Flutter 3.4x 自带，验证存在即可）；首版光球过大吞掉深空底，缩到 core 0.16s/halo 1.9x 达到「纯色克制」；favicon.ico 用 PIL 直接多尺寸产出补齐此前缺失。
 - 下一步建议: Android 真机验证（最高优先）；GitHub Pages 部署需主人确认 push；部署后 Lighthouse 验装安装横幅与离线打开。
+
+## 2026-09-14 — 第 42 轮（通宵自动升级）
+- 用户要求: 久别重逢——离开多日世界记得你：新键 jingxin.lastvisit.v1（yyyyMMddHHmm），距上次 ≥72h 触发星兽睁眼演出 + 苏醒回礼（视觉方案或 +0.05 一次性二选一）+ 久别偈 3 句 10s 淡出；判定抽纯函数并测无键/<72h/=72h 边界/跨月/损坏串；与开场引导/满醒/晨光告别互斥；门槛 + commit + 文档。
+- AI 行动: 新增 lib/game/long_absence.dart（LongAbsenceJudgement 纯函数 + LongAbsenceMemory + LongAbsenceEvent 演出组件），jingjing_game 装配与 awakeningValue 视觉加成，koans 加久别偈池，jingjing_screen 加久别偈呈现，test/long_absence_test.dart 13 项。
+- 产出: analyze 19 基线 0 error；test 121/121（+13）；build web 成功；commit（未 push）；UPGRADE-LOG/todo/FENGMEM 已追加。
+- 关键决策: 回礼选「仅演出时视觉 +0.10、不改持久化」——苏醒度是呼吸攒出来的旅程值，永久奖励会让它变成货币；损坏时刻串兜底为"从未记录"（宁可不响不在错误时刻打扰）；首次进入（无键）不触发，优先开场引导。
+- 下一步建议: Android 真机全链路验证（最高优先）；GitHub Pages 部署需主人确认 push。
