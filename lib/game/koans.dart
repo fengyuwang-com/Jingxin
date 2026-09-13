@@ -138,6 +138,14 @@ class Koans {
 
   static final List<int> _fullAwakeRecent = [];
 
+  /// 「醒星」（第 29 轮）：满醒后世界常驻晨星的点击短偈——
+  /// 醒过的世界留下的一枚痕。主题：夜也温柔、醒不喧哗。克制、留白。
+  static const List<String> morningStarPool = [
+    '醒过的人，夜也温柔。',
+    '小星不喧哗，它只是记得亮。',
+    '你走的那些夜，都停在这颗星里。',
+  ];
+
   /// 「满醒」终幕偈语（第 28 轮）。
   static String nextFullAwake() => _draw(_fullAwakePool, _fullAwakeRecent);
 

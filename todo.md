@@ -48,3 +48,11 @@
 - [x] 第13轮：第四心境区域「纷心雾林」——雾沉降与墨枝灯笼（regions.dart 新增水平边缘带支持：世界 x 接缝两侧 nx<=0.36 浮现/0.14 深入 + ny 门带 0.28~0.72，与渊/荒原深度带零重叠，regionAt/depthAtPoint 扩展；新建 mist_wood.dart：3 层视差 18 团大尺寸低频雾带缓漂 + 14 颗心事萤（无规则略急促游移）；核心「雾沉降」：林中平稳呼吸 45s 沉到底/乱呼吸 3min 极缓回升——雾团下沉变薄、贴地萤光薄霭浮现、萤轨迹变慢变柔转暖；2 棵墨枝剪影 settle>0.65 枝头 5 节点逐颗点亮成雾灯笼（当次反馈）；碎片 i%3→i%4 四区轮转（雾林碎片贴接缝青灰色），koans 新增 8 句雾语池；analyze 0 error（19 基线）/build web 通过，commit 2c3a4c6）
 - [x] 第12轮：闻声——禅语轻声朗读与入睡引导（voice.dart 门面+条件导出：voice_web.dart 用 package:web 调浏览器原生 SpeechSynthesis（优先 zh-CN 声音，onvoiceschanged+温和探测同步 available；lang 恒 zh-CN；rate0.85/pitch0.95/volume0.5），voice_stub.dart 非 Web 静音降级 UI 隐藏；左下角小喇叭开关持久化 jingxin.voice.v1 默认关；触发：碎片禅语朗读/长夜每 90~150s 一句入睡引导（koans.dart 新 10 句极短池）/星图点星可选读偈；礼仪：新读先 cancel、whisper 触摸即停 koan 读完、退出长夜/退出静境/切后台 cancelAll；SoundscapeEngine.duck 0.5→0.3 1s 压下 2s 恢复；analyze 0 error（19 基线）/build web 通过，commit 451eb10）
 - [x] 第14轮：「静之径」——区域间的余温旅程线（新增 lib/game/still_path.dart：6 锚点 Catmull-Rom 曲线（荒原顶部→穿雾林接缝 x=0→海中带掠过星兽上空→沉入渊底），81 采样点缓存为静态 Path；渲染按最短环绕距离平移+接缝镜像副本+bbox 剔除，无缝衔接；视觉宽26px柔光带+7px窄芯 alpha 峰值≤0.12 + 10 颗径上尘缓明灭；回应机制：光灵在径上<40px且平稳呼吸→走过段「余温」亮起约16s缓缓褪去；透明度与苏醒度轻联动（0.8+0.2×awakening）；性能：静态 Path 缓存+画笔预建+屏外跳过+update 零分配；analyze 0 error（19基线）/build web 通过，commit ded0ce8）
+
+## 第 28 轮（2026-09-13）✅ 已完成
+- [x] 「满醒」终幕演出：苏醒度首次 1.0 → 提亮+环世界光潮+双兽睁眼游近+满醒偈，一生一次（jingxin.fullawake.v1 记账），跳过照打标记，回落再满只波纹；与相会/晨光/引导互斥。commit d4036e7。测试 53/53，analyze 基线持平，build web ✅。
+- 待办（第 29 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 满醒后世界留一道苏醒痕迹或星图纪念签。
+
+## 第 29 轮（2026-09-13）✅ 已完成
+- [x] 醒痕晨星：满醒后（读 jingxin.fullawake.v1）世界常驻一枚慢闪暖白晨星 + 60s 尘伴绕行（固定程序生成位置，区域/路径带外自证），点击 40px 命中弹醒星偈（新池 3 句轮换）5s 淡出、10s 冷却、演出互斥；零每帧分配+量化缓存+屏外剔除。新增 morning_star.dart + 4 项测试。analyze 19 基线持平，test 57/57，build web ✅，commit 见 UPGRADE-LOG。
+- 待办（第 30 轮候选）：Android 真机全链路验证 / GitHub Pages 部署（需确认 push）/ 星图页满醒纪念签或晨星随会话长亮。
