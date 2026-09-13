@@ -226,12 +226,14 @@ class _StarCardPainter extends CustomPainter {
       );
     canvas.drawRect(Offset.zero & size, bgPaint);
 
-    // 星点：每枚碎片一枚，区域色相（兽语签 = 星兽金）。
-    for (var i = 0; i < records.length; i++) {
-      final pos = starCardStarOffset(i, size, total: records.length);
-      final color = records[i].region.contains('兽语')
-          ? _beastGold
-          : regionDotColor(records[i].region);
+      // 星点：每枚碎片一枚，区域色相（兽语签 = 星兽金）。
+      for (var i = 0; i < records.length; i++) {
+        final pos = starCardStarOffset(i, size, total: records.length);
+        final color = records[i].region.contains('兽语')
+            ? _beastGold
+            : records[i].region.contains('惑星')
+            ? const Color(0xFF9b8fb8) // 惑星（第 43 轮）：灰紫迷雾色。
+            : regionDotColor(records[i].region);
       // 柔和光晕。
       canvas.drawCircle(
         pos,

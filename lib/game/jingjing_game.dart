@@ -20,6 +20,7 @@ import 'mist_guardian.dart';
 import 'morning_star.dart';
 import 'mist_wood.dart';
 import 'onboarding.dart';
+import 'perplex_planet.dart';
 import 'quality.dart';
 import 'regions.dart';
 import 'reunion.dart';
@@ -420,6 +421,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 「久别重逢」演出（第 42 轮）：最后装配，进入初期只做一次判定，
     // 未命中零渲染成本。
     add(LongAbsenceEvent());
+
+    // 「惑星」（第 43 轮）：偶发的心结微挑战——状态机纯逻辑在
+    // perplex_planet.dart，这里只装配组件（hidden 时零渲染成本）。
+    add(PerplexPlanet());
   }
 
   /// 久别时刻写回（fire-and-forget，失败静默——演出不依赖它成功）。
