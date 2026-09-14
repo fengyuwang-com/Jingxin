@@ -11,6 +11,7 @@ import 'companion.dart';
 import 'day_tide.dart';
 import 'breath_mic.dart';
 import 'awakening.dart';
+import 'abyss_glow.dart';
 import 'beast_gaze.dart';
 import 'breath_flower.dart';
 import 'breath_flower_landmark.dart';
@@ -369,6 +370,11 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 萤迹同批环境层。荒原外整层短路；长夜时随 nightAmount 让位。
     // 无声音无碎片无文案——荒原不催你，风自己慢下来。
     add(WindTraceLayer());
+    // 渊光（第 63 轮）：焦虑之渊的缓升微光——环境层支线收官，六区域
+    // 集齐。画在星花层之下、星潮/萤迹/风痕同批环境层。渊区外整层短路；
+    // 长夜时随 nightAmount 让位。无声音无碎片无文案——渊不吓你，
+    // 只是有几缕光愿意先亮一点。
+    add(AbyssGlowLayer());
     // 星花花园：画在光灵身后（先 add 先画，被光灵覆盖）——呼吸的
     // 痕迹（第 55 轮），不给碎片不给分数，纯粹是世界的美与回应。
     add(_flowerGarden);
@@ -2211,6 +2217,241 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
         if (visible < 2) continue; // 单点不成线。
         _paint.color = tint.withValues(alpha: alpha);
         canvas.drawPath(_path, _paint);
+      }
+    }
+  }
+}
+
+/// 渊光（第 63 轮）：焦虑之渊的缓升微光——渊专属的环境层（环境层支线
+/// 六区域收官）。
+///
+/// 几簇微光自渊底极缓上浮（[abyssGlowAt]，3~6px/s + 极轻横向摆），亮度
+/// 随呼吸般的 8~12s 周期明灭、每簇 Knuth 散列错相。呼吸越平稳，簇内光点
+/// 排布越舒展（[abyssGlowVisual] 半径微增）、越亮（alpha 峰值 0.08 封顶、
+/// 0.02 量化）；紊乱时收拢变淡——**渊不吓你，只是有几缕光愿意先亮一点**。
+/// 玩家在渊区停留且平稳约 30s（[abyssGlowDwellNext]）时，最近一簇整体
+/// 上浮 12px、60s 缓成后停住（[abyssGlowSighNext] 长叹息），每簇至多
+/// 一次直到长夜重置——内存态，不持久化。
+///
+/// 语义写死：渊光无声音、无碎片、无文案、不参与任何经济/进度系统
+/// ——微光不是收集物、不做引导（防后续轮误加经济/收集系统）。
+///
+/// 性能纪律：只在光灵处于渊区时演算与绘制（regionAtPoint 每秒节拍
+/// 判定，渊区外整层短路）；簇心每秒节拍算一次确定性轨迹，帧内用上浮/
+/// 摆动速度线性外推——绝不每帧重算整轨迹；定长池 5 簇 × 3 点（低画质
+/// 档 3 簇 × 2 点，quality.dart abyssGlowClusters/abyssGlowClusterPoints，
+/// 构造时读一次）；Paint 构造期预生成、簇内点排布构造期预算，每帧零
+/// 分配；屏外剔除 ±40px + 3x3 环绕镜像（簇心 y 自身 wrap，浮出顶端
+/// 回到渊底）；长夜随 nightAmount 让位；introEase 短路。画在星花层
+/// 之下，alpha ≤ 0.08 不遮任何可交互实体。
+class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
+  AbyssGlowLayer() {
+    // 画质档在构造时读一次（低档 3 簇 × 2 点），运行期不再分支。
+    _clusters = Quality.current.abyssGlowClusters;
+    _pointsPer = Quality.current.abyssGlowClusterPoints;
+    // 簇内光点的确定性排布：构造期一次性预算（单位方向 + 基础半径），
+    // 运行期只按 radiusScale 缩放——每帧零分配。
+    for (int c = 0; c < _clusters; c++) {
+      for (int p = 0; p < _pointsPer; p++) {
+        final o = abyssGlowPointOffset(c, p);
+        _ptRad.add(o.radius);
+        _ptDir.add(
+          Offset(
+            o.radius > 0 ? o.dx / o.radius : 0,
+            o.radius > 0 ? o.dy / o.radius : 0,
+          ),
+        );
+      }
+    }
+  }
+
+  late final int _clusters;
+  late final int _pointsPer;
+
+  final Paint _paint = Paint()..blendMode = BlendMode.screen;
+  final List<Offset> _ptDir = [];
+  final List<double> _ptRad = [];
+
+  /// 每秒节拍计时（首拍即刷）。
+  double _beat = 1.0;
+
+  /// 节拍锚定的世界时刻（秒）；帧内用 _beat（已过秒数）线性外推。
+  double _beatTSec = 0;
+
+  /// 光灵是否在渊区（每秒节拍判定一次，渊区外整层短路）。
+  bool _active = false;
+
+  /// 呼吸平稳度低通（0..1）：平稳时舒展明亮、紊乱时收拢变淡，绝不瞬跳。
+  double _steady = 1.0;
+
+  /// 定长池：每秒节拍刷新的确定性簇心状态（下标即簇 index）。
+  final List<AbyssGlowState> _glows = [];
+
+  /// 长叹息：每簇的进度/闸门、上浮偏移（节拍锚定的前后值，帧内插值）。
+  final List<AbyssGlowSigh> _sighs = [];
+  final List<double> _sighOffPrev = [];
+  final List<double> _sighOffCur = [];
+
+  /// 渊内平稳停留累积（纯函数推进，内存态）。
+  double _dwell = 0;
+
+  /// 待点亮长叹息的簇（触发拍选最近未叹的一簇，开始后即清空）。
+  int _sighTarget = -1;
+
+  /// 长夜重置：深长夜见过一次后，退出长夜时清账（内存态）。
+  bool _nightSeen = false;
+
+  @override
+  void update(double dt) {
+    _beat += dt;
+    // 平稳度低通每帧推进（与星潮/萤迹/风痕层同款缓率）。
+    final target = game.breathSteady ? 1.0 : 0.0;
+    _steady += (target - _steady) * math.min(1.0, dt * 0.8);
+    if (_beat < 1.0) return;
+    _beat = 0;
+    _beatTSec = game.time;
+    final p = game.spiritPos;
+    _active = GameRegion.regionAtPoint(p.x, p.y) == GameRegion.anxietyAbyss;
+    if (!_active) {
+      // 出渊时 dwell 退回（只在渊区推进）。
+      _dwell = abyssGlowDwellNext(
+        dwellSeconds: _dwell,
+        dt: 1.0,
+        inAbyss: false,
+        breathSteady: true,
+      );
+      _advanceSighs();
+      return;
+    }
+    _refresh();
+    _dwell = abyssGlowDwellNext(
+      dwellSeconds: _dwell,
+      dt: 1.0,
+      inAbyss: true,
+      breathSteady: game.breathSteady,
+    );
+    // 平稳满约 30s：给最近一簇（环面最短距离、未叹过）点亮长叹息。
+    if (_dwell >= kAbyssGlowSighDwellSec && _sighTarget < 0) {
+      final best = _nearestUnsighed(p);
+      if (best >= 0) {
+        _sighTarget = best;
+        _dwell = 0; // 重新累积，给下一簇机会。
+      }
+    }
+    _advanceSighs();
+    // 长夜重置：深长夜（≥0.5）见过一次，退出（≤0.05）时清账。
+    if (game.nightAmount >= 0.5) {
+      _nightSeen = true;
+    } else if (_nightSeen && game.nightAmount <= 0.05) {
+      _nightSeen = false;
+      _dwell = 0;
+      _sighTarget = -1;
+      for (int i = 0; i < _clusters; i++) {
+        _sighs[i] = (progress: 0, done: false);
+        _sighOffPrev[i] = 0;
+        _sighOffCur[i] = 0;
+      }
+    }
+  }
+
+  /// 距光灵环面最短距离最近的、尚未叹过的簇（全部叹过返回 -1）。
+  int _nearestUnsighed(Vector2 p) {
+    final period = JingjingGame.worldPeriod;
+    var best = -1;
+    var bestD = double.infinity;
+    for (int i = 0; i < _clusters && i < _glows.length; i++) {
+      if (_sighs[i].done) continue;
+      var dx = (_glows[i].x - p.x) % period.x;
+      if (dx > period.x / 2) dx -= period.x;
+      if (dx < -period.x / 2) dx += period.x;
+      var dy = (_glows[i].y - p.y) % period.y;
+      if (dy > period.y / 2) dy -= period.y;
+      if (dy < -period.y / 2) dy += period.y;
+      final dd = dx * dx + dy * dy;
+      if (dd < bestD) {
+        bestD = dd;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  /// 每拍推进所有簇的长叹息（纯函数闸门：done 后永不再叹）。
+  void _advanceSighs() {
+    for (int i = 0; i < _clusters && i < _sighs.length; i++) {
+      final trig = _sighTarget == i;
+      final after = abyssGlowSighNext(
+        state: _sighs[i],
+        trigger: trig,
+        dtSec: 1.0,
+      );
+      _sighs[i] = after;
+      _sighOffPrev[i] = _sighOffCur[i];
+      _sighOffCur[i] = abyssGlowSighOffsetPx(after.progress);
+      if (trig && after.progress > 0) _sighTarget = -1;
+    }
+  }
+
+  void _refresh() {
+    final period = JingjingGame.worldPeriod;
+    while (_glows.length < _clusters) {
+      _glows.add(abyssGlowAt(0, _glows.length, period.x, period.y));
+      _sighs.add((progress: 0, done: false));
+      _sighOffPrev.add(0);
+      _sighOffCur.add(0);
+    }
+    for (int i = 0; i < _clusters; i++) {
+      _glows[i] = abyssGlowAt(_beatTSec, i, period.x, period.y);
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (!_active || _glows.isEmpty) return; // 渊区外整层短路。
+    final intro = game.introEase;
+    if (intro <= 0.01) return; // 开场世界还黑着，渊未醒。
+    // 长夜让位：长夜全开时微光沉底入眠（白噪音接管，渊光退场）。
+    final nightYield = 1.0 - game.nightAmount.clamp(0.0, 1.0);
+    if (nightYield <= 0.01) return;
+    final size = game.size;
+    final period = JingjingGame.worldPeriod;
+    final elapsed = _beat;
+    final vis = abyssGlowVisual(_steady);
+    final tint = const Color(kAbyssGlowTintValue);
+    for (int i = 0; i < _clusters; i++) {
+      final g = _glows[i];
+      // 帧内线性外推：上浮 + 轻摆（摆速 ≤4px/s 且 1 秒外推误差 <1.2px
+      // 肉眼不可辨，不每帧重算三角函数）；长叹息偏移前后拍线性插值。
+      final cx = g.x + g.vx * elapsed;
+      final sighOff = _sighOffCur[i] + (_sighOffCur[i] - _sighOffPrev[i]) * elapsed;
+      final cy = g.y + g.vy * elapsed + sighOff;
+      final glow = 0.5 - 0.5 * math.cos(
+        2 * math.pi * (g.phase + elapsed / g.phasePeriodSec),
+      );
+      final alpha = abyssGlowQuantize(
+        vis.alpha * (0.35 + 0.65 * glow) * intro * nightYield,
+      );
+      if (alpha <= 0) continue;
+      for (int pt = 0; pt < _pointsPer; pt++) {
+        final k = i * _pointsPer + pt;
+        final r = _ptRad[k] * vis.radiusScale;
+        final px = cx + _ptDir[k].dx * r;
+        final py = cy + _ptDir[k].dy * r;
+        // 环绕绘制（世界锁定 1.0 视差 + 3x3 镜像，簇心跨缝上浮 wrap）。
+        for (int ox = -1; ox <= 1; ox++) {
+          for (int oy = -1; oy <= 1; oy++) {
+            final sx = size.x / 2 + px + ox * period.x - game.camPos.x;
+            final sy = size.y / 2 + py + oy * period.y - game.camPos.y;
+            if (sx < -40 || sx > size.x + 40 || sy < -40 || sy > size.y + 40) {
+              continue; // 屏外剔除。
+            }
+            // 双层小圆：外圈更淡的柔晕 + 内圈稍实的核（零分配）。
+            _paint.color = tint.withValues(alpha: abyssGlowQuantize(alpha * 0.5));
+            canvas.drawCircle(Offset(sx, sy), 5.0, _paint);
+            _paint.color = tint.withValues(alpha: alpha);
+            canvas.drawCircle(Offset(sx, sy), 2.0, _paint);
+          }
+        }
       }
     }
   }

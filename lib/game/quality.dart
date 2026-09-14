@@ -97,6 +97,20 @@ class Quality {
         QualityTier.low => 3,
       };
 
+  /// 渊光的光簇簇数（低档 3 簇，第 63 轮）。
+  int get abyssGlowClusters => switch (tier) {
+        QualityTier.high => 5,
+        QualityTier.mid => 4,
+        QualityTier.low => 3,
+      };
+
+  /// 渊光每簇的光点枚数（低档 2 枚，第 63 轮）。
+  int get abyssGlowClusterPoints => switch (tier) {
+        QualityTier.high => 3,
+        QualityTier.mid => 2,
+        QualityTier.low => 2,
+      };
+
   /// 启动时判定一次。UI 层在构造游戏前调用。
   /// [dpr] 传设备像素比（Web 用 implicitView.devicePixelRatio）。
   static void detect({double? dpr, String? userAgent}) {
