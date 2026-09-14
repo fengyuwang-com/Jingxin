@@ -634,3 +634,9 @@
 - AI 行动: 新建 lib/game/breath_flower_landmark.dart（landmarkSpotFor/landmarkAlphaFor：Knuth 散列确定性偏移、regionAtPoint 归属校验回落锚点、账本 ≤0 恒隐、1 朵 0.04 起 10 朵封顶 0.08、0.02 量化、计数只改亮度不改位置）；jingjing_game.dart 新增 LandmarkLayer（星花层之下、双层静止光晕、每秒节拍刷、屏外剔除+3x3 镜像、长夜按 (1−nightAmount) 让位、零每帧分配），花园暴露 ledgerStore 供同账联动；star_map_screen.dart 花境行花数 ≥10 的色点加 3px 金点角标（无动画）；新增 test/flower_landmark_test.dart 14 项（含账本 0→N 单调不回跌且封顶的管线测试）。
 - 产出: analyze 19 条基线持平 0 error；test 294→308 全过；build web 成功；UPGRADE-LOG/FENGMEM/todo 已记；commit 未 push。
 - 关键决策: 余温不是目标不是提示不参与经济/进度（语义写死注释防误加引导）；计数只影响亮度不影响位置（余温留在原地随记忆清晰）；长夜让位复用 tideEffectiveAlpha 思路但不复用其 0.05 封顶（余温峰值 0.08）；静之径/惘无固定深度带几何，取固定确定性锚点不做 regionAtPoint 校验。
+
+## 2026-09-14 08:13 — 第 60 轮
+- 用户要求: 通宵自动升级第 60 轮（里程碑整数轮）：星潮——失眠之海的呼吸涟漪（新支线）：seaTideWave/seaTideVisual/seaTideSway 纯函数+SeaTideLayer 演出+海区星花微摇+低画质采样减半+单测，全门槛验证，绝不 push。
+- AI 行动: 新建 lib/game/sea_tide.dart（三组波向量按环面周期取整数周期数保证接缝连续，波长 300/299/298px、周期 12/13/14s，visual 0.07 封顶 0.02 量化、平稳舒展/紊乱收窄 0.8 但封顶不变，sway ±1.5px 0.5px 量化）；jingjing_game.dart 新增 SeaTideLayer（花开之地之上星花层之下，海区外整层短路，10 弧线×24 点定长网格，相位每秒节拍锚定+帧内毫秒外推，平稳度低通 dt*0.8，Path 复用 reset+屏外剔除+oy 3x3 镜像，长夜让位，introEase 短路），花园星花在海区叠加 tideDy 极微摇曳（花色花瓣参数不变）；quality.dart 新增 tideLines/tideLinePoints（低档 5/12）；新建 test/sea_tide_test.dart 13 项。
+- 产出: commit bcc8099（未 push）；analyze 19 条基线持平 0 error；test 308→321 全过；build web 成功；UPGRADE-LOG/FENGMEM/todo 已记。
+- 关键决策: 周期取 12/13/14s（9~14s 区间内偏慢）以保证相邻 100ms 采样 |Δ|<0.05 的连续性（等权三正弦的理论最大步进 0.0485）；星潮无声音无碎片无文案、不参与经济/进度系统（写进纯函数与渲染层注释防误加）；海区外整层短路 + 每秒节拍判定区域（regionAtPoint 不每帧调）；波峰亮度取弧线场强均值（整线单一 alpha，避免逐段绘制的绘制调用爆炸）；低档削减在构造时读一次运行期不分支（沿用画质档纪律）。
