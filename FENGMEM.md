@@ -646,3 +646,9 @@
 - AI 行动: 读 UPGRADE-LOG 第 59/60 轮与 git log；新增 lib/game/firefly_gleam.dart（确定性轨迹/亮度映射/若即若离漂近三组纯函数）；jingjing_game.dart 新增 FireflyLayer（定长池 7/低档 4、每秒节拍 + 帧内线性外推、雾林外整层短路、3x3 环绕镜像、长夜让位）；quality.dart 新增 fireflyCount；新增 21 条单测。
 - 产出: commit a7edc19（feat(game): 萤迹——雾林的呼吸萤火 [auto-night-61]，未 push）；analyze 19 条基线持平 0 error；test 342/342；build web 成功；UPGRADE-LOG.md 已追加第 61 轮。
 - 关键决策: 萤火"若即若离、不跟随"写进纯函数与渲染层注释防误加收集系统；吸引偏移每秒缓释 5% 实现漂回原轨迹；位置外推只算漂移速度（≤2px/s 秒内误差不可辨），绝不每帧重算三角函数。
+
+## 2026-09-14 08:48 — 第 62 轮
+- 用户要求: 通宵自动升级第 62 轮：给疲惫荒原做环境层「风痕——呼吸风」（windTraceLine/Visual 纯函数+单测、WindTraceLayer 演出照 SeaTide/Firefly 惯例、可选荒原星花拂倾、环境层纪律确认、长夜让位），全质量门槛通过后 commit，不 push。
+- AI 行动: 读 UPGRADE-LOG 末两轮与 git log 确认 HEAD 5e3c310 干净；照第 60/61 轮惯例新建 lib/game/wind_trace.dart（4 纯函数+Knuth 散列+环面 wrap）与 test/wind_trace_test.dart（14 项）；jingjing_game.dart 加 WindTraceLayer（荒原短路/定长池/预生成/剔除镜像/长夜让位）+荒原星花 windDx 拂倾；quality.dart 新增 windTraceCount(6/5/3)。
+- 产出: commit c9aa6dc（feat(game): 风痕——疲惫荒原的呼吸风 [auto-night-62]，未 push）；测试 342→356 全过；analyze 19 条基线持平 0 error；flutter build web 成功；UPGRADE-LOG 第 62 轮记录。
+- 关键决策: ① 紊乱端 alpha 从 0.03 改 0.04——0.03 不在 0.02 floor 量化网格上（量化后掉到 0.02），两端 0.04/0.06 均恰在网格上且保留"紊乱变淡"语义；② 风痕长度收短用"基准点前后各 halfLen 的环面最短轴向距离"截取可见段，端外采样直接跳过（零分配不画隐形段）；③ 相位连续性测试用环面圆差（0..1 wrap 跳变不算不连续）；④ 风痕 tint 用荒原调色同族暖沙金 0xFFd8c098，峰值 0.06 为六环境层最淡。
