@@ -8,3 +8,4 @@
 - [x] 第 59 轮：花开之地——图鉴余温落在世界上（landmarkSpotFor 纯函数+LandmarkLayer 每秒节拍+长夜让位+花境行金点角标+14 条单测含管线测试）——已完成
 - [x] 第 60 轮：星潮——失眠之海的呼吸涟漪（seaTideWave/Visual/Sway 纯函数+SeaTideLayer 海区短路演出+海区星花微摇+低画质减半+13 条单测）——已完成，commit bcc8099
 - [x] 第 61 轮：萤迹——雾林的呼吸萤火（fireflyGleamAt/Visual/Approach 纯函数+FireflyLayer 雾林短路演出+若即若离漂近+低档 4 只+21 条单测）——已完成，commit a7edc19
+- [x] 第 62 轮：风痕——疲惫荒原的呼吸风（windTraceLine/Visual/Field/Sway 纯函数+WindTraceLayer 荒原短路演出+荒原星花拂倾+低档 3 道+14 条单测）——已完成，commit c9aa6dc
