@@ -2312,6 +2312,12 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
   /// 上一拍是否处于"完全同化"状态（长叹息闸门一次性重置的边沿判据）。
   bool _fullyAssimilated = false;
 
+  /// 渊息（第 65 轮）：完全同化瞬间的一次集体同步脉动。内存态——上一拍
+  /// 的同化度（滞回判据用）、进行中标记、触发时刻（game.time 秒）。
+  double _calmPrev = 0.0;
+  bool _pulseActive = false;
+  double _pulseT0 = 0;
+
   @override
   void update(double dt) {
     _beat += dt;
@@ -2336,6 +2342,20 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
       _resetSighGates();
     }
     _fullyAssimilated = abyss != null && assimilation >= kAbyssGlowFullAssimilation;
+    // 渊息（第 65 轮）：完全同化那一刻，渊光的簇集体做一次约 2.5s 的同步
+    // 脉动——乱星归一，渊底一起呼出一口气。边沿触发 + 滞回防抖（calm 回落
+    // 到 <0.90 才重新武装，再次满同化可再脉，不限次）。不是庆祝特效：
+    // 无声、无奖、无 UI，纯内存态不持久化。节拍内推进到期检查（渲染帧
+    // 用 game.time 自算包络，2.5s 后自然结束）。
+    if (_pulseActive &&
+        (game.time - _pulseT0) * 1000.0 >= kAbyssPulseDurationMs) {
+      _pulseActive = false;
+    }
+    if (!_pulseActive && abyssPulseTriggered(_calmPrev, assimilation)) {
+      _pulseActive = true;
+      _pulseT0 = game.time;
+    }
+    _calmPrev = assimilation;
     final p = game.spiritPos;
     _active = GameRegion.regionAtPoint(p.x, p.y) == GameRegion.anxietyAbyss;
     if (!_active) {
@@ -2388,6 +2408,9 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
     }
     return null;
   }
+
+  /// 小数部分取正（相位环面 0..1，负值也 wrap 进来）。
+  static double _pulseFract(double v) => v - v.floorToDouble();
 
   /// 重置所有簇的长叹息闸门与在途进度（内存态）：全部已叹完时跳过，
   /// 保证"完全同化"持续期间也只重置一次。
@@ -2473,6 +2496,26 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
     final elapsed = _beat;
     final vis = abyssGlowVisual(_steady);
     final tint = const Color(kAbyssGlowTintValue);
+    // 渊息（第 65 轮）：进行中的集体脉动——包络（量化后 0/0.02 两档）与
+    // 相位趋同系数每帧只算一次，所有簇共用；共同相位取当前时刻全体簇
+    // 明灭相位的平均（圆均值），2.5s 后自然结束。
+    var pulseEnv = 0.0;
+    var pulsePull = 0.0;
+    var commonPhase = 0.0;
+    if (_pulseActive) {
+      pulseEnv = abyssPulseEnvelope((game.time - _pulseT0) * 1000.0);
+      pulsePull = abyssPulsePhasePull(pulseEnv);
+      if (pulsePull > 0 && _glows.isNotEmpty) {
+        double sx = 0, sy = 0;
+        for (int i = 0; i < _clusters && i < _glows.length; i++) {
+          final ang =
+              2 * math.pi * (_glows[i].phase + elapsed / _glows[i].phasePeriodSec);
+          sx += math.cos(ang);
+          sy += math.sin(ang);
+        }
+        commonPhase = _pulseFract(math.atan2(sy, sx) / (2 * math.pi));
+      }
+    }
     for (int i = 0; i < _clusters; i++) {
       final g = _glows[i];
       // 帧内线性外推：上浮 + 轻摆（摆速 ≤4px/s 且 1 秒外推误差 <1.2px
@@ -2480,13 +2523,21 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
       final cx = g.x + g.vx * elapsed;
       final sighOff = _sighOffCur[i] + (_sighOffCur[i] - _sighOffPrev[i]) * elapsed;
       final cy = g.y + g.vy * elapsed + sighOff;
-      final glow = 0.5 - 0.5 * math.cos(
-        2 * math.pi * (g.phase + elapsed / g.phasePeriodSec),
-      );
+      // 明灭相位：渊息期间向共同相位靠拢（环面最短方向 lerp，系数随
+      // 包络）——各簇瞬间一起呼出这口气；包络落 0 后回到各自错相。
+      final ownPhase =
+          _pulseFract(g.phase + elapsed / g.phasePeriodSec);
+      final effPhase = pulsePull > 0
+          ? _pulseFract(ownPhase + ((commonPhase - ownPhase + 0.5) % 1.0 - 0.5) * pulsePull)
+          : ownPhase;
+      final glow = 0.5 - 0.5 * math.cos(2 * math.pi * effPhase);
       final alpha = abyssGlowQuantize(
         // 同化抬升叠进簇亮度：只在原有 alpha 基础上加档（封顶 0.10，
-        // quantize 后仍落 0.02 网格），紊乱收拢语义不变。
-        (vis.alpha + _assimLift) * (0.35 + 0.65 * glow) * intro * nightYield,
+        // quantize 后仍落 0.02 网格），紊乱收拢语义不变；渊息包络再叠
+        // 一档轻抬（量化后仍落网格，结束后自然回落）。
+        (vis.alpha + _assimLift + pulseEnv) * (0.35 + 0.65 * glow) *
+            intro *
+            nightYield,
       );
       if (alpha <= 0) continue;
       for (int pt = 0; pt < _pointsPer; pt++) {

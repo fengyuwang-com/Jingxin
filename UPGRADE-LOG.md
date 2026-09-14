@@ -960,3 +960,16 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 环境层收官后的深化方向：晨光泛音深化 / 惘语偈语池扩充；或渊光再进一步——完全同化瞬间一簇光点短暂同步脉动一次（与乱星趋同意象互文，仍无奖励）；或长夜时段各环境层的集体"沉底"编排（睡前引导的纯视觉收束）。
+
+## 第 65 轮（2026-09-14）—— 渊息：完全同化瞬间的一次集体呼气（渊光再深化）
+- 理念：渊区被完全同化（calm ≥0.95，与第 64 轮 resetGate 同一判据）的那一刻，乱星归一——让渊光的簇做一次约 2.5s 的极短集体同步脉动：所有簇明灭相位瞬间趋同、亮度轻抬一档再回落。**这是渊底一起呼出的那口气，不是庆祝特效**：克制、无声、无奖、无 UI、不持久化。每次"重新武装后的再次满同化"可再脉一次（滞回防抖，不限次）。
+- 实现：
+  - 纯函数（lib/game/abyss_glow.dart）：① abyssPulseEnvelope(tMs)——0→2500ms sin 半波包络（峰值 0.03 档、两端落 0、界外归零），内部走 abyssGlowQuantize floor 量化：有效可见形态为"轻抬一档（0.02）再落回"，全程恰在 0.02 网格、量化不放大原值；② abyssPulseTriggered(calmPrev, calmNow)——边沿触发 + 滞回防抖：calmPrev <kAbyssPulseRearmCalm(0.90) 且 calmNow ≥kAbyssPulseTriggerCalm(0.95，与 kAbyssGlowFullAssimilation 同源) 才 true，触发后须回落 <0.90 才重新武装；③ abyssPulsePhasePull(env)——包络→相位趋同系数（0..0.85 线性，越界夹住）。
+  - 演出（jingjing_game.dart AbyssGlowLayer）：内存态 _pulseActive/_pulseT0/_calmPrev；每秒节拍检测 trigger（先查到期自然结束，再查新触发记 t0=game.time），命中当拍即生效；渲染时若 active，每帧算一次 pulseEnv（按 game.time−_pulseT0 自推进，与簇轨迹外推同用 game.time 时钟源）、共同相位取全体簇当前明灭相位的圆均值（atan2(Σsin,Σcos)，5 簇×每帧 10 次三角，成本可忽略），各簇 ownPhase 按环面最短方向向共同相位 lerp（系数随包络）、alpha 叠加 (vis.alpha+_assimLift+pulseEnv) 后统一 quantize；2.5s 后包络落 0、趋同归 0，各簇回到各自错相。屏外剔除/长夜让位/introEase 短路逻辑不变。脉动窗口内总 alpha 临时可到 0.12（0.02 一档），常态封顶 0.10 语义不变。
+- 测试（test/abyss_glow_test.dart 新增 9 项，379→388）：envelope 端点（0/2500/界外归零、中点恰 0.02 档）、全扫描落 0.02 网格+恒 ≤0.03+floor 不放大、单峰形状（先不减后不增确有回落段）；triggered 边沿组合（跨带触发/带内不触/高位不触/滞回下限含等号/未到阈值不误触）、滞回防抖管线模拟（慢爬升唯一一拍触发→高原不重复→退去不触发→重新武装再满可再脉，精确分数值序列避浮点漂移）、跳变边沿（低位直跨 ≥0.95 立即触发）；phasePull 端点/单调/界内/越界夹住；阈值常量同源（kAbyssPulseTriggerCalm==kAbyssGlowFullAssimilation、rearm<trigger、2500ms/0.03）；叠进 visual+lift+脉动后封顶 0.12（无脉动态仍 ≤0.10）、全程 0.02 网格、只抬不压。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 388/388；flutter build web 成功。
+- commit：见 feat(game)「渊息」commit（未 push）。
+- 下一步建议（第 66 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 深化方向：晨光泛音深化 / 惘语偈语池扩充；或长夜时段各环境层的集体"沉底"编排（睡前引导的纯视觉收束）；或渊息余韵——脉动结束后 1~2s 内各簇明灭周期轻微趋齐（错相缓慢重排，一口气后的余静）。
