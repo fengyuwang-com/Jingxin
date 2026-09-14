@@ -2343,6 +2343,11 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
   bool _pulseActive = false;
   double _pulseT0 = 0;
 
+  /// 渊息余韵（第 67 轮）：脉动结束拍记录的 t0（game.time 秒，内存态）；
+  /// 之后约 2s 内各簇明灭周期向全体均值趋齐再各自散开——一口气之后的
+  /// 余静。不动 alpha、不持久化、无状态残留（包络归 0 自动回到确定式轨迹）。
+  double _afterglowT0 = -1e9;
+
   /// 沉底累积的"等效渊时"（秒，第 66 轮）：每秒节拍按上浮速度乘子增量
   /// 推进，只喂给簇心上浮行程（明灭相位仍用真实时间）。零分配标量。
   double _settleAbyssTSec = 0;
@@ -2379,6 +2384,9 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
     if (_pulseActive &&
         (game.time - _pulseT0) * 1000.0 >= kAbyssPulseDurationMs) {
       _pulseActive = false;
+      // 渊息余韵（第 67 轮）：脉动结束拍记下 t0，之后约 2s 各簇明灭周期
+      // 缓慢趋齐再散开——纯内存态、自动消退、不参与 alpha。
+      _afterglowT0 = game.time;
     }
     if (!_pulseActive && abyssPulseTriggered(_calmPrev, assimilation)) {
       _pulseActive = true;
@@ -2545,14 +2553,35 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
     var pulseEnv = 0.0;
     var pulsePull = 0.0;
     var commonPhase = 0.0;
+    // 渊息余韵（第 67 轮）：脉动结束后约 2s，各簇明灭周期向全体均值趋齐
+    // 再各自散开——一口气之后的余静。**只作用于帧内外推段的瞬时速度**
+    // （elapsed 用有效周期），每秒节拍的锚定相位不变；包络归 0 后自动回
+    // 到全确定式轨迹，零状态残留。不动 alpha、无声、无奖、不持久化。
+    var afterglowPull = 0.0;
+    var meanPeriod = 0.0;
+    final agEnv = abyssAfterglowEnvelope((game.time - _afterglowT0) * 1000.0);
+    if (agEnv > 0 && _glows.isNotEmpty) {
+      afterglowPull = abyssAfterglowPeriodPull(agEnv);
+      double sum = 0;
+      for (int i = 0; i < _clusters && i < _glows.length; i++) {
+        sum += _glows[i].phasePeriodSec;
+      }
+      meanPeriod = sum / (_clusters < _glows.length ? _clusters : _glows.length);
+    }
     if (_pulseActive) {
       pulseEnv = abyssPulseEnvelope((game.time - _pulseT0) * 1000.0);
       pulsePull = abyssPulsePhasePull(pulseEnv);
       if (pulsePull > 0 && _glows.isNotEmpty) {
         double sx = 0, sy = 0;
         for (int i = 0; i < _clusters && i < _glows.length; i++) {
-          final ang =
-              2 * math.pi * (_glows[i].phase + elapsed / _glows[i].phasePeriodSec);
+          final ang = 2 *
+              math.pi *
+              (_glows[i].phase +
+                  elapsed /
+                      (afterglowPull > 0
+                          ? _glows[i].phasePeriodSec +
+                              (meanPeriod - _glows[i].phasePeriodSec) * afterglowPull
+                          : _glows[i].phasePeriodSec));
           sx += math.cos(ang);
           sy += math.sin(ang);
         }
@@ -2568,8 +2597,12 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
       final cy = g.y + g.vy * elapsed * abyssRise + sighOff + abyssDy;
       // 明灭相位：渊息期间向共同相位靠拢（环面最短方向 lerp，系数随
       // 包络）——各簇瞬间一起呼出这口气；包络落 0 后回到各自错相。
-      final ownPhase =
-          _pulseFract(g.phase + elapsed / g.phasePeriodSec);
+      // 余韵期（第 67 轮）：帧内外推段用"有效周期"（自身周期向全体均值
+      // lerp，系数随余韵包络）推进瞬时速度——锚定相位不变，回 0 即复原。
+      final effPeriod = afterglowPull > 0
+          ? g.phasePeriodSec + (meanPeriod - g.phasePeriodSec) * afterglowPull
+          : g.phasePeriodSec;
+      final ownPhase = _pulseFract(g.phase + elapsed / effPeriod);
       final effPhase = pulsePull > 0
           ? _pulseFract(ownPhase + ((commonPhase - ownPhase + 0.5) % 1.0 - 0.5) * pulsePull)
           : ownPhase;
