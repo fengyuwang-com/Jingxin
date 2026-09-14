@@ -287,12 +287,50 @@ bool abyssPulseTriggered(double calmPrev, double calmNow) {
 
 /// 渊息期间的明灭相位趋同系数（0..[kAbyssPulsePhasePullMax]，随包络
 /// 线性）：渲染层用 lerp(自身相位, 共同相位 0.5=峰, pull) 把所有簇的
-/// 明灭相位瞬间拉向同一处——乱星归一，渊底一起呼出一口气。包络为 0
+/// 明灭相位瞬间拉向同一处——乱星归一，渊底一起呼出这口气。包络为 0
 /// 时趋同为 0（各簇回到各自错相）。
 double abyssPulsePhasePull(double envelope) {
   if (envelope <= 0) return 0;
   final e = envelope / kAbyssPulsePeakAlpha;
   return (kAbyssPulsePhasePullMax * (e > 1 ? 1 : e)).clamp(0.0, kAbyssPulsePhasePullMax);
+}
+
+// ---------------------------------------------------------------------------
+// 渊息余韵（第 67 轮）：一口气之后的余静
+// ---------------------------------------------------------------------------
+
+/// 一次渊息余韵的时长（毫秒，约 2s——脉动结束后各簇明灭周期缓慢趋齐
+/// 再各自散开的窗口，像水面被投入石子后涟漪平复前最后一瞬的整齐）。
+const double kAbyssAfterglowDurationMs = 2000.0;
+
+/// 余韵起点强度（接续渊息结束时"相位仍部分趋齐"的事实——不要求从 1
+/// 开始；量级与渊息峰值相位趋同上限同级的一半附近，克制）。
+const double kAbyssAfterglowStart = 0.5;
+
+/// 余韵期内明灭周期的最大趋齐系数（0..~0.5，随包络线性）：渲染层用它
+/// 把每簇帧内外推段的瞬时相位速度向全体均值周期 lerp——只是节拍短暂
+/// 趋齐，不是新特效开关。
+const double kAbyssAfterglowPeriodPullMax = 0.5;
+
+/// 渊息余韵包络（纯函数）：tMs ∈ [0, kAbyssAfterglowDurationMs] 上的
+/// smoothstep 衰减 ×[kAbyssAfterglowStart]——起点 ~0.5（接续渊息结束时
+/// 相位仍部分趋齐的事实）、两端落 0、界内单调不增、越界归 0。注意与
+/// [abyssPulseEnvelope] 不同：**不做 alpha 量化**——本增量不动任何
+/// alpha，余韵只作用于明灭周期的趋齐层面。
+double abyssAfterglowEnvelope(double tMs) {
+  if (tMs <= 0 || tMs >= kAbyssAfterglowDurationMs) return 0;
+  final u = tMs / kAbyssAfterglowDurationMs;
+  return kAbyssAfterglowStart * (1.0 - _smooth(u));
+}
+
+/// 渊息余韵的明灭周期趋齐系数（0..[kAbyssAfterglowPeriodPullMax]，随
+/// 包络线性，越界夹住）：渲染层用 effPeriod = lerp(自身周期, 全体均值
+/// 周期, pull) 只作用于帧内外推段的瞬时速度（elapsed 除以有效周期），
+/// 每秒节拍的锚定值不变——包络归 0 后自然回到全确定式轨迹，零状态残留。
+double abyssAfterglowPeriodPull(double envelope) {
+  if (envelope <= 0) return 0;
+  final e = envelope > kAbyssAfterglowStart ? 1.0 : envelope / kAbyssAfterglowStart;
+  return (kAbyssAfterglowPeriodPullMax * e).clamp(0.0, kAbyssAfterglowPeriodPullMax);
 }
 
 /// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，峰值 0.08 恰

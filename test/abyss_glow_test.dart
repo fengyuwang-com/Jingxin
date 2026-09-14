@@ -518,4 +518,132 @@ void main() {
       }
     });
   });
+
+  group('渊息余韵——一口气后的周期趋齐（第 67 轮）', () {
+    test('envelope 端点：0 与 2000ms 落 0、起点接续 ~0.5、越界归 0', () {
+      expect(abyssAfterglowEnvelope(0), 0.0);
+      expect(abyssAfterglowEnvelope(kAbyssAfterglowDurationMs), 0.0);
+      expect(abyssAfterglowEnvelope(-1), 0.0);
+      expect(abyssAfterglowEnvelope(999999), 0.0);
+      // 起点接续渊息结束时"相位仍部分趋齐"的事实：t→0+ 趋于 0.5
+      expect(abyssAfterglowEnvelope(1e-6), closeTo(kAbyssAfterglowStart, 1e-6));
+      expect(kAbyssAfterglowDurationMs, 2000.0);
+      expect(kAbyssAfterglowStart, 0.5);
+    });
+
+    test('envelope 界内恒正、单调不增、全扫描有衰减段', () {
+      double prev = kAbyssAfterglowStart + 1;
+      var fell = false;
+      for (double t = 0.001; t < kAbyssAfterglowDurationMs; t += 3.7) {
+        final e = abyssAfterglowEnvelope(t);
+        expect(e, greaterThan(0.0), reason: 't=$t');
+        expect(e, lessThanOrEqualTo(kAbyssAfterglowStart + 1e-12));
+        expect(e, lessThanOrEqualTo(prev + 1e-12), reason: '单调不增 t=$t');
+        if (e < prev - 1e-12) fell = true;
+        prev = e;
+      }
+      expect(fell, isTrue); // 确实在衰减
+    });
+
+    test('periodPull 端点：包络 0→0、起点→上限 0.5、越界夹住、单调', () {
+      expect(abyssAfterglowPeriodPull(0.0), 0.0);
+      expect(abyssAfterglowPeriodPull(-1), 0.0);
+      expect(abyssAfterglowPeriodPull(kAbyssAfterglowStart),
+          kAbyssAfterglowPeriodPullMax);
+      expect(abyssAfterglowPeriodPull(99),
+          lessThanOrEqualTo(kAbyssAfterglowPeriodPullMax));
+      expect(kAbyssAfterglowPeriodPullMax, 0.5);
+      double prev = -1;
+      for (double e = 0; e <= kAbyssAfterglowStart + 1e-9; e += 0.01) {
+        final p = abyssAfterglowPeriodPull(e);
+        expect(p, inInclusiveRange(0.0, kAbyssAfterglowPeriodPullMax));
+        expect(p, greaterThanOrEqualTo(prev), reason: 'e=$e');
+        prev = p;
+      }
+    });
+
+    test('pull 随时间衰减：t 增大趋齐系数单调不增（先紧后松再散开）', () {
+      double prev = kAbyssAfterglowPeriodPullMax + 1;
+      for (double t = 0.001; t < kAbyssAfterglowDurationMs; t += 25) {
+        final p = abyssAfterglowPeriodPull(abyssAfterglowEnvelope(t));
+        expect(p, lessThanOrEqualTo(prev + 1e-12), reason: 't=$t');
+        prev = p;
+      }
+      expect(prev, lessThan(0.01)); // 尾段几乎完全散开
+    });
+
+    test('两簇不同周期在趋齐下相位差收窄、包络归 0 后恢复发散', () {
+      const pa = 8.0, pb = 12.0; // 快慢两簇
+      const mean = (pa + pb) / 2;
+      double phaseDiff(double pull, double elapsed) {
+        // 锚定相位相同（取最不利同相起点），只看外推段的相对漂移速率
+        final ea = elapsed / (pa + (mean - pa) * pull);
+        final eb = elapsed / (pb + (mean - pb) * pull);
+        return (ea - eb).abs();
+      }
+
+      final free = phaseDiff(0.0, 1.0); // 自由态每秒相位差
+      final tight = phaseDiff(kAbyssAfterglowPeriodPullMax, 1.0); // 峰值趋齐
+      expect(tight, lessThan(free)); // 趋齐下相位差收窄
+      // pull=1 时两簇周期完全重合于均值——相位差为 0（数学上限验证）
+      expect(phaseDiff(1.0, 1.0), closeTo(0.0, 1e-12));
+      // 沿余韵包络时间推进：相位差逐步回扩，包络归 0 后回到自由态（零残留）
+      var prevD = -1.0;
+      for (double t = 0.001; t < kAbyssAfterglowDurationMs; t += 50) {
+        final d = phaseDiff(abyssAfterglowPeriodPull(abyssAfterglowEnvelope(t)), 1.0);
+        expect(d, greaterThanOrEqualTo(prevD), reason: 't=$t 应单调回扩');
+        prevD = d;
+      }
+      expect(phaseDiff(abyssAfterglowEnvelope(kAbyssAfterglowDurationMs), 1.0),
+          closeTo(free, 1e-12)); // 结束拍=自由轨迹
+    });
+
+    test('有效周期恒在自身与全体均值之间（lerp 界内，不反向过冲）', () {
+      const periods = [8.0, 9.5, 11.0, 12.0, 10.2];
+      final mean = periods.reduce((a, b) => a + b) / periods.length;
+      for (final p in periods) {
+        for (double e = 0; e <= kAbyssAfterglowStart + 1e-9; e += 0.05) {
+          final pull = abyssAfterglowPeriodPull(e);
+          final eff = p + (mean - p) * pull;
+          final lo = p < mean ? p : mean;
+          final hi = p > mean ? p : mean;
+          expect(eff, inInclusiveRange(lo - 1e-12, hi + 1e-12),
+              reason: 'p=$p e=$e');
+          // 趋齐只把各自周期向均值收拢，绝不越界到均值另一侧
+        }
+      }
+    });
+
+    test('余韵不动 alpha：envelope/pull 任何取值不进量化链、量化结果与无余韵一致', () {
+      // 本增量纯函数输出的是"强度/系数"，不是 alpha 档——语义锁：
+      // 余韵值域 ≤0.5 远大于 alpha 网格，若被误当 alpha 叠加会爆表，
+      // 故渲染层只准用其做周期 lerp。此处验证 quantize 与本增量无关。
+      for (double t = 0; t <= kAbyssAfterglowDurationMs; t += 100) {
+        final e = abyssAfterglowEnvelope(t);
+        expect(e, lessThanOrEqualTo(kAbyssAfterglowStart + 1e-12));
+        // alpha 量化链只用 pulse envelope，余韵不参与（对照第 65 轮封顶断言）
+        final base = abyssGlowVisual(1.0).alpha + abyssGlowAssimilationLift(1.0);
+        final q1 = abyssGlowQuantize(base);
+        final q2 = abyssGlowQuantize(base + abyssPulseEnvelope(0));
+        expect(q1, q2); // 无脉动窗口 alpha 不因余韵存在而变
+      }
+    });
+
+    test('连续性与消退：envelope 相邻 50ms 步长小、末段趋 0（自动消退）', () {
+      double prev = abyssAfterglowEnvelope(0.001);
+      for (double t = 50; t < kAbyssAfterglowDurationMs; t += 50) {
+        final e = abyssAfterglowEnvelope(t);
+        expect((prev - e).abs(), lessThan(0.05), reason: 't=$t 缓变');
+        prev = e;
+      }
+      expect(prev, lessThan(0.01)); // 2s 末已趋 0
+    });
+
+    test('常量组与既有 kAbyssPulse* 并列：时长量级合理、pull 上限小于渊息趋同', () {
+      expect(kAbyssAfterglowDurationMs, greaterThan(0));
+      expect(kAbyssAfterglowDurationMs, lessThan(kAbyssPulseDurationMs)); // 比一口气短
+      expect(kAbyssAfterglowPeriodPullMax, lessThan(kAbyssPulsePhasePullMax)); // 余韵更克制
+      expect(kAbyssAfterglowStart, lessThan(1.0)); // 不从 1 开始
+    });
+  });
 }
