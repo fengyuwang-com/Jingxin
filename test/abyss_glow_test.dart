@@ -372,4 +372,150 @@ void main() {
       expect(refire, isTrue);
     });
   });
+
+  group('渊息——完全同化的一次集体呼气（第 65 轮）', () {
+    test('envelope 端点：0 与 2500ms 落 0、界外归零、峰值段在 0.02 档', () {
+      expect(abyssPulseEnvelope(0), 0.0);
+      expect(abyssPulseEnvelope(kAbyssPulseDurationMs), 0.0);
+      expect(abyssPulseEnvelope(-1), 0.0);
+      expect(abyssPulseEnvelope(99999), 0.0);
+      // 中点原始 sin 包络 = 峰值 0.03，量化后恰一档 0.02
+      expect(abyssPulseEnvelope(kAbyssPulseDurationMs / 2), kAbyssGlowAlphaStep);
+    });
+
+    test('envelope 全程落在 0.02 量化网格上、恒 ≤ 峰值档、不放大原值', () {
+      for (double t = 0; t <= kAbyssPulseDurationMs + 1; t += 7.3) {
+        final e = abyssPulseEnvelope(t);
+        expect(
+          (e / kAbyssGlowAlphaStep).roundToDouble() * kAbyssGlowAlphaStep,
+          closeTo(e, 1e-12),
+          reason: 't=$t',
+        );
+        expect(e, lessThanOrEqualTo(kAbyssPulsePeakAlpha + 1e-12));
+        // 量化是 floor：raw = 0.03·sin ≥ e（floor 不放大）
+        if (t > 0 && t < kAbyssPulseDurationMs) {
+          final raw = kAbyssPulsePeakAlpha *
+              math.sin(math.pi * t / kAbyssPulseDurationMs);
+          expect(e, lessThanOrEqualTo(raw + 1e-12));
+        }
+      }
+    });
+
+    test('envelope 单峰形状：先不减后不增（一个起落的呼吸形）', () {
+      double prev = 0;
+      var falling = false;
+      for (double t = 0; t <= kAbyssPulseDurationMs; t += 5) {
+        final e = abyssPulseEnvelope(t);
+        if (falling) {
+          expect(e, lessThanOrEqualTo(prev + 1e-12), reason: 't=$t');
+        } else {
+          if (e < prev - 1e-12) falling = true;
+        }
+        prev = e;
+      }
+      expect(falling, isTrue); // 确实有回落段
+    });
+
+    test('triggered 边沿：从 <0.90 跨到 ≥0.95 才 true', () {
+      expect(abyssPulseTriggered(0.89, 0.95), isTrue);
+      expect(abyssPulseTriggered(0.0, 1.0), isTrue);
+      expect(abyssPulseTriggered(0.94, 0.96), isFalse); // calmPrev ∈ [0.90,0.95) 未武装
+      expect(abyssPulseTriggered(0.95, 1.0), isFalse); // 持续高位不重复触发
+      expect(abyssPulseTriggered(0.90, 1.0), isFalse); // 滞回下限含等号：须严格 <0.90
+      expect(abyssPulseTriggered(0.5, 0.94), isFalse); // 未到阈值不误触
+      expect(abyssPulseTriggered(0.5, 0.5), isFalse);
+    });
+
+    test('triggered 滞回防抖：缓动爬升只触发一次，回落 <0.90 后重新武装可再脉', () {
+      // 模拟每秒节拍的 calm 序列（精确分数值）：0→1 →高原→退到
+      // 0.84（低于重武装线 0.90）→再升满。连续慢爬时，唯一满足
+      // "calmPrev <0.90 且 calmNow ≥0.95"的拍是 0.75→0.95；此后高位/
+      // 退去均不再触发，直到回落到 <0.90 重新武装后再次满同化才可再脉。
+      var calmPrev = 0.0;
+      var fires = 0;
+      void feed(double c) {
+        if (abyssPulseTriggered(calmPrev, c)) fires++;
+        calmPrev = c;
+      }
+      for (int i = 0; i <= 4; i++) {
+        feed(i / 4); // 0, 0.25, 0.5, 0.75, 1.0
+      }
+      expect(fires, 1); // 0.75→1.0 那拍唯一触发
+      for (int i = 0; i < 50; i++) {
+        feed(1.0); // 高原期不再触发
+      }
+      expect(fires, 1);
+      for (int i = 4; i >= 0; i--) {
+        feed(i / 4); // 退到 0 <0.90 重新武装
+      }
+      expect(fires, 1); // 退去本身不触发
+      for (int i = 0; i <= 4; i++) {
+        feed(i / 4);
+      }
+      expect(fires, 2); // 再次满同化可以再脉一次（不限次）
+    });
+
+    test('triggered 跳变边沿：从低位直接跨到 ≥0.95 立即触发', () {
+      // calm 快速上升（或台阶式变化）时，只要 calmPrev 仍 <0.90、calmNow
+      // 已达完全同化，当拍即触发；高位持续不再触发，退到 <0.90 重新武装
+      // 后可再脉。
+      var calmPrev = 0.0;
+      var fires = 0;
+      void feed(double c) {
+        if (abyssPulseTriggered(calmPrev, c)) fires++;
+        calmPrev = c;
+      }
+      feed(0.5);
+      feed(0.96); // 0.5→0.96 跳变：触发
+      expect(fires, 1);
+      feed(0.97);
+      feed(1.0); // 高位持续不再触发
+      expect(fires, 1);
+      feed(0.8); // 退到 <0.90 重新武装（本身不触发）
+      feed(0.95); // 再次满同化 → 再脉
+      expect(fires, 2);
+    });
+
+    test('phasePull：包络 0→趋同 0、峰值→上限 0.85、单调、越界夹住', () {
+      expect(abyssPulsePhasePull(0.0), 0.0);
+      expect(abyssPulsePhasePull(-1), 0.0);
+      expect(abyssPulsePhasePull(kAbyssPulsePeakAlpha), kAbyssPulsePhasePullMax);
+      expect(abyssPulsePhasePull(99), lessThanOrEqualTo(kAbyssPulsePhasePullMax));
+      double prev = -1;
+      for (double e = 0; e <= kAbyssPulsePeakAlpha + 1e-9; e += 0.001) {
+        final p = abyssPulsePhasePull(e);
+        expect(p, inInclusiveRange(0.0, kAbyssPulsePhasePullMax));
+        expect(p, greaterThanOrEqualTo(prev));
+        prev = p;
+      }
+    });
+
+    test('阈值常量与第 64 轮 resetGate 判据同源', () {
+      expect(kAbyssPulseTriggerCalm, kAbyssGlowFullAssimilation);
+      expect(kAbyssPulseRearmCalm, lessThan(kAbyssPulseTriggerCalm));
+      expect(kAbyssPulseDurationMs, 2500.0);
+      expect(kAbyssPulsePeakAlpha, 0.03);
+    });
+
+    test('叠进 visual+lift+脉动后总 alpha 封顶 0.12、落 0.02 网格（脉动只加档）', () {
+      for (double s = 0; s <= 1.0001; s += 0.1) {
+        final vis = abyssGlowVisual(s);
+        for (double a = 0; a <= 1.0001; a += 0.1) {
+          for (double t = 0; t <= kAbyssPulseDurationMs; t += 100) {
+            final total = abyssGlowQuantize(
+                vis.alpha + abyssGlowAssimilationLift(a) + abyssPulseEnvelope(t));
+            // 常态封顶仍是第 64 轮的 0.10；只有渊息进行中的极短窗口
+            // （量化包络 0.02 档）允许临时到 0.12，结束后自然回落。
+            expect(total, lessThanOrEqualTo(kAbyssGlowPeakAlpha + kAbyssGlowAlphaStep + 1e-12));
+            if (abyssPulseEnvelope(t) <= 0) {
+              expect(total, lessThanOrEqualTo(kAbyssGlowPeakAlpha + 1e-12));
+            }
+            expect((total / kAbyssGlowAlphaStep).roundToDouble() * kAbyssGlowAlphaStep,
+                closeTo(total, 1e-12));
+            expect(total, greaterThanOrEqualTo(vis.alpha)); // 脉动只抬不压
+          }
+        }
+      }
+    });
+  });
 }

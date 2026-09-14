@@ -231,6 +231,63 @@ double abyssGlowSighOffsetPx(double progress) {
   return -kAbyssGlowSighRisePx * _smooth(progress.clamp(0.0, 1.0));
 }
 
+// ---------------------------------------------------------------------------
+// 渊息（第 65 轮）：完全同化瞬间的一次集体同步脉动
+// ---------------------------------------------------------------------------
+
+/// 一次渊息的时长（毫秒，约 2.5s——一口气的量级）。
+const double kAbyssPulseDurationMs = 2500.0;
+
+/// 渊息峰值亮度抬升（alpha 档，0.03——加在原有亮度上的一小口气，
+/// 渲染层叠加后仍走 [abyssGlowQuantize] 统一量化）。量化到 0.02 网格
+/// 后有效形态为"轻抬一档（0.02）再落回"；峰值窗口内总 alpha 临时可
+/// 到 0.12（常态封顶 0.10 不变，脉动约 2.5s 结束后自然回落）。
+const double kAbyssPulsePeakAlpha = 0.03;
+
+/// 渊息期间明灭相位向共同相位靠拢的最大趋同系数（与呼吸平稳度里
+/// 的"趋同"同一手法：只是更同步地一起呼出这口气，不是新特效开关）。
+const double kAbyssPulsePhasePullMax = 0.85;
+
+/// 渊息触发的同化度阈值（与第 64 轮 resetGate 同一判据：完全同化）。
+const double kAbyssPulseTriggerCalm = kAbyssGlowFullAssimilation;
+
+/// 渊息重新武装（滞回下限）：触发后 calm 须回落到 <0.90 才允许再脉。
+const double kAbyssPulseRearmCalm = 0.90;
+
+/// 渊息包络（纯函数）：tMs ∈ [0, kAbyssPulseDurationMs] 上的 sin 半波
+/// ——两端恰落 0、峰值 [kAbyssPulsePeakAlpha]（0→升→回落，一口气的形）。
+/// 界外（tMs ≤ 0 或 ≥ 时长）返回 0。结果量化到 0.02 网格（floor）：
+/// 峰值段（envelope ≥ 2/3）落在 0.02 档，其余段为 0——**脉动的可见
+/// 形态是"轻抬一档再落回"**，克制、无声、无奖；量化不放大原值。
+double abyssPulseEnvelope(double tMs) {
+  if (tMs <= 0 || tMs >= kAbyssPulseDurationMs) return 0;
+  final raw =
+      kAbyssPulsePeakAlpha * math.sin(math.pi * tMs / kAbyssPulseDurationMs);
+  return abyssGlowQuantize(raw);
+}
+
+/// 渊息边沿触发 + 滞回防抖（纯函数，状态在调用方）：
+/// - calmPrev ≥ [kAbyssPulseRearmCalm]（含已在高位的持续段）→ 永不触发
+///   （首次跨到 ≥0.95 的那一拍 calmPrev 尚在 0.90 以下，可触发）；
+/// - calmNow ≥ [kAbyssPulseTriggerCalm] 且 calmPrev < [kAbyssPulseRearmCalm]
+///   → true（从 <0.90 跨到 ≥0.95 才 true）；
+/// - 触发后 calm 须回落到 <0.90（即已满足 calmPrev < 0.90）才重新武装，
+///   每次"重新武装后的再次满同化"可再脉一次，不限次。
+bool abyssPulseTriggered(double calmPrev, double calmNow) {
+  if (calmPrev >= kAbyssPulseRearmCalm) return false;
+  return calmNow >= kAbyssPulseTriggerCalm;
+}
+
+/// 渊息期间的明灭相位趋同系数（0..[kAbyssPulsePhasePullMax]，随包络
+/// 线性）：渲染层用 lerp(自身相位, 共同相位 0.5=峰, pull) 把所有簇的
+/// 明灭相位瞬间拉向同一处——乱星归一，渊底一起呼出一口气。包络为 0
+/// 时趋同为 0（各簇回到各自错相）。
+double abyssPulsePhasePull(double envelope) {
+  if (envelope <= 0) return 0;
+  final e = envelope / kAbyssPulsePeakAlpha;
+  return (kAbyssPulsePhasePullMax * (e > 1 ? 1 : e)).clamp(0.0, kAbyssPulsePhasePullMax);
+}
+
 /// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，峰值 0.08 恰
 /// 是量化步长的整数倍，封顶即有效上限）。
 double abyssGlowQuantize(double v) {
