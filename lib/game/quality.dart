@@ -83,6 +83,13 @@ class Quality {
   /// 星潮每条弧线的采样点数（低档减半，第 60 轮）。
   int get tideLinePoints => isLow ? 12 : 24;
 
+  /// 雾林萤迹的萤火数量（低档 4 只，第 61 轮）。
+  int get fireflyCount => switch (tier) {
+        QualityTier.high => 7,
+        QualityTier.mid => 5,
+        QualityTier.low => 4,
+      };
+
   /// 启动时判定一次。UI 层在构造游戏前调用。
   /// [dpr] 传设备像素比（Web 用 implicitView.devicePixelRatio）。
   static void detect({double? dpr, String? userAgent}) {
