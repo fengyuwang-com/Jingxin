@@ -93,12 +93,18 @@ typedef AbyssGlowState = ({
 /// 周而复始）；x 叠一个确定性正弦轻摆（摆幅 3~6px、周期 10~16s），
 /// [vx] 给出该摆动在 [tSec] 的瞬时导数供渲染层帧内外推。亮度 8~12s
 /// 呼吸式明灭，每簇初相由 Knuth 散列错开。纯数值全部确定性。
+///
+/// [riseTimeSec]（第 66 轮·长夜沉底，默认 = [tSec] 即旧行为）：上浮行程
+/// 的"等效时间"——渲染层传入节拍锚定的累积值（入夜后按速度乘子减速增
+/// 长），只慢化 y 上浮行程；[vy] 报告该等效时刻的本征速度，供帧内外推
+/// 再乘系数。明灭相位仍用 [tSec]（本增量不动相位推进）。纯函数、无状态。
 AbyssGlowState abyssGlowAt(
   double tSec,
   int index,
   double worldW,
-  double worldH,
-) {
+  double worldH, {
+  double? riseTimeSec,
+}) {
   final baseX = _hash01(index * 8 + 0) * worldW;
   final baseY = _hash01(index * 8 + 1) * worldH;
   final rise =
@@ -111,8 +117,9 @@ AbyssGlowState abyssGlowAt(
 
   final w = 2 * math.pi / swayPeriod;
   final swayArg = w * tSec + phase0 * 2 * math.pi;
+  final riseT = riseTimeSec ?? tSec;
   final x = _fract((baseX + swayAmp * math.sin(swayArg)) / worldW) * worldW;
-  final y = _fract((baseY - rise * tSec) / worldH) * worldH;
+  final y = _fract((baseY - rise * riseT) / worldH) * worldH;
   return (
     x: x,
     y: y,
