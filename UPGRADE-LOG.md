@@ -973,3 +973,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 深化方向：晨光泛音深化 / 惘语偈语池扩充；或长夜时段各环境层的集体"沉底"编排（睡前引导的纯视觉收束）；或渊息余韵——脉动结束后 1~2s 内各簇明灭周期轻微趋齐（错相缓慢重排，一口气后的余静）。
+
+## 第 66 轮（2026-09-14）—— 长夜沉底：四环境层的集体收束（睡前章节纯视觉呼应）
+- 理念：**入夜不抹黑，而是万物安眠**。nightAmount 爬升时（≥0.5 起明显、0.95 到底），四个环境层各自缓缓"沉底"：星潮波纹振幅渐收至静止海面；渊光上浮微光整体缓沉降向渊底（在 alpha 让位之外叠加 ≤10px 的下沉位移，实作 8px，smoothstep）；风痕流速与长度渐止到近乎凝滞；萤迹漂移渐慢、明灭包络趋低（眯眼不熄灭）。关键语义：各层现有 nightYield（alpha ×(1−nightAmount)）让位逻辑**保留不变**，本增量只在其上叠加运动/幅度/包络层面的收束；黎明回落（nightAmount 下降）时各层自然恢复——全部系数是 nightAmount 的纯派生量，无状态机。**无任何奖励/UI/音效/文案，不参与经济系统**（写进纯函数文件头注释与本日志，防后续轮误加）。
+- 实现：
+  - 纯函数（lib/game/night_settle.dart 新文件，无类型依赖便于测试）：① nightSettleFactor(nightAmount)——沉底程度 0..1，窗口 [kNightSettleStart=0.5, kNightSettleEnd=0.95] 上的 smoothstep（两端零导数、单调不减、越界夹住、NaN 防御归 0）；② 各层映射：nightSettleSeaAmpScale（1→0.15 波纹振幅乘子）、nightSettleAbyssDyPx（0→8px 下沉位移，上限 ≤10px）、nightSettleAbyssRiseScale（1→0.25 上浮速度乘子）、nightSettleWindSpeedScale（1→0.08）、nightSettleWindLengthScale（1→0.25）、nightSettleFireflyDriftScale（1→0.15）、nightSettleFireflyGlowFloor（0.35→0.10 明灭包络下限）——全部连续、有界、非负。
+  - 既有 API 小幅扩展（spec 允许，向后兼容默认参数）：fireflyVisual 增 named `glowFloor`（默认 0 即旧行为，包络重塑为 floor+(1−floor)×e，封顶不放大）；abyssGlowAt 增 named `riseTimeSec`（默认 = tSec，只喂 y 上浮行程的等效时间，x 摆/相位/vy 本征速度不动）。
+  - 演出接线（jingjing_game.dart 四 Layer，每帧零新增分配）：星潮——seaAmp 叠进场强 f（sway 与 mean 联动收敛，alpha 走原链属幅度层面非让位公式）；萤迹——渲染帧内外推位移 ×ffDrift、节拍吸引 dtMs ×ffDrift、fireflyVisual 传 glowFloor；风痕——新增积分标量 _settleWindTSec（每秒节拍 += 当前速度乘子，取代旧世界时刻锚，漂移/摆动/明灭相位共用等效风时），帧内外推再乘 windSpeed，halfLen ×windLen；渊光——新增 _settleAbyssTSec（同样按 riseScale 积分）喂 abyssGlowAt(riseTimeSec:)，帧内 vy 外推 ×abyssRise，cy 叠 +abyssDy 沉降位移。alpha 端四层全部不动（nightYield/introEase/量化链原样）。
+- 测试（test/night_settle_test.dart 新增 17 项，388→405）：factor 端点/越界夹住/NaN 防御/全扫描单调+界内/smoothstep 零导数两端（起点终点斜率 <中段 5%）/分段平坦；七个映射各自的端值、值域、单调性、越界夹住；全映射相邻采样连续性（步长 0.001 无跳变）；smoothstep 中点对称 f(c−d)+f(c+d)=1；接入点向后兼容（glowFloor=0 逐点等旧值、floor 抬谷不抬峰且全程落 0.02 网格、riseTimeSec 缺省等旧行为且只影响 y 行程）；语义锁——所有映射输出为运动系数/像素偏移，不落 alpha 量化语义、恒在声明值域内。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 405/405；flutter build web 成功。
+- commit：d8b649c（feat(game): 长夜沉底——四环境层的集体收束 [auto-night-66]，未 push）。
+- 下一步建议（第 67 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 深化方向：渊息余韵（脉动结束后 1~2s 各簇明灭周期轻微趋齐，一口气后的余静）；晨光泛音深化（醒来时各层沿沉底曲线自然回暖，可再加一层"晨露"微光回弹）；惘语偈语池扩充。
