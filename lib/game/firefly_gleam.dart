@@ -107,11 +107,23 @@ FireflyState fireflyGleamAt(
 /// 相位被轻拉向共同的峰值相位 0.5，明灭更同步；紊乱（→0）时各自
 /// 散乱（k 回落到 0.12 的本底）。封顶 [kFireflyPeakAlpha] 恒不变：
 /// 森林陪你整理呼吸，但不催促。
-double fireflyVisual(double phase, double breathSteadiness) {
+///
+/// [glowFloor]（第 66 轮·长夜沉底，默认 0 = 旧行为）：明灭包络的下限。
+/// 渲染层传入 [nightSettleFireflyGlowFloor]（0.35→0.10），入夜后半段
+/// 包络重塑为 floor + (1−floor)×envelope——萤火不是熄灭，是眯眼。
+/// 语义边界：只动运动/包络层面，alpha 端仍走原量化链与 nightYield
+/// 让位，本参数不新增任何 alpha 来源。
+double fireflyVisual(
+  double phase,
+  double breathSteadiness, {
+  double glowFloor = 0.0,
+}) {
   final p = _fract(phase);
   final k = 0.12 + 0.18 * breathSteadiness.clamp(0.0, 1.0);
   final pulled = p + (0.5 - p) * k;
-  final e = 0.5 - 0.5 * math.cos(2 * math.pi * pulled);
+  final e0 = 0.5 - 0.5 * math.cos(2 * math.pi * pulled);
+  final f = glowFloor.clamp(0.0, 1.0);
+  final e = f + (1.0 - f) * e0;
   var a = e * kFireflyPeakAlpha;
   if (a > kFireflyPeakAlpha) a = kFireflyPeakAlpha;
   return fireflyQuantize(a);

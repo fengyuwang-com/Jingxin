@@ -25,6 +25,7 @@ import 'long_night_whisper.dart';
 import 'mist_guardian.dart';
 import 'morning_star.dart';
 import 'mist_wood.dart';
+import 'night_settle.dart';
 import 'onboarding.dart';
 import 'perplex_planet.dart';
 import 'quality.dart';
@@ -1898,6 +1899,11 @@ class SeaTideLayer extends Component with HasGameReference<JingjingGame> {
     // 长夜让位（同潮汐/花开之地的思路）：长夜全开时星潮入眠。
     final nightYield = 1.0 - game.nightAmount.clamp(0.0, 1.0);
     if (nightYield <= 0.01) return;
+    // 长夜沉底（第 66 轮）：波纹振幅渐收至静止海面——场强与摇曳共用同
+    // 一乘子（f 已缩，seaTideSway(f) 随之收敛；alpha 走 seaTideVisual 的
+    // mean×amp 链自然变淡，属幅度层面而非让位公式改动）；只动运动/幅度，
+    // alpha 让位仍走原 nightYield 公式；黎明回落自然恢复（纯派生量）。
+    final seaAmp = nightSettleSeaAmpScale(game.nightAmount);
     final size = game.size;
     final period = JingjingGame.worldPeriod;
     final phaseMs = _beatPhaseMs + _beat * 1000.0;
@@ -1916,7 +1922,7 @@ class SeaTideLayer extends Component with HasGameReference<JingjingGame> {
         for (int p = 0; p <= _points; p++) {
           final sx = p / _points * size.x;
           final wx = game.camPos.x - size.x / 2 + sx;
-          final f = seaTideWave(wx, wy, phaseMs);
+          final f = seaTideWave(wx, wy, phaseMs) * seaAmp;
           sum += f.abs();
           final y = sy + seaTideSway(f);
           if (p == 0) {
@@ -1989,7 +1995,9 @@ class FireflyLayer extends Component with HasGameReference<JingjingGame> {
   /// 每秒节拍：刷新轨迹 + 更新吸引偏移（若即若离）。
   void _refresh() {
     final period = JingjingGame.worldPeriod;
-    final dtMs = 1000.0;
+    // 长夜沉底（第 66 轮）：漂移渐慢同样作用于向光灵的漂近速度（dtMs
+    // 缩放，零分配）——入夜后萤火连靠近的力气都省了；纯派生系数。
+    final dtMs = 1000.0 * nightSettleFireflyDriftScale(game.nightAmount);
     while (_flies.length < _count) {
       _flies.add(
         fireflyGleamAt(0, _flies.length, period.x, period.y),
@@ -2062,16 +2070,21 @@ class FireflyLayer extends Component with HasGameReference<JingjingGame> {
     final size = game.size;
     final period = JingjingGame.worldPeriod;
     final elapsed = _beat;
+    // 长夜沉底（第 66 轮）：漂移速度渐慢、明灭包络趋低（萤火眯眼不熄灭）。
+    // 只动运动/包络层面；alpha 让位仍走原 nightYield 公式；纯派生量，
+    // 黎明回落自然恢复。零新增每帧分配（两个局部 double）。
+    final ffDrift = nightSettleFireflyDriftScale(game.nightAmount);
+    final ffFloor = nightSettleFireflyGlowFloor(game.nightAmount);
     final tint = const Color(kFireflyTintValue);
     for (int i = 0; i < _count; i++) {
       final f = _flies[i];
       // 帧内线性外推：漂移速度 × 已过秒数（摆幅 ≤2px/秒内的误差
-      // 肉眼不可辨，不每帧重算三角函数）。
-      final wx = f.x + f.vx * elapsed + _offX[i];
-      final wy = f.y + f.vy * elapsed + _offY[i];
+      // 肉眼不可辨，不每帧重算三角函数）；沉底时漂移速度乘子渐慢。
+      final wx = f.x + f.vx * elapsed * ffDrift + _offX[i];
+      final wy = f.y + f.vy * elapsed * ffDrift + _offY[i];
       final phase = f.phase + elapsed / f.glowPeriodSec;
       final alpha = fireflyQuantize(
-        fireflyVisual(phase, _steady) * intro * nightYield,
+        fireflyVisual(phase, _steady, glowFloor: ffFloor) * intro * nightYield,
       );
       if (alpha <= 0) continue;
       // 环绕绘制（世界锁定 1.0 视差 + 3x3 镜像，萤火跨缝游走 wrap）。
@@ -2127,9 +2140,6 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
   /// 每秒节拍计时（首拍即刷）。
   double _beat = 1.0;
 
-  /// 节拍锚定的世界时刻（秒）；帧内用 _beat（已过秒数）线性外推。
-  double _beatTSec = 0;
-
   /// 光灵是否在荒原（每秒节拍判定一次，荒原外整层短路）。
   bool _active = false;
 
@@ -2140,6 +2150,12 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
   /// 定长池：每秒节拍刷新的确定性轨迹状态（下标即风痕 index）。
   final List<WindTraceState> _traces = [];
 
+  /// 沉底累积的"等效风时"（秒，第 66 轮）：每秒节拍按流速乘子增量推进，
+  /// 入夜后风渐止、黎明后恢复增速——纯派生系数驱动的标量，零分配。
+  /// 取代旧的世界时刻锚 [windTraceLine] 入参（第 66 轮起漂移与明灭相位
+  /// 均走等效时间，帧内外推再乘当前速度乘子）。
+  double _settleWindTSec = 0;
+
   @override
   void update(double dt) {
     _beat += dt;
@@ -2148,7 +2164,11 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
     _steady += (target - _steady) * math.min(1.0, dt * 0.8);
     if (_beat < 1.0) return;
     _beat = 0;
-    _beatTSec = game.time;
+    // 长夜沉底（第 66 轮）：等效风时按当前流速乘子缓增——夜越深风越凝滞，
+    // 明灭相位与漂移共用同一等效时间（连摆动一起静下来），黎明回落
+    // 自然恢复全速（纯派生量，无状态机语义——只是一个积分标量）。
+    // 本层不再需要世界时刻锚（第 66 轮起 _beatTSec 移除）。
+    _settleWindTSec += nightSettleWindSpeedScale(game.nightAmount);
     final p = game.spiritPos;
     _active = GameRegion.regionAtPoint(p.x, p.y) == GameRegion.wearyHeath;
     if (_active) _refresh();
@@ -2160,7 +2180,7 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
       _traces.add(windTraceLine(0, _traces.length, period.x, period.y));
     }
     for (int i = 0; i < _count; i++) {
-      _traces[i] = windTraceLine(_beatTSec, i, period.x, period.y);
+      _traces[i] = windTraceLine(_settleWindTSec, i, period.x, period.y);
     }
   }
 
@@ -2175,16 +2195,21 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
     final size = game.size;
     final period = JingjingGame.worldPeriod;
     final elapsed = _beat;
+    // 长夜沉底（第 66 轮）：流速乘子叠进帧内外推、长度乘子收短风痕——
+    // 节拍重算已走等效风时（漂移与明灭一起渐止）。只动运动/幅度层面，
+    // alpha 让位仍走原 nightYield 公式；纯派生量，黎明回落自然恢复。
+    final windSpeed = nightSettleWindSpeedScale(game.nightAmount);
+    final windLen = nightSettleWindLengthScale(game.nightAmount);
     final vis = windTraceVisual(_steady);
-    final halfLen = kWindTraceLengthPx * vis.lengthScale * 0.5;
-    final phaseMs = (_beatTSec + elapsed) * 1000.0;
+    final halfLen = kWindTraceLengthPx * vis.lengthScale * windLen * 0.5;
+    final phaseMs = (_settleWindTSec + elapsed * windSpeed) * 1000.0;
     final tint = const Color(kWindTraceTintValue);
     for (int i = 0; i < _count; i++) {
       final t = _traces[i];
-      // 帧内线性外推：基准点漂移 + 明灭相位（摆幅 ≤7px/秒内的误差
-      // 肉眼不可辨，不每帧重算三角函数）。
-      final bx = t.x + t.vx * elapsed;
-      final by = t.y + t.vy * elapsed;
+      // 帧内线性外推：基准点漂移 × 沉底速度乘子 + 明灭相位（摆幅 ≤7px/秒
+      // 内的误差肉眼不可辨，不每帧重算三角函数）。
+      final bx = t.x + t.vx * elapsed * windSpeed;
+      final by = t.y + t.vy * elapsed * windSpeed;
       final glow = 0.5 - 0.5 * math.cos(2 * math.pi *
           (t.phase + elapsed / t.phasePeriodSec));
       final alpha = windTraceQuantize(
@@ -2318,6 +2343,10 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
   bool _pulseActive = false;
   double _pulseT0 = 0;
 
+  /// 沉底累积的"等效渊时"（秒，第 66 轮）：每秒节拍按上浮速度乘子增量
+  /// 推进，只喂给簇心上浮行程（明灭相位仍用真实时间）。零分配标量。
+  double _settleAbyssTSec = 0;
+
   @override
   void update(double dt) {
     _beat += dt;
@@ -2356,6 +2385,9 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
       _pulseT0 = game.time;
     }
     _calmPrev = assimilation;
+    // 长夜沉底（第 66 轮）：等效渊时按上浮速度乘子缓增——夜越深微光越
+    // 懒得浮（在 alpha 让位之外叠加的运动层收束），黎明回落自然恢复。
+    _settleAbyssTSec += nightSettleAbyssRiseScale(game.nightAmount);
     final p = game.spiritPos;
     _active = GameRegion.regionAtPoint(p.x, p.y) == GameRegion.anxietyAbyss;
     if (!_active) {
@@ -2479,7 +2511,13 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
       _sighOffCur.add(0);
     }
     for (int i = 0; i < _clusters; i++) {
-      _glows[i] = abyssGlowAt(_beatTSec, i, period.x, period.y);
+      _glows[i] = abyssGlowAt(
+        _beatTSec,
+        i,
+        period.x,
+        period.y,
+        riseTimeSec: _settleAbyssTSec,
+      );
     }
   }
 
@@ -2494,6 +2532,11 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
     final size = game.size;
     final period = JingjingGame.worldPeriod;
     final elapsed = _beat;
+    // 长夜沉底（第 66 轮）：上浮速度乘子叠进帧内外推 + 整体缓沉降位移
+    // （0→8px，上限 ≤10px，在 alpha 让位之外叠加的运动层收束——万物安眠
+    // 不是抹黑）。只动运动层面；alpha 让位仍走原 nightYield 公式。
+    final abyssRise = nightSettleAbyssRiseScale(game.nightAmount);
+    final abyssDy = nightSettleAbyssDyPx(game.nightAmount);
     final vis = abyssGlowVisual(_steady);
     final tint = const Color(kAbyssGlowTintValue);
     // 渊息（第 65 轮）：进行中的集体脉动——包络（量化后 0/0.02 两档）与
@@ -2522,7 +2565,7 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
       // 肉眼不可辨，不每帧重算三角函数）；长叹息偏移前后拍线性插值。
       final cx = g.x + g.vx * elapsed;
       final sighOff = _sighOffCur[i] + (_sighOffCur[i] - _sighOffPrev[i]) * elapsed;
-      final cy = g.y + g.vy * elapsed + sighOff;
+      final cy = g.y + g.vy * elapsed * abyssRise + sighOff + abyssDy;
       // 明灭相位：渊息期间向共同相位靠拢（环面最短方向 lerp，系数随
       // 包络）——各簇瞬间一起呼出这口气；包络落 0 后回到各自错相。
       final ownPhase =
