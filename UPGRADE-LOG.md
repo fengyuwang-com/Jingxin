@@ -987,3 +987,16 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 深化方向：渊息余韵（脉动结束后 1~2s 各簇明灭周期轻微趋齐，一口气后的余静）；晨光泛音深化（醒来时各层沿沉底曲线自然回暖，可再加一层"晨露"微光回弹）；惘语偈语池扩充。
+
+## 第 67 轮（2026-09-15）—— 渊息余韵：一口气之后的余静（渊息深化）
+- 理念：渊息（第 65 轮）是脉冲式的"一起呼出这口气"，2.5s 结束得太干脆。本轮给它余韵：**脉动结束后约 2s 内，各簇的明灭周期缓慢趋齐再各自散开**——像水面被投入石子后、涟漪平复前最后一瞬的整齐。短暂、自动消退、无状态残留；不动 alpha、无声、无奖励、无 UI、不持久化（语义写进纯函数与渲染层注释与本日志，防后续轮误加）。
+- 实现：
+  - 纯函数扩展（lib/game/abyss_glow.dart，常量组与 kAbyssPulse* 并列）：① abyssAfterglowEnvelope(tMs)——tMs ∈ [0, kAbyssAfterglowDurationMs=2000] 上 smoothstep 衰减 ×kAbyssAfterglowStart(0.5)：起点 ~0.5（接续渊息结束时相位仍部分趋齐的事实，不从 1 开始）、两端落 0、界内单调不增、越界归 0；**不做 alpha 量化**（本增量不动任何 alpha）；② abyssAfterglowPeriodPull(envelope)——趋齐系数 0..kAbyssAfterglowPeriodPullMax(0.5，随包络线性、越界夹住)，渲染层用它把每簇帧内外推段瞬时速度向全体均值周期 lerp。
+  - 演出接线（jingjing_game.dart AbyssGlowLayer）：新增内存态 _afterglowT0（初值 -1e9 即永不激活），复用 _pulseActive 转 false 的那一拍记 t0=game.time；渲染帧每帧算一次 agEnv→pull 与全体簇均值周期 meanPeriod（5 簇求和，零分配），各簇 effPeriod = lerp(自身周期, meanPeriod, pull)，ownPhase 外推改用 elapsed/effPeriod。**相位连续性验算**：每秒节拍锚定值 `g.phase`（确定式 abyssGlowAt 输出）不变，余韵只作用于帧内外推段的瞬时速度；渊息结束拍 pulsePull 从 0.85 跳 0、而余韵 pull 从 ≈0 起步（envelope 在 t→0+ 才趋于 0.5、smoothstep 起点零导数），且两效应作用面不同（前者拉相位值、后者只改外推速率、锚点相同）——结束拍相位轨迹无跳变，仅相位速率有 ≤0.5×(1/8−1/12)/… 量级的缓变（一帧 Δ<0.002 相位，肉眼不可辨），无需积分标量改造；包络归 0 后 effPeriod≡自身周期，自然回到全确定式轨迹，零状态残留。屏外剔除/长夜让位/introEase 短路逻辑不动。
+- 测试（test/abyss_glow_test.dart 新增 9 项，407→416）：envelope 端点（0/2000/越界归 0、起点接 0.5、常量锁）、界内恒正+单调不增+确有衰减段；periodPull 端点/上限 0.5/越界夹住/单调；pull 随时间单调不增（先紧后松再散开、尾段 <0.01）；两簇 8s/12s 模拟——趋齐下每秒相位差收窄、pull=1 完全重合为 0、沿包络推进相位差单调回扩、结束拍恢复自由轨迹（零残留）；有效周期恒在自身与均值之间不过冲（5 簇×全包络扫描）；余韵不动 alpha 语义锁（envelope 值域非 alpha 档、量化链与无余韵一致）；相邻 50ms 缓变（<0.05）+末段趋 0 自动消退；常量组并列纪律（余韵时长<渊息时长、pull 上限<渊息趋同上限、起点<1）。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 416/416；flutter build web 成功。
+- commit：6823553（feat(game): 渊息余韵——一口气后的周期趋齐 [auto-night-67]，未 push）。
+- 下一步建议（第 68 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 深化方向：晨光泛音深化或"晨露"微光回弹（醒来时各环境层沿沉底曲线回暖之外，加一点清晨特有的极淡回弹）；惘语偈语池扩充。
