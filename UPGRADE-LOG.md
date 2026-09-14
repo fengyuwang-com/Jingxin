@@ -946,3 +946,17 @@ flutter analyze 19 条基线无新增、0 error；flutter test 73/73 全过（+2
   1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
   2. Android 真机全链路验证（连续多轮候选）。
   3. 环境层已收官，可转注：渊光深化（乱星被同化程度高时渊光微微多亮一线——渊底心跳与缓升光的呼应）；或晨光泛音深化 / 惘语偈语池扩充；或开新支线。
+
+## 第 64 轮（2026-09-14）—— 渊底心跳：同化度与渊光的呼应（渊光深化）
+- 理念：焦虑之渊里一直有"乱星被平稳呼吸逐渐同化"的机制（AnxietyAbyss.calm 整体同化度 0..1），但渊光（第 63 轮）对它毫无反应。本轮让两者呼应：念头归于一致的程度越高，渊底上浮的微光愿意多亮一线（最多一档 0.02）——**这是渊底心跳与缓升光的呼应，不是新进度条**：不加任何数字/UI 提示、不参与经济系统（语义写进纯函数与渲染层注释，防后续轮误加）。顺带把可选项也做了：渊区被完全同化（calm ≥0.95）时所有簇的长叹息闸门重置一次（内存态）——老玩家回渊还能再看一次松气。
+- 实现：
+  - 同化度来源（既有字段，不新造）：AnxietyAbyss.calm——第 7 轮起就有的"渊的整体被同化程度"（平稳呼吸且在渊中缓升、离开或紊乱极缓退去），正是任务所指"乱星被同化的程度"；AbyssGlowLayer 每秒节拍经 children 扫描取该组件读一次 calm（1Hz、仅数十组件，成本可忽略），映射为 _assimLift。
+  - 纯函数（lib/game/abyss_glow.dart）：① abyssGlowAssimilationLift(assimilation)——smoothstep 抬升：0→0、1→kAbyssGlowAssimLiftMax=0.02（恰一档量化步进），越界夹住、单调；② 总封顶常量 kAbyssGlowPeakAlpha 0.08→0.10（仍落 0.02 网格）——abyssGlowVisual 自身峰值语义不变（平稳仍 0.08），lift 只在原有 alpha 基础上加档，叠加后经渲染层统一 quantize 恒 ≤0.10；③ abyssGlowSighResetGate({wasFullyAssimilated, assimilation})——完全同化（≥kAbyssGlowFullAssimilation=0.95）重置的边沿判据纯函数。
+  - 演出接线（jingjing_game.dart AbyssGlowLayer）：节拍里 alpha 计算改为 quantize((vis.alpha + _assimLift) × 明灭包络 × intro × nightYield)——紊乱收拢语义不变、lift 只加档；_fullyAssimilated 上一拍状态 + resetGate 判据触发 _resetSighGates()：清全部簇的 done 闸门与在途进度、dwell 归零（"全未叹则跳过"幂等兜底，持续 fully 期间只重置一次，退去后重新武装）；长夜重置逻辑原样保留，两条重置路径互不干扰。
+- 测试（test/abyss_glow_test.dart 新增 6 项，373→379）：lift 端点（0→0、1→0.02、越界夹住）；全扫描单调不减且恒在 0..0.02 界内；smoothstep 对称性 v(a)+v(1−a)=v(1) 与中点半峰值；叠进 visual 后总 alpha 封顶 0.10、全程恰落 0.02 网格、lift 只加不减（任意平稳度×任意同化度组合）；resetGate 阈值常量与四组边沿判据（首跨/持续/退去收尾/未到阈值不误触）；calm 升满再退去的管线模拟——整段只算一次事件、退去后再次升满可重触发（重新武装）。另修正第 63 轮一处旧断言（visual 端点原来引用 kAbyssGlowPeakAlpha==0.08，现显式断言 visual 峰值 0.08 与总封顶 0.10 两个语义）。
+- 质量门槛：flutter analyze 19 条基线持平、0 error；flutter test 379/379；flutter build web 成功。
+- commit：5b5cb68（feat(game): 渊底心跳——同化度与渊光的呼应 [auto-night-64]，未 push）。
+- 下一步建议（第 65 轮候选）：
+  1. 主人授权 push + 开启 Pages，验证首次自动部署全链路（最高优先）。
+  2. Android 真机全链路验证（连续多轮候选）。
+  3. 环境层收官后的深化方向：晨光泛音深化 / 惘语偈语池扩充；或渊光再进一步——完全同化瞬间一簇光点短暂同步脉动一次（与乱星趋同意象互文，仍无奖励）；或长夜时段各环境层的集体"沉底"编排（睡前引导的纯视觉收束）。

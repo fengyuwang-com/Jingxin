@@ -658,3 +658,9 @@
 - AI 行动: 读 UPGRADE-LOG 末两轮与 wind_trace/sea_tide/firefly 范例；新建 lib/game/abyss_glow.dart（簇心缓升/视觉映射/簇内点排布/dwell/长叹息五组纯函数）与 test/abyss_glow_test.dart（17 项）；jingjing_game.dart 加 AbyssGlowLayer（渊区外整层短路、定长池 5 簇×3 点、Paint 构造期预生成、帧内外推、屏外剔除+3x3 镜像、长夜让位与长夜重置）；quality.dart 新增 abyssGlowClusters(5/4/3)/abyssGlowClusterPoints(3/2/2)。
 - 产出: commit 见「渊光」feat(game) [auto-night-63]（未 push）；测试 356→373 全过；analyze 19 条基线持平 0 error；flutter build web 成功；UPGRADE-LOG 第 63 轮记录（环境层支线收官）。
 - 关键决策: ① 上浮用 vy 负值（-6..-3px/s）+ y 环面 wrap，浮出顶端回渊底；横向轻摆把瞬时导数 vx 一并返回供帧内线性外推（1s 误差 <1.2px 不可辨，不每帧重算三角函数）；② 长叹息闸门放进纯函数（done 后永不再动），触发拍按环面最短距离选最近未叹簇、dwell 清零给下一簇，长夜重置只在渲染层做内存态清账；③ 两端 alpha 0.04/0.08 均恰在 0.02 floor 网格上（沿第 62 轮教训）；④ 色取渊区深青同系微亮 0xFF53d6c6，峰值 0.08 与花开之地同值。
+
+## 2026-09-14 22:34 — 第 64 轮
+- 用户要求: 通宵自动升级第 64 轮：渊底心跳——同化度与渊光的呼应（abyssGlowAssimilationLift 纯函数+单测、AbyssGlowLayer 每秒节拍读渊区同化度叠亮、可选的完全同化叹息闸门重置），全质量门槛通过后 commit，不 push。
+- AI 行动: 摸清 AnxietyAbyss.calm（乱星整体被同化程度 0..1）为既有同化度字段；abyss_glow.dart 新增 abyssGlowAssimilationLift（0→0、1→0.02 smoothstep）与 abyssGlowSighResetGate（≥0.95 边沿判据），总封顶常量 0.08→0.10（visual 自身峰值仍 0.08，lift 只加一档）；jingjing_game.dart AbyssGlowLayer 节拍读 calm（children 扫描找 AnxietyAbyss，1Hz）、alpha 计算叠 (vis.alpha+_assimLift)、完全同化时 _resetSighGates() 清全部 done 闸门一次（内存态）；test/abyss_glow_test.dart 补 6 项（端点/单调界内/smoothstep 对称/叠加量化网格封顶/resetGate 判据/升落管线模拟重武装）。
+- 产出: commit 5b5cb68（feat(game): 渊底心跳——同化度与渊光的呼应 [auto-night-64]，未 push）；测试 373→379 全过；analyze 19 条基线持平 0 error；flutter build web 成功；UPGRADE-LOG 第 64 轮记录。
+- 关键决策: ① 同化度用 AnxietyAbyss.calm（既有整体同化标量，非逐星 sync 均值——节拍读一次零成本）；② lift 用 raw smoothstep 不单独量化，由渲染层统一 quantize((alpha+lift)*glow*...)——两端恰在 0.02 网格、总封顶 0.10；③ 完全同化重置做成纯函数边沿判据 + 渲染层"全未叹则跳过"幂等兜底，持续 fully 期间也只重置一次，退去后重新武装；④ 不加任何数字/UI/音效、不参与经济——语义写进注释与本日志防误加。
