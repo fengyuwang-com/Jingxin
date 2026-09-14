@@ -640,3 +640,9 @@
 - AI 行动: 新建 lib/game/sea_tide.dart（三组波向量按环面周期取整数周期数保证接缝连续，波长 300/299/298px、周期 12/13/14s，visual 0.07 封顶 0.02 量化、平稳舒展/紊乱收窄 0.8 但封顶不变，sway ±1.5px 0.5px 量化）；jingjing_game.dart 新增 SeaTideLayer（花开之地之上星花层之下，海区外整层短路，10 弧线×24 点定长网格，相位每秒节拍锚定+帧内毫秒外推，平稳度低通 dt*0.8，Path 复用 reset+屏外剔除+oy 3x3 镜像，长夜让位，introEase 短路），花园星花在海区叠加 tideDy 极微摇曳（花色花瓣参数不变）；quality.dart 新增 tideLines/tideLinePoints（低档 5/12）；新建 test/sea_tide_test.dart 13 项。
 - 产出: commit bcc8099（未 push）；analyze 19 条基线持平 0 error；test 308→321 全过；build web 成功；UPGRADE-LOG/FENGMEM/todo 已记。
 - 关键决策: 周期取 12/13/14s（9~14s 区间内偏慢）以保证相邻 100ms 采样 |Δ|<0.05 的连续性（等权三正弦的理论最大步进 0.0485）；星潮无声音无碎片无文案、不参与经济/进度系统（写进纯函数与渲染层注释防误加）；海区外整层短路 + 每秒节拍判定区域（regionAtPoint 不每帧调）；波峰亮度取弧线场强均值（整线单一 alpha，避免逐段绘制的绘制调用爆炸）；低档削减在构造时读一次运行期不分支（沿用画质档纪律）。
+
+## 2026-09-14 03:30 — 第 61 轮
+- 用户要求: 通宵自动升级第 61 轮——雾林呼吸萤火「萤迹」新支线（纯函数 firefly_gleam.dart + FireflyLayer 演出 + 单测），与星潮同纪律。
+- AI 行动: 读 UPGRADE-LOG 第 59/60 轮与 git log；新增 lib/game/firefly_gleam.dart（确定性轨迹/亮度映射/若即若离漂近三组纯函数）；jingjing_game.dart 新增 FireflyLayer（定长池 7/低档 4、每秒节拍 + 帧内线性外推、雾林外整层短路、3x3 环绕镜像、长夜让位）；quality.dart 新增 fireflyCount；新增 21 条单测。
+- 产出: commit a7edc19（feat(game): 萤迹——雾林的呼吸萤火 [auto-night-61]，未 push）；analyze 19 条基线持平 0 error；test 342/342；build web 成功；UPGRADE-LOG.md 已追加第 61 轮。
+- 关键决策: 萤火"若即若离、不跟随"写进纯函数与渲染层注释防误加收集系统；吸引偏移每秒缓释 5% 实现漂回原轨迹；位置外推只算漂移速度（≤2px/s 秒内误差不可辨），绝不每帧重算三角函数。
