@@ -652,3 +652,9 @@
 - AI 行动: 读 UPGRADE-LOG 末两轮与 git log 确认 HEAD 5e3c310 干净；照第 60/61 轮惯例新建 lib/game/wind_trace.dart（4 纯函数+Knuth 散列+环面 wrap）与 test/wind_trace_test.dart（14 项）；jingjing_game.dart 加 WindTraceLayer（荒原短路/定长池/预生成/剔除镜像/长夜让位）+荒原星花 windDx 拂倾；quality.dart 新增 windTraceCount(6/5/3)。
 - 产出: commit c9aa6dc（feat(game): 风痕——疲惫荒原的呼吸风 [auto-night-62]，未 push）；测试 342→356 全过；analyze 19 条基线持平 0 error；flutter build web 成功；UPGRADE-LOG 第 62 轮记录。
 - 关键决策: ① 紊乱端 alpha 从 0.03 改 0.04——0.03 不在 0.02 floor 量化网格上（量化后掉到 0.02），两端 0.04/0.06 均恰在网格上且保留"紊乱变淡"语义；② 风痕长度收短用"基准点前后各 halfLen 的环面最短轴向距离"截取可见段，端外采样直接跳过（零分配不画隐形段）；③ 相位连续性测试用环面圆差（0..1 wrap 跳变不算不连续）；④ 风痕 tint 用荒原调色同族暖沙金 0xFFd8c098，峰值 0.06 为六环境层最淡。
+
+## 2026-09-14 22:15 — 第 63 轮
+- 用户要求: 通宵自动升级第 63 轮：渊光——焦虑之渊的缓升微光（abyssGlowAt/Visual 纯函数+单测、AbyssGlowLayer 渊区短路演出照风痕惯例、30s 平稳长叹息上浮 12px 一次性闸门至长夜重置、环境层支线六区域收官），全质量门槛通过后 commit，不 push。
+- AI 行动: 读 UPGRADE-LOG 末两轮与 wind_trace/sea_tide/firefly 范例；新建 lib/game/abyss_glow.dart（簇心缓升/视觉映射/簇内点排布/dwell/长叹息五组纯函数）与 test/abyss_glow_test.dart（17 项）；jingjing_game.dart 加 AbyssGlowLayer（渊区外整层短路、定长池 5 簇×3 点、Paint 构造期预生成、帧内外推、屏外剔除+3x3 镜像、长夜让位与长夜重置）；quality.dart 新增 abyssGlowClusters(5/4/3)/abyssGlowClusterPoints(3/2/2)。
+- 产出: commit 见「渊光」feat(game) [auto-night-63]（未 push）；测试 356→373 全过；analyze 19 条基线持平 0 error；flutter build web 成功；UPGRADE-LOG 第 63 轮记录（环境层支线收官）。
+- 关键决策: ① 上浮用 vy 负值（-6..-3px/s）+ y 环面 wrap，浮出顶端回渊底；横向轻摆把瞬时导数 vx 一并返回供帧内线性外推（1s 误差 <1.2px 不可辨，不每帧重算三角函数）；② 长叹息闸门放进纯函数（done 后永不再动），触发拍按环面最短距离选最近未叹簇、dwell 清零给下一簇，长夜重置只在渲染层做内存态清账；③ 两端 alpha 0.04/0.08 均恰在 0.02 floor 网格上（沿第 62 轮教训）；④ 色取渊区深青同系微亮 0xFF53d6c6，峰值 0.08 与花开之地同值。
