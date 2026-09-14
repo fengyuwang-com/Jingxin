@@ -14,6 +14,7 @@ import 'awakening.dart';
 import 'beast_gaze.dart';
 import 'breath_flower.dart';
 import 'breath_flower_landmark.dart';
+import 'firefly_gleam.dart';
 import 'flower_ledger_store.dart';
 import 'full_awake.dart';
 import 'insomnia_sea.dart';
@@ -359,6 +360,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 花开之地之上。海区外整层短路；长夜时随 nightAmount 让位。
     // 无声音无碎片无文案——星潮纯粹是海在呼吸。
     add(SeaTideLayer());
+    // 萤迹（第 61 轮）：雾林的呼吸萤火——画在星花层之下、星潮同批
+    // 环境层。雾林外整层短路；长夜时随 nightAmount 让位。无声音无
+    // 碎片无文案——萤火不是收集物，只是林间的微光。
+    add(FireflyLayer());
     // 星花花园：画在光灵身后（先 add 先画，被光灵覆盖）——呼吸的
     // 痕迹（第 55 轮），不给碎片不给分数，纯粹是世界的美与回应。
     add(_flowerGarden);
@@ -1907,6 +1912,161 @@ class SeaTideLayer extends Component with HasGameReference<JingjingGame> {
         if (alpha <= 0) continue;
         _paint.color = tint.withValues(alpha: alpha);
         canvas.drawPath(_path, _paint);
+      }
+    }
+  }
+}
+
+/// 萤迹（第 61 轮）：纷心雾林的呼吸萤火——雾林专属的环境层。
+///
+/// 极少数萤火在林间近乎凝滞地缓游（漂移 0.8~2.4px/s + ≤2px 正弦
+/// 摆动），随呼吸般的 6~9s 周期明灭（[fireflyVisual]，峰值 alpha
+/// 0.09 封顶、0.02 量化）。呼吸平稳时明灭更同步、紊乱时各自散乱
+/// ——**森林陪你整理呼吸，但不催促**。玩家近旁且呼吸平稳时，最近的
+/// 一只缓向光灵漂近一点（[fireflyApproach]，每秒 2~3px 上限、距离
+/// <60px 即停），玩家离开后偏移缓释漂回原轨迹——若即若离，不跟随。
+///
+/// 语义写死：萤迹无声音、无碎片、无文案、不参与任何经济/进度系统
+/// ——萤火不是收集物、不做引导（防后续轮误加经济/收集系统）。
+///
+/// 性能纪律：只在光灵处于雾林时演算与绘制（regionAtPoint 每秒节拍
+/// 判定，雾林外整层短路）；萤火位置每秒节拍算一次（[fireflyGleamAt]
+/// 确定性轨迹），帧内用漂移速度线性外推 + 相位外推——绝不每帧调
+/// 三角函数重算整轨迹；定长池（低画质档 4 只），Paint 构造期预生成、
+/// 每帧零分配；屏外剔除 + 3x3 环绕镜像（萤火跨缝游走自然 wrap）；
+/// 长夜随 nightAmount 让位；introEase 短路。
+class FireflyLayer extends Component with HasGameReference<JingjingGame> {
+  FireflyLayer() {
+    // 画质档在构造时读一次（低档 4 只），运行期不再分支。
+    _count = Quality.current.fireflyCount;
+  }
+
+  late final int _count;
+
+  final Paint _paint = Paint()..blendMode = BlendMode.screen;
+
+  /// 每秒节拍计时（首拍即刷）。
+  double _beat = 1.0;
+
+  /// 节拍锚定的世界时刻（秒）；帧内用 _beat（已过秒数）线性外推。
+  double _beatTSec = 0;
+
+  /// 光灵是否在雾林（每秒节拍判定一次，雾林外整层短路）。
+  bool _active = false;
+
+  /// 呼吸平稳度低通（0..1）：平稳时明灭趋同、紊乱时散乱，绝不瞬跳。
+  double _steady = 1.0;
+
+  /// 定长池：每秒节拍刷新的确定性轨迹状态（下标即萤火 index）。
+  final List<FireflyState> _flies = [];
+
+  /// 向光灵漂近的偏移（px）：被吸引时缓增，离开后缓释归零（漂回
+  /// 原轨迹）。偏移本身按环面 wrap，量级受吸引半径约束。
+  final List<double> _offX = [];
+  final List<double> _offY = [];
+
+  /// 每秒节拍：刷新轨迹 + 更新吸引偏移（若即若离）。
+  void _refresh() {
+    final period = JingjingGame.worldPeriod;
+    final dtMs = 1000.0;
+    while (_flies.length < _count) {
+      _flies.add(
+        fireflyGleamAt(0, _flies.length, period.x, period.y),
+      );
+      _offX.add(0);
+      _offY.add(0);
+    }
+    final spirit = game.spiritPos;
+    // 玩家近旁（wrap 距离 <160px）且呼吸平稳时，取最近的一只吸引。
+    int nearest = -1;
+    double nearestD2 = double.infinity;
+    for (int i = 0; i < _count; i++) {
+      final f = _flies[i] = fireflyGleamAt(_beatTSec, i, period.x, period.y);
+      final px = f.x + _offX[i];
+      final py = f.y + _offY[i];
+      final d = Vector2(spirit.x - px, spirit.y - py);
+      game.wrapDelta(d);
+      final d2 = d.length2;
+      if (d2 < 160 * 160 && d2 < nearestD2) {
+        nearestD2 = d2;
+        nearest = i;
+      }
+    }
+    for (int i = 0; i < _count; i++) {
+      if (i == nearest && _steady > 0) {
+        // 向光灵漂近（偏移 = 吸引后位置 - 原轨迹；若即若离，
+        // <60px 即停——由纯函数 fireflyApproach 保证）。
+        final f = _flies[i];
+        final cur = (x: f.x + _offX[i], y: f.y + _offY[i]);
+        // 跨缝最短方向：用 wrapDelta 把光灵拉到萤火旁边的等价位置。
+        final dv = Vector2(game.spiritPos.x - cur.x, game.spiritPos.y - cur.y);
+        game.wrapDelta(dv);
+        final moved =
+            fireflyApproach(cur, (x: cur.x + dv.x, y: cur.y + dv.y), _steady,
+                dtMs);
+        _offX[i] = moved.x - f.x;
+        _offY[i] = moved.y - f.y;
+      } else {
+        // 离开后缓慢漂回原轨迹：偏移每秒缓释约 5%（不瞬跳）。
+        _offX[i] *= 0.95;
+        _offY[i] *= 0.95;
+        if (_offX[i].abs() < 0.05) _offX[i] = 0;
+        if (_offY[i].abs() < 0.05) _offY[i] = 0;
+      }
+    }
+  }
+
+  @override
+  void update(double dt) {
+    _beat += dt;
+    // 平稳度低通每帧推进（与星潮层同款缓率）。
+    final target = game.breathSteady ? 1.0 : 0.0;
+    _steady += (target - _steady) * math.min(1.0, dt * 0.8);
+    if (_beat < 1.0) return;
+    _beat = 0;
+    _beatTSec = game.time;
+    final p = game.spiritPos;
+    _active = GameRegion.regionAtPoint(p.x, p.y) == GameRegion.mistWood;
+    if (_active) _refresh();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (!_active || _flies.isEmpty) return; // 雾林外整层短路。
+    final intro = game.introEase;
+    if (intro <= 0.01) return; // 开场世界还黑着，林未醒。
+    // 长夜让位：长夜全开时萤火入眠（白噪音接管，微光退场）。
+    final nightYield = 1.0 - game.nightAmount.clamp(0.0, 1.0);
+    if (nightYield <= 0.01) return;
+    final size = game.size;
+    final period = JingjingGame.worldPeriod;
+    final elapsed = _beat;
+    final tint = const Color(kFireflyTintValue);
+    for (int i = 0; i < _count; i++) {
+      final f = _flies[i];
+      // 帧内线性外推：漂移速度 × 已过秒数（摆幅 ≤2px/秒内的误差
+      // 肉眼不可辨，不每帧重算三角函数）。
+      final wx = f.x + f.vx * elapsed + _offX[i];
+      final wy = f.y + f.vy * elapsed + _offY[i];
+      final phase = f.phase + elapsed / f.glowPeriodSec;
+      final alpha = fireflyQuantize(
+        fireflyVisual(phase, _steady) * intro * nightYield,
+      );
+      if (alpha <= 0) continue;
+      // 环绕绘制（世界锁定 1.0 视差 + 3x3 镜像，萤火跨缝游走 wrap）。
+      for (int ox = -1; ox <= 1; ox++) {
+        for (int oy = -1; oy <= 1; oy++) {
+          final cx = size.x / 2 + wx + ox * period.x - game.camPos.x;
+          final cy = size.y / 2 + wy + oy * period.y - game.camPos.y;
+          if (cx < -30 || cx > size.x + 30 || cy < -30 || cy > size.y + 30) {
+            continue; // 屏外剔除。
+          }
+          // 双层小圆：外圈更淡的柔晕 + 内圈稍实的核（零分配）。
+          _paint.color = tint.withValues(alpha: fireflyQuantize(alpha * 0.5));
+          canvas.drawCircle(Offset(cx, cy), 4.5, _paint);
+          _paint.color = tint.withValues(alpha: alpha);
+          canvas.drawCircle(Offset(cx, cy), 1.8, _paint);
+        }
       }
     }
   }
