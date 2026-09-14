@@ -2231,7 +2231,11 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
 /// 0.02 量化）；紊乱时收拢变淡——**渊不吓你，只是有几缕光愿意先亮一点**。
 /// 玩家在渊区停留且平稳约 30s（[abyssGlowDwellNext]）时，最近一簇整体
 /// 上浮 12px、60s 缓成后停住（[abyssGlowSighNext] 长叹息），每簇至多
-/// 一次直到长夜重置——内存态，不持久化。
+/// 一次直到长夜重置——内存态，不持久化。第 64 轮起渊底心跳与缓升光呼
+/// 应：每秒节拍读乱星同化度（AnxietyAbyss.calm），[abyssGlowAssimilationLift]
+/// 把最多一档（0.02）亮度抬升叠进簇 alpha（总封顶 0.10、仍 0.02 量化，
+/// 不加数字/UI、不参与经济）；完全同化（≥0.95）时所有簇的叹息闸门重置
+/// 一次（[abyssGlowSighResetGate]，内存态，让老玩家回渊还能再看一次松气）。
 ///
 /// 语义写死：渊光无声音、无碎片、无文案、不参与任何经济/进度系统
 /// ——微光不是收集物、不做引导（防后续轮误加经济/收集系统）。
@@ -2301,6 +2305,13 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
   /// 长夜重置：深长夜见过一次后，退出长夜时清账（内存态）。
   bool _nightSeen = false;
 
+  /// 渊区同化度抬升（每秒节拍读 AnxietyAbyss.calm → [abyssGlowAssimilationLift]）：
+  /// 念头归于一致时渊光在原有亮度上最多加亮一档——不是新进度条。
+  double _assimLift = 0;
+
+  /// 上一拍是否处于"完全同化"状态（长叹息闸门一次性重置的边沿判据）。
+  bool _fullyAssimilated = false;
+
   @override
   void update(double dt) {
     _beat += dt;
@@ -2310,6 +2321,21 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
     if (_beat < 1.0) return;
     _beat = 0;
     _beatTSec = game.time;
+    // 渊区同化度：每秒节拍读一次 AnxietyAbyss.calm（乱星被平稳呼吸逐渐
+    // 同化的整体程度），映射为亮度抬升叠进簇 alpha（渊底心跳与缓升光的
+    // 呼应，不加任何数字/UI、不参与经济）。
+    final abyss = _abyssRef();
+    final assimilation = abyss?.calm ?? 0.0;
+    _assimLift = abyssGlowAssimilationLift(assimilation);
+    // 完全同化（≥0.95）时所有簇的长叹息闸门重置一次（内存态，让老玩家
+    // 回渊还能再看一次松气）；边沿判据见 [abyssGlowSighResetGate]。
+    if (abyssGlowSighResetGate(
+      wasFullyAssimilated: _fullyAssimilated,
+      assimilation: assimilation,
+    )) {
+      _resetSighGates();
+    }
+    _fullyAssimilated = abyss != null && assimilation >= kAbyssGlowFullAssimilation;
     final p = game.spiritPos;
     _active = GameRegion.regionAtPoint(p.x, p.y) == GameRegion.anxietyAbyss;
     if (!_active) {
@@ -2351,6 +2377,35 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
         _sighOffPrev[i] = 0;
         _sighOffCur[i] = 0;
       }
+    }
+  }
+
+  /// 渊区组件引用（每秒节拍查一次，不缓存——避免加载时序问题；children
+  /// 扫描仅 60 余组件、1Hz 成本可忽略）。
+  AnxietyAbyss? _abyssRef() {
+    for (final c in children) {
+      if (c is AnxietyAbyss) return c;
+    }
+    return null;
+  }
+
+  /// 重置所有簇的长叹息闸门与在途进度（内存态）：全部已叹完时跳过，
+  /// 保证"完全同化"持续期间也只重置一次。
+  void _resetSighGates() {
+    var anyDone = false;
+    for (int i = 0; i < _sighs.length; i++) {
+      if (_sighs[i].done) {
+        anyDone = true;
+        break;
+      }
+    }
+    if (!anyDone) return;
+    _dwell = 0;
+    _sighTarget = -1;
+    for (int i = 0; i < _clusters && i < _sighs.length; i++) {
+      _sighs[i] = (progress: 0, done: false);
+      _sighOffPrev[i] = 0;
+      _sighOffCur[i] = 0;
     }
   }
 
@@ -2429,7 +2484,9 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
         2 * math.pi * (g.phase + elapsed / g.phasePeriodSec),
       );
       final alpha = abyssGlowQuantize(
-        vis.alpha * (0.35 + 0.65 * glow) * intro * nightYield,
+        // 同化抬升叠进簇亮度：只在原有 alpha 基础上加档（封顶 0.10，
+        // quantize 后仍落 0.02 网格），紊乱收拢语义不变。
+        (vis.alpha + _assimLift) * (0.35 + 0.65 * glow) * intro * nightYield,
       );
       if (alpha <= 0) continue;
       for (int pt = 0; pt < _pointsPer; pt++) {

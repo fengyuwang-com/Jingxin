@@ -13,8 +13,9 @@ import 'dart:math' as math;
 ///
 /// 全部函数为纯函数、无类型依赖（不 import 游戏类型），便于测试。
 
-/// 渊光亮度的硬封顶（克制原则，与花开之地同值、略高于风痕）。
-const double kAbyssGlowPeakAlpha = 0.08;
+/// 渊光亮度的硬封顶（第 64 轮随同化抬升上调一档：0.08→0.10，仍落在
+/// 0.02 量化网格上——克制原则不变，只是渊底心跳多允许一线呼应）。
+const double kAbyssGlowPeakAlpha = 0.10;
 
 /// 渊光亮度的量化步长。
 const double kAbyssGlowAlphaStep = 0.02;
@@ -137,6 +138,38 @@ AbyssGlowState abyssGlowAt(
     alpha: abyssGlowQuantize(a),
     radiusScale: 0.85 + 0.15 * s,
   );
+}
+
+/// 同化抬升的最大档（第 64 轮）：渊区乱星被完全同化时，渊光在原有
+/// alpha 基础上最多加亮一档（0.02）——极小的呼应，不是新进度条。
+const double kAbyssGlowAssimLiftMax = 0.02;
+
+/// 判定"渊区被完全同化"、可重置长叹息闸门的同化度阈值。
+const double kAbyssGlowFullAssimilation = 0.95;
+
+/// 渊底心跳与缓升光的呼应（第 64 轮）：渊区乱星被同化的程度
+/// assimilation（0..1，即 AnxietyAbyss.calm）→ 额外亮度抬升。
+///
+/// 0→0、1→[kAbyssGlowAssimLiftMax]（恰为一档量化步进），smoothstep
+/// 单调过渡；渲染层把 lift 叠进簇亮度后再走 [abyssGlowQuantize]——
+/// 只在原有 alpha 基础上加档，紊乱收拢语义不变，总封顶相应提到 0.10
+/// （仍落在 0.02 网格上）。语义写死：这不是新进度条、不加任何数字/
+/// UI 提示、不参与经济系统——念头归于一致时，渊底的微光愿意多亮一线。
+double abyssGlowAssimilationLift(double assimilation) {
+  return kAbyssGlowAssimLiftMax * _smooth(assimilation.clamp(0.0, 1.0));
+}
+
+/// 完全同化时的长叹息闸门重置判据（纯函数）：上一拍已"见过完全同化"
+/// （[wasFullyAssimilated]）或本拍同化度 ≥ [kAbyssGlowFullAssimilation]
+/// → 返回 true（调用方据此清一次各簇 done 闸门，内存态、让老玩家回渊
+/// 还能再看一次松气）。持续停留在完全同化态时保持 true，由调用方的
+/// "全未叹则跳过"保证只重置一次；同化度退去后返回 false，重新武装。
+bool abyssGlowSighResetGate({
+  required bool wasFullyAssimilated,
+  required double assimilation,
+}) {
+  if (assimilation >= kAbyssGlowFullAssimilation) return true;
+  return wasFullyAssimilated && assimilation < kAbyssGlowFullAssimilation;
 }
 
 /// 簇 [clusterIndex] 内第 [pointIndex] 枚光点相对簇心的确定性排布：

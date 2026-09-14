@@ -100,7 +100,10 @@ void main() {
 
     test('visual 端点：平稳 0.08/1.0、紊乱 0.04/0.85，两端恰在量化网格上', () {
       final calm = abyssGlowVisual(1.0);
-      expect(calm.alpha, kAbyssGlowPeakAlpha); // 0.08 恰在 0.02 网格。
+      // visual 自身峰值仍 0.08（第 63 轮语义不变）；总封顶 0.10 是叠加
+      // 同化抬升（最多一档 0.02）后的硬上限。
+      expect(calm.alpha, 0.08);
+      expect(kAbyssGlowPeakAlpha, 0.10);
       expect(calm.radiusScale, 1.0);
       final rough = abyssGlowVisual(0.0);
       expect(rough.alpha, 0.04); // 0.04 恰在 0.02 网格。
@@ -253,6 +256,120 @@ void main() {
     test('世界周期常量与游戏环面对齐', () {
       expect(kAbyssGlowWorldW, 2400.0);
       expect(kAbyssGlowWorldH, 1800.0);
+    });
+  });
+
+  group('渊底心跳——同化度抬升（第 64 轮）', () {
+    test('lift 端点：0→0、1→0.02（恰一档量化步进），越界夹住', () {
+      expect(abyssGlowAssimilationLift(0.0), 0.0);
+      expect(abyssGlowAssimilationLift(1.0), kAbyssGlowAssimLiftMax);
+      expect(kAbyssGlowAssimLiftMax, 0.02);
+      expect(abyssGlowAssimilationLift(-0.5), 0.0);
+      expect(abyssGlowAssimilationLift(3.0), kAbyssGlowAssimLiftMax);
+    });
+
+    test('lift 单调不减、恒在 0..0.02 界内（全扫描）', () {
+      double prev = -1;
+      for (double a = 0; a <= 1.0001; a += 0.01) {
+        final lift = abyssGlowAssimilationLift(a);
+        expect(lift, inInclusiveRange(0.0, kAbyssGlowAssimLiftMax));
+        expect(lift, greaterThanOrEqualTo(prev));
+        prev = lift;
+      }
+    });
+
+    test('lift smoothstep：中点取半峰值附近、两端导数趋 0（对称缓入缓出）', () {
+      expect(abyssGlowAssimilationLift(0.5), closeTo(0.01, 1e-12));
+      // smoothstep 对称：v(a)+v(1-a)=v(1)
+      for (double a = 0; a <= 1.0; a += 0.07) {
+        expect(
+          abyssGlowAssimilationLift(a) + abyssGlowAssimilationLift(1 - a),
+          closeTo(kAbyssGlowAssimLiftMax, 1e-9),
+        );
+      }
+    });
+
+    test('叠进 visual 后总 alpha 封顶 0.10、全程落 0.02 量化网格', () {
+      expect(kAbyssGlowPeakAlpha, 0.10);
+      for (double s = 0; s <= 1.0001; s += 0.05) {
+        final vis = abyssGlowVisual(s);
+        for (double a = 0; a <= 1.0001; a += 0.05) {
+          final total = abyssGlowQuantize(vis.alpha + abyssGlowAssimilationLift(a));
+          expect(total, lessThanOrEqualTo(kAbyssGlowPeakAlpha + 1e-12));
+          // 恰在 0.02 网格上
+          expect((total / kAbyssGlowAlphaStep).roundToDouble() * kAbyssGlowAlphaStep,
+              closeTo(total, 1e-12));
+          // 同化只加不减：任何平稳度下 lift 后的量化值 ≥ 未加时
+          expect(total, greaterThanOrEqualTo(vis.alpha));
+        }
+      }
+    });
+
+    test('完全同化阈值常量 0.95；resetGate 边沿判据', () {
+      expect(kAbyssGlowFullAssimilation, 0.95);
+      // 首次跨到 ≥0.95 → true（触发重置）
+      expect(
+          abyssGlowSighResetGate(wasFullyAssimilated: false, assimilation: 0.95),
+          isTrue);
+      // 持续停留（上一拍已 fully）→ 保持 true，由调用方"全未叹则跳过"兜底
+      expect(
+          abyssGlowSighResetGate(wasFullyAssimilated: true, assimilation: 1.0),
+          isTrue);
+      // 退去后的第一拍 → true（收尾一次），此后重新武装
+      expect(
+          abyssGlowSighResetGate(wasFullyAssimilated: true, assimilation: 0.5),
+          isTrue);
+      expect(
+          abyssGlowSighResetGate(wasFullyAssimilated: false, assimilation: 0.5),
+          isFalse);
+      // 未到阈值不误触
+      expect(
+          abyssGlowSighResetGate(wasFullyAssimilated: false, assimilation: 0.94),
+          isFalse);
+    });
+
+    test('resetGate 管线模拟：calm 升到顶再退去，触发窗口有界且中断后可重武装', () {
+      var was = false;
+      var fired = 0;
+      var windowOpen = false;
+      // 上升段：0→1（每步 +0.01）
+      for (double c = 0; c <= 1.0001; c += 0.01) {
+        final fire = abyssGlowSighResetGate(wasFullyAssimilated: was, assimilation: c);
+        if (fire && !windowOpen) {
+          fired++;
+          windowOpen = true;
+        }
+        if (!fire) windowOpen = false;
+        was = c >= kAbyssGlowFullAssimilation;
+      }
+      // 高原段：持续 fully，窗口打开但不计新触发
+      for (int i = 0; i < 50; i++) {
+        final fire = abyssGlowSighResetGate(wasFullyAssimilated: was, assimilation: 1.0);
+        expect(fire, isTrue); // 由调用方幂等兜底
+        was = true;
+      }
+      // 退去段：1→0，收尾一拍关窗
+      for (double c = 1.0; c >= -0.0001; c -= 0.01) {
+        final fire = abyssGlowSighResetGate(wasFullyAssimilated: was, assimilation: c);
+        if (fire && !windowOpen) {
+          fired++;
+          windowOpen = true;
+        }
+        if (!fire) windowOpen = false;
+        was = c >= kAbyssGlowFullAssimilation;
+      }
+      expect(fired, 1); // 一升一落整段只算一次事件（收尾拍并入同一窗口）
+      // 再次升满可重新触发
+      was = false;
+      var refire = false;
+      for (double c = 0; c <= 1.0001; c += 0.01) {
+        if (abyssGlowSighResetGate(wasFullyAssimilated: was, assimilation: c)) {
+          refire = true;
+          break;
+        }
+        was = c >= kAbyssGlowFullAssimilation;
+      }
+      expect(refire, isTrue);
     });
   });
 }
