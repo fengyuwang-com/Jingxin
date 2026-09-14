@@ -28,6 +28,7 @@ import 'perplex_planet.dart';
 import 'quality.dart';
 import 'regions.dart';
 import 'reunion.dart';
+import 'sea_tide.dart';
 import 'shard.dart';
 import 'soundscape.dart';
 import 'star_beast.dart';
@@ -354,6 +355,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 花开之地（第 59 轮）：画在星花层之下——图鉴余温的世界侧呼应，
     // 「这里曾开过很多花」的极淡静止光晕，不是目标也不是提示。
     add(LandmarkLayer(store: _flowerGarden.ledgerStore));
+    // 星潮（第 60 轮）：失眠之海的呼吸涟漪——画在星花层之下、
+    // 花开之地之上。海区外整层短路；长夜时随 nightAmount 让位。
+    // 无声音无碎片无文案——星潮纯粹是海在呼吸。
+    add(SeaTideLayer());
     // 星花花园：画在光灵身后（先 add 先画，被光灵覆盖）——呼吸的
     // 痕迹（第 55 轮），不给碎片不给分数，纯粹是世界的美与回应。
     add(_flowerGarden);
@@ -1549,6 +1554,16 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
           final alpha = _q(open * 0.55 * intro);
           if (alpha <= 0) continue;
           final color = f.petalColor;
+          // 星潮摇曳（第 60 轮）：海区里的星花，花下的涟漪场让花极微
+          // 地摇曳（±1.5px、0.5px 量化；花色与花瓣参数不变——海只是
+          // 轻轻托着它）。
+          var tideDy = 0.0;
+          if (GameRegion.regionAtPoint(f.position.x, f.position.y) ==
+              GameRegion.insomniaSea) {
+            tideDy = seaTideSway(
+              seaTideWave(f.position.x, f.position.y, game.time * 1000.0),
+            );
+          }
       // 环绕绘制（世界锁定的 1.0 视差 + 3x3 镜像，同星岛约定）。
       for (int ox = -1; ox <= 1; ox++) {
         for (int oy = -1; oy <= 1; oy++) {
@@ -1557,7 +1572,7 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
           final wy =
               f.position.y + oy * period.y - game.camPos.y;
           final cx = size.x / 2 + wx;
-          final cy = size.y / 2 + wy;
+          final cy = size.y / 2 + wy + tideDy;
           if (cx < -60 || cx > size.x + 60 || cy < -60 || cy > size.y + 60) {
             continue; // 屏外剔除。
           }
@@ -1786,6 +1801,112 @@ class LandmarkLayer extends Component with HasGameReference<JingjingGame> {
           canvas.drawCircle(Offset(cx, cy), 32, _paint);
           _paint.color = s.color.withValues(alpha: alpha);
         }
+      }
+    }
+  }
+}
+
+/// 星潮（第 60 轮）：失眠之海的呼吸涟漪——海专属的环境层。
+///
+/// 六区域中失眠之海至今只有静态星图；星潮让海有了自己的呼吸：
+/// 缓行的涟漪相位场（[seaTideWave]，纯函数）铺在海面上，波峰极淡地
+/// 亮起（峰值 alpha 0.07 封顶、0.02 量化，[seaTideVisual]）。呼吸平稳
+/// 时波纹更舒展、紊乱时收窄——**海不惩罚你，只是陪你安静**。
+///
+/// 语义写死：星潮无声音、无碎片、无文案、不参与任何经济/进度系统——
+/// 它纯粹是海在呼吸（防后续轮误加经济系统）。
+///
+/// 性能纪律：只在光灵处于海区时演算与绘制（regionAtPoint 判定，海区
+/// 外整层短路）；相位每秒节拍推进 + 帧内插值（节拍间用已过的毫秒数
+/// 连续外推，绝不跳相）；弧线用预生成的稀疏采样网格（条数/点数在
+/// 构造时读画质档，低档减半——本就最淡的层）；Path 复用 reset，屏外
+/// 剔除，3x3 环绕镜像沿用星岛约定；潮线之下不遮任何可交互实体
+/// （画在星花层之下、BlendMode.screen，alpha ≤ 0.06）。
+class SeaTideLayer extends Component with HasGameReference<JingjingGame> {
+  SeaTideLayer() {
+    // 画质档在构造时读一次（低档采样点减半），运行期不再分支。
+    _lines = Quality.current.tideLines;
+    _points = Quality.current.tideLinePoints;
+  }
+
+  late final int _lines;
+  late final int _points;
+
+  final Paint _paint = Paint()
+    ..blendMode = BlendMode.screen
+    ..strokeWidth = 1.0
+    ..strokeCap = StrokeCap.round;
+  final Path _path = Path();
+
+  /// 每秒节拍计时（首拍即刷）。
+  double _beat = 1.0;
+
+  /// 节拍锚定的相位（毫秒）；帧内用 _beat（已过秒数）插值外推。
+  double _beatPhaseMs = 0;
+
+  /// 光灵是否在海区（每秒节拍判定一次，海区外整层短路）。
+  bool _active = false;
+
+  /// 呼吸平稳度低通（0..1）：紊乱时收窄、平稳时舒展，绝不瞬跳。
+  double _steady = 1.0;
+
+  @override
+  void update(double dt) {
+    _beat += dt;
+    // 平稳度低通每帧推进（与星花园 _steadySm 同款缓率）。
+    final target = game.breathSteady ? 1.0 : 0.0;
+    _steady += (target - _steady) * math.min(1.0, dt * 0.8);
+    if (_beat < 1.0) return;
+    _beat = 0;
+    _beatPhaseMs = game.time * 1000.0;
+    final p = game.spiritPos;
+    _active =
+        GameRegion.regionAtPoint(p.x, p.y) == GameRegion.insomniaSea;
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (!_active) return; // 海区外整层短路。
+    final intro = game.introEase;
+    if (intro <= 0.01) return; // 开场世界还黑着，海未醒。
+    // 长夜让位（同潮汐/花开之地的思路）：长夜全开时星潮入眠。
+    final nightYield = 1.0 - game.nightAmount.clamp(0.0, 1.0);
+    if (nightYield <= 0.01) return;
+    final size = game.size;
+    final period = JingjingGame.worldPeriod;
+    final phaseMs = _beatPhaseMs + _beat * 1000.0;
+    final steadiness = _steady.clamp(0.0, 1.0);
+    final tint = const Color(kSeaTideTintValue);
+    // 弧线按世界 y 均铺满一个环面周期（世界锁定，不随相机游移），
+    // oy 镜像覆盖屏幕上下缘（水平弧线自身横贯全屏，无需 ox 镜像）。
+    for (int i = 0; i < _lines; i++) {
+      final wy = (i + 0.5) / _lines * period.y;
+      final baseY = size.y / 2 + wy - game.camPos.y;
+      for (int oy = -1; oy <= 1; oy++) {
+        final sy = baseY + oy * period.y;
+        if (sy < -40 || sy > size.y + 40) continue; // 屏外剔除。
+        _path.reset();
+        var sum = 0.0;
+        for (int p = 0; p <= _points; p++) {
+          final sx = p / _points * size.x;
+          final wx = game.camPos.x - size.x / 2 + sx;
+          final f = seaTideWave(wx, wy, phaseMs);
+          sum += f.abs();
+          final y = sy + seaTideSway(f);
+          if (p == 0) {
+            _path.moveTo(sx, y);
+          } else {
+            _path.lineTo(sx, y);
+          }
+        }
+        // 波峰亮度取整条弧线场强的均值（波峰处的极淡亮起）。
+        final mean = sum / (_points + 1);
+        final alpha = seaTideQuantize(
+          seaTideVisual(mean, steadiness) * intro * nightYield,
+        );
+        if (alpha <= 0) continue;
+        _paint.color = tint.withValues(alpha: alpha);
+        canvas.drawPath(_path, _paint);
       }
     }
   }

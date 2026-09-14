@@ -77,6 +77,12 @@ class Quality {
         QualityTier.low => 10,
       };
 
+  /// 星潮的波纹弧线条数（低档减半，第 60 轮）。
+  int get tideLines => isLow ? 5 : 10;
+
+  /// 星潮每条弧线的采样点数（低档减半，第 60 轮）。
+  int get tideLinePoints => isLow ? 12 : 24;
+
   /// 启动时判定一次。UI 层在构造游戏前调用。
   /// [dpr] 传设备像素比（Web 用 implicitView.devicePixelRatio）。
   static void detect({double? dpr, String? userAgent}) {
