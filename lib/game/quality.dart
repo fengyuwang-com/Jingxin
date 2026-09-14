@@ -90,6 +90,13 @@ class Quality {
         QualityTier.low => 4,
       };
 
+  /// 荒原风痕的风痕道数（低档 3 道，第 62 轮）。
+  int get windTraceCount => switch (tier) {
+        QualityTier.high => 6,
+        QualityTier.mid => 5,
+        QualityTier.low => 3,
+      };
+
   /// 启动时判定一次。UI 层在构造游戏前调用。
   /// [dpr] 传设备像素比（Web 用 implicitView.devicePixelRatio）。
   static void detect({double? dpr, String? userAgent}) {

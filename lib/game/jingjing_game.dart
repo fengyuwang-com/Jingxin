@@ -35,6 +35,7 @@ import 'soundscape.dart';
 import 'star_beast.dart';
 import 'still_path.dart';
 import 'weary_heath.dart';
+import 'wind_trace.dart';
 
 /// 静境（Jingjing）游戏循环。
 ///
@@ -364,6 +365,10 @@ class JingjingGame extends FlameGame with TapCallbacks {
     // 环境层。雾林外整层短路；长夜时随 nightAmount 让位。无声音无
     // 碎片无文案——萤火不是收集物，只是林间的微光。
     add(FireflyLayer());
+    // 风痕（第 62 轮）：疲惫荒原的呼吸风——画在星花层之下、星潮/
+    // 萤迹同批环境层。荒原外整层短路；长夜时随 nightAmount 让位。
+    // 无声音无碎片无文案——荒原不催你，风自己慢下来。
+    add(WindTraceLayer());
     // 星花花园：画在光灵身后（先 add 先画，被光灵覆盖）——呼吸的
     // 痕迹（第 55 轮），不给碎片不给分数，纯粹是世界的美与回应。
     add(_flowerGarden);
@@ -1569,6 +1574,16 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
               seaTideWave(f.position.x, f.position.y, game.time * 1000.0),
             );
           }
+          // 风痕拂花（第 62 轮）：荒原里的星花，被风拂过时朝风向极微
+          // 地倾（x 向 1~2px、0.5px 量化；花色与花瓣参数不变——荒原
+          // 的风只是路过，顺手碰了碰它）。与星潮 sway 同手法。
+          var windDx = 0.0;
+          if (GameRegion.regionAtPoint(f.position.x, f.position.y) ==
+              GameRegion.wearyHeath) {
+            windDx = windTraceSway(
+              windTraceField(f.position.x, game.time * 1000.0),
+            );
+          }
       // 环绕绘制（世界锁定的 1.0 视差 + 3x3 镜像，同星岛约定）。
       for (int ox = -1; ox <= 1; ox++) {
         for (int oy = -1; oy <= 1; oy++) {
@@ -1576,7 +1591,7 @@ class BreathFlowerGarden extends Component with HasGameReference<JingjingGame> {
               f.position.x + ox * period.x - game.camPos.x;
           final wy =
               f.position.y + oy * period.y - game.camPos.y;
-          final cx = size.x / 2 + wx;
+          final cx = size.x / 2 + wx + windDx;
           final cy = size.y / 2 + wy + tideDy;
           if (cx < -60 || cx > size.x + 60 || cy < -60 || cy > size.y + 60) {
             continue; // 屏外剔除。
@@ -2067,6 +2082,135 @@ class FireflyLayer extends Component with HasGameReference<JingjingGame> {
           _paint.color = tint.withValues(alpha: alpha);
           canvas.drawCircle(Offset(cx, cy), 1.8, _paint);
         }
+      }
+    }
+  }
+}
+
+/// 风痕（第 62 轮）：疲惫荒原的呼吸风——荒原专属的环境层。
+///
+/// 极长的水平缓行弧线贴着旷野走（[windTraceLine]，12~20px/s 贴地
+/// 缓行 + 确定性 y 摆动），随呼吸般的 9~14s 周期明灭。呼吸平稳时风
+/// 更轻柔绵长（alpha 封顶 0.06、线更长），紊乱时风自己收短变淡
+/// （[windTraceVisual]）——**荒原不催你，风自己慢下来**。
+///
+/// 语义写死：风痕无声音、无碎片、无文案、不参与任何经济/进度系统
+/// ——风不是收集物、不做引导（防后续轮误加经济/收集系统）。
+///
+/// 性能纪律：只在光灵处于荒原时演算与绘制（regionAtPoint 每秒节拍
+/// 判定，荒原外整层短路）；风痕基准点每秒节拍算一次确定性轨迹，帧
+/// 内用漂移速度线性外推——绝不每帧重算整轨迹；定长池 6 道（低画质
+/// 档 3 道，quality.dart windTraceCount，构造时读一次）；Paint/Path
+/// 构造期预生成复用、每帧零分配；屏外剔除 + oy 3x3 环绕镜像（水平
+/// 风痕横贯世界，基准点 x 自身 wrap）；长夜随 nightAmount 让位；
+/// introEase 短路。画在星花层之下，alpha ≤ 0.06 不遮任何可交互实体。
+class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
+  WindTraceLayer() {
+    // 画质档在构造时读一次（低档 3 道），运行期不再分支。
+    _count = Quality.current.windTraceCount;
+  }
+
+  late final int _count;
+
+  final Paint _paint = Paint()
+    ..blendMode = BlendMode.screen
+    ..strokeWidth = 1.0
+    ..strokeCap = StrokeCap.round;
+  final Path _path = Path();
+
+  /// 每秒节拍计时（首拍即刷）。
+  double _beat = 1.0;
+
+  /// 节拍锚定的世界时刻（秒）；帧内用 _beat（已过秒数）线性外推。
+  double _beatTSec = 0;
+
+  /// 光灵是否在荒原（每秒节拍判定一次，荒原外整层短路）。
+  bool _active = false;
+
+  /// 呼吸平稳度低通（0..1）：平稳时风轻柔绵长、紊乱时收短变淡，
+  /// 绝不瞬跳。
+  double _steady = 1.0;
+
+  /// 定长池：每秒节拍刷新的确定性轨迹状态（下标即风痕 index）。
+  final List<WindTraceState> _traces = [];
+
+  @override
+  void update(double dt) {
+    _beat += dt;
+    // 平稳度低通每帧推进（与星潮/萤迹层同款缓率）。
+    final target = game.breathSteady ? 1.0 : 0.0;
+    _steady += (target - _steady) * math.min(1.0, dt * 0.8);
+    if (_beat < 1.0) return;
+    _beat = 0;
+    _beatTSec = game.time;
+    final p = game.spiritPos;
+    _active = GameRegion.regionAtPoint(p.x, p.y) == GameRegion.wearyHeath;
+    if (_active) _refresh();
+  }
+
+  void _refresh() {
+    final period = JingjingGame.worldPeriod;
+    while (_traces.length < _count) {
+      _traces.add(windTraceLine(0, _traces.length, period.x, period.y));
+    }
+    for (int i = 0; i < _count; i++) {
+      _traces[i] = windTraceLine(_beatTSec, i, period.x, period.y);
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    if (!_active || _traces.isEmpty) return; // 荒原外整层短路。
+    final intro = game.introEase;
+    if (intro <= 0.01) return; // 开场世界还黑着，原未醒。
+    // 长夜让位：长夜全开时风入眠（白噪音接管，风痕退场）。
+    final nightYield = 1.0 - game.nightAmount.clamp(0.0, 1.0);
+    if (nightYield <= 0.01) return;
+    final size = game.size;
+    final period = JingjingGame.worldPeriod;
+    final elapsed = _beat;
+    final vis = windTraceVisual(_steady);
+    final halfLen = kWindTraceLengthPx * vis.lengthScale * 0.5;
+    final phaseMs = (_beatTSec + elapsed) * 1000.0;
+    final tint = const Color(kWindTraceTintValue);
+    for (int i = 0; i < _count; i++) {
+      final t = _traces[i];
+      // 帧内线性外推：基准点漂移 + 明灭相位（摆幅 ≤7px/秒内的误差
+      // 肉眼不可辨，不每帧重算三角函数）。
+      final bx = t.x + t.vx * elapsed;
+      final by = t.y + t.vy * elapsed;
+      final glow = 0.5 - 0.5 * math.cos(2 * math.pi *
+          (t.phase + elapsed / t.phasePeriodSec));
+      final alpha = windTraceQuantize(
+        vis.alpha * (0.35 + 0.65 * glow) * intro * nightYield,
+      );
+      if (alpha <= 0) continue;
+      final sy0 = size.y / 2 + by - game.camPos.y;
+      for (int oy = -1; oy <= 1; oy++) {
+        final sy = sy0 + oy * period.y;
+        if (sy < -40 || sy > size.y + 40) continue; // 屏外剔除。
+        _path.reset();
+        var visible = 0;
+        for (int p = 0; p <= 24; p++) {
+          final sx = p / 24 * size.x;
+          final wx = game.camPos.x - size.x / 2 + sx;
+          // 环绕最短轴向距离（Dart % 恒非负），线段在基准点前后各
+          // halfLen 内可见——风痕有端，且紊乱时收短。
+          var dx = (wx - bx) % period.x;
+          if (dx > period.x / 2) dx -= period.x;
+          final ad = dx.abs();
+          if (ad > halfLen) continue;
+          final y = sy + windTraceSway(windTraceField(wx, phaseMs));
+          if (visible == 0) {
+            _path.moveTo(sx, y);
+          } else {
+            _path.lineTo(sx, y);
+          }
+          visible++;
+        }
+        if (visible < 2) continue; // 单点不成线。
+        _paint.color = tint.withValues(alpha: alpha);
+        canvas.drawPath(_path, _paint);
       }
     }
   }
