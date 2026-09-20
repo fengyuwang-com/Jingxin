@@ -1,13 +1,13 @@
 
 ## 2026-09-13 08:40 — 第 1 轮
 - 用户要求: 检查本机 Flutter 工具链；没有则国内源下载；把静心从冥想工具升级成"真正能让人平静的软件"；嫌俗套后拍板做成游戏；每 20 分钟升级一次（通宵循环）；先确认 git 已 push 并给修改前版本打 tag
-- AI 行动: 确认本机无 Flutter；南大镜像下载 Flutter 3.47.4 stable（后台）；创建定时任务 automation-1ded3cbe（每20分钟游戏化增量升级，路径 C:\FengProj\flutter，pub 走 flutter-io.cn）；定稿《静境》游戏概念（呼吸即操作/无失败/苏醒度/心境星图/心镜碎片/长夜白噪音）；git 确认与 origin 同步，打 tag v1.0-pre-jingjing 并推送
+- AI 行动: 确认本机无 Flutter；南大镜像下载 Flutter 3.47.4 stable（后台）；创建定时任务 automation-1ded3cbe（每20分钟游戏化增量升级，路径 C:\Projects\flutter，pub 走 flutter-io.cn）；定稿《静境》游戏概念（呼吸即操作/无失败/苏醒度/心境星图/心镜碎片/长夜白噪音）；git 确认与 origin 同步，打 tag v1.0-pre-jingjing 并推送
 - 产出: tag v1.0-pre-jingjing 已上 GitHub；todo.md 愿景入账；定时任务运行中
 - 关键决策: 方向从"加功能"改为"游戏化重构"——《静境》：用呼吸玩、无 HUD 无分数、唯一进度是世界苏醒度；设计理念 CYBER-ZEN 不变，具体设计进化
 
 ## 2026-09-13 09:00 — 第 2 轮
 - 用户要求: 继续通宵升级流程；确认 git 已 push 并给重构前版本打 tag
-- AI 行动: 确认本地与 origin/master 同步；打 tag v1.0-pre-jingjing 并推送 GitHub；Flutter 3.47.4 下载（南大镜像，断点续传）+ 解压到 C:\FengProj\flutter + PATH/pub 镜像永久配置；flutter doctor 通过（web 构建 OK）；pub get + analyze（0 error）+ flutter build web 基线编译通过；删除安装包
+- AI 行动: 确认本地与 origin/master 同步；打 tag v1.0-pre-jingjing 并推送 GitHub；Flutter 3.47.4 下载（南大镜像，断点续传）+ 解压到 C:\Projects\flutter + PATH/pub 镜像永久配置；flutter doctor 通过（web 构建 OK）；pub get + analyze（0 error）+ flutter build web 基线编译通过；删除安装包
 - 产出: tag v1.0-pre-jingjing；Flutter 工具链就绪；项目基线可构建
 - 关键决策: 游戏化方向《静境》定稿；每20分钟升级循环（automation-1ded3cbe）待接管，首轮将从引入 Flame 引擎开始
 ## 2026-09-13 09:06 — 第 1 轮（通宵升级 auto-night-1）
@@ -280,13 +280,13 @@
 
 ## 2026-09-13 08:40 — 第 1 轮
 - 用户要求: 检查本机 Flutter 工具链；没有则国内源下载；把静心从冥想工具升级成"真正能让人平静的软件"；嫌俗套后拍板做成游戏；每 20 分钟升级一次（通宵循环）；先确认 git 已 push 并给修改前版本打 tag
-- AI 行动: 确认本机无 Flutter；南大镜像下载 Flutter 3.47.4 stable（后台）；创建定时任务 automation-1ded3cbe（每20分钟游戏化增量升级，路径 C:\FengProj\flutter，pub 走 flutter-io.cn）；定稿《静境》游戏概念（呼吸即操作/无失败/苏醒度/心境星图/心镜碎片/长夜白噪音）；git 确认与 origin 同步，打 tag v1.0-pre-jingjing 并推送
+- AI 行动: 确认本机无 Flutter；南大镜像下载 Flutter 3.47.4 stable（后台）；创建定时任务 automation-1ded3cbe（每20分钟游戏化增量升级，路径 C:\Projects\flutter，pub 走 flutter-io.cn）；定稿《静境》游戏概念（呼吸即操作/无失败/苏醒度/心境星图/心镜碎片/长夜白噪音）；git 确认与 origin 同步，打 tag v1.0-pre-jingjing 并推送
 - 产出: tag v1.0-pre-jingjing 已上 GitHub；todo.md 愿景入账；定时任务运行中
 - 关键决策: 方向从"加功能"改为"游戏化重构"——《静境》：用呼吸玩、无 HUD 无分数、唯一进度是世界苏醒度；设计理念 CYBER-ZEN 不变，具体设计进化
 
 ## 2026-09-13 09:00 — 第 2 轮
 - 用户要求: 继续通宵升级流程；确认 git 已 push 并给重构前版本打 tag
-- AI 行动: 确认本地与 origin/master 同步；打 tag v1.0-pre-jingjing 并推送 GitHub；Flutter 3.47.4 下载（南大镜像，断点续传）+ 解压到 C:\FengProj\flutter + PATH/pub 镜像永久配置；flutter doctor 通过（web 构建 OK）；pub get + analyze（0 error）+ flutter build web 基线编译通过；删除安装包
+- AI 行动: 确认本地与 origin/master 同步；打 tag v1.0-pre-jingjing 并推送 GitHub；Flutter 3.47.4 下载（南大镜像，断点续传）+ 解压到 C:\Projects\flutter + PATH/pub 镜像永久配置；flutter doctor 通过（web 构建 OK）；pub get + analyze（0 error）+ flutter build web 基线编译通过；删除安装包
 - 产出: tag v1.0-pre-jingjing；Flutter 工具链就绪；项目基线可构建
 - 关键决策: 游戏化方向《静境》定稿；每20分钟升级循环（automation-1ded3cbe）待接管，首轮将从引入 Flame 引擎开始
 ## 2026-09-13 09:06 — 第 1 轮（通宵升级 auto-night-1）
