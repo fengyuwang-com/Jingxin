@@ -687,3 +687,9 @@
 - AI 行动: 发现远端有 2 个本地没有的 commit（AGPLv3 重授权 + 官网链接），rebase 本地 111 个 commit 后推送；首次 CI 被 analyze 基线 warning 挡（--no-fatal-warnings 不压 info），修 workflow 为 --no-fatal-infos --no-fatal-warnings；deploy-pages 404 → gh api 启用 Pages（build_type=workflow）→ rerun 成功。
 - 产出: https://fengyuwang-com.github.io/Jingxin/ 上线（HTTP 200）；commit d3230a0（ci 修复）；此后每次 push master（lib/web/pubspec/workflow 改动）自动 analyze→test→build→部署。
 - 关键决策: ① rebase 而非 merge 保持线性历史；② CI 只阻断 error，19 条基线不挡部署；③ 用 gh api 代替手点 Settings 完成 Pages 启用。
+
+## 2026-09-29 23:54 — 第 68 轮
+- 用户要求: 用户反馈环境演出太隐形（"要显性出现，不是一关关解锁，所有东西我都能看到"），第 68 轮做显性化第一步：四环境层常显调亮（星潮0.40/萤迹0.50/风痕0.36/渊光0.46），紊乱只降到 ≥0.6×平稳，渊光动态量等比放大，更新测试+语义锁，三门槛通过后 commit 不 push。
+- AI 行动: 四个纯函数文件调档（fireflyVisual 新增 amp=0.6+0.4×steady、windTraceVisual 0.24+0.12s、abyssGlowVisual 0.28+0.18s，assimLift 0.08、pulse 0.10、总封顶 0.54）；jingjing_game.dart 四 Layer 注释同步新语义；四测试文件更新旧断言+各加"显性化语义锁"组（①②③共 12 条）；保留 BlendMode.screen（底色近黑 screen≈加法发光不发灰）。
+- 产出: commit feat(game): 显性化第一步——环境演出常显调亮 [auto-night-68]（未 push）；测试 416→428 全过；analyze 19 基线持平 0 error；build web 成功；UPGRADE-LOG/FENGMEM/todo 第 68 轮入账。
+- 关键决策: ① 新方向写死："显性可见、紊乱只略暗不消失"，紊乱下限 ≥0.6×平稳进语义锁测试防回退；② 萤迹"紊乱变暗"用整体幅度系数 amp 实现（趋同机制保留），0.5 峰值相位仍是相位不动点但亮度随幅度降为 0.30=0.6×0.50；③ screen 混合保留：底色 #030711~#101828 近黑，screen 等价加法、无发灰面，换混合模式风险大于收益；④ 渊光动态量（lift/脉动/总封顶）随基亮等比放大保戏剧比例，量化后恰落 0.02 网格；⑤ 教训：网格断言用 roundToDouble 不用 floorToDouble（浮点表示误差会让 26.999… 被 floor 咬成 26）。

@@ -81,7 +81,7 @@ void main() {
   });
 
   group('fireflyVisual 亮度映射', () {
-    test('峰值封顶 0.09', () {
+    test('峰值封顶 0.50（第 68 轮显性化档）', () {
       for (final s in [0.0, 0.5, 1.0]) {
         final a = fireflyVisual(0.5, s);
         expect(a, lessThanOrEqualTo(kFireflyPeakAlpha + 1e-9));
@@ -99,8 +99,8 @@ void main() {
       }
     });
 
-    test('峰值量化后有效上限 0.08（0.09 落回 0.08 档）', () {
-      expect(fireflyVisual(0.5, 1.0), 0.08);
+    test('峰值恰落 0.50 档（平稳态，封顶即有效上限）', () {
+      expect(fireflyVisual(0.5, 1.0), closeTo(0.50, 1e-9));
     });
 
     test('相位 wrap：-0.5 与 0.5 同亮', () {
@@ -110,20 +110,21 @@ void main() {
       }
     });
 
-    test('同步趋同端点：平稳时（s=1）错开相位被拉向共同峰值，比紊乱时更亮',
+    test('同步趋同端点：平稳时（s=1）错开相位被拉向共同峰值，且整体更亮',
         () {
       // 一只相位偏离 0.5 的萤火：平稳时被拉得更近峰值 -> 更亮。
       final scattered = fireflyVisual(0.1, 0.0);
       final synced = fireflyVisual(0.1, 1.0);
       expect(synced, greaterThan(scattered));
-      // 反向：恰在峰值处的萤火，拉向 0.5 不衰减（0.5 是不动点）。
-      expect(fireflyVisual(0.5, 0.0), fireflyVisual(0.5, 1.0));
-      // 端点单调：同一相位，平稳度越高亮度越接近峰值亮度。
+      // 反向：恰在峰值处的萤火，相位拉向 0.5 不动（0.5 是不动点）；
+      // 第 68 轮起整体幅度随平稳度变化：紊乱 0.6 倍、平稳 1.0 倍。
+      expect(fireflyVisual(0.5, 0.0), closeTo(0.30, 1e-9));
+      expect(fireflyVisual(0.5, 1.0), closeTo(0.50, 1e-9));
+      // 逐相位单调：同一相位，平稳度越高不更暗（趋同与幅度同向）。
       for (double p = 0.0; p < 1.0; p += 0.05) {
-        final lo = fireflyVisual(p, 0.0);
-        final hi = fireflyVisual(p, 1.0);
-        final peak = fireflyVisual(0.5, 0.0);
-        expect((peak - hi).abs(), lessThanOrEqualTo((peak - lo).abs() + 1e-9));
+        expect(fireflyVisual(p, 0.0),
+            lessThanOrEqualTo(fireflyVisual(p, 1.0) + 1e-9),
+            reason: 'p=$p');
       }
     });
   });
@@ -202,7 +203,42 @@ void main() {
         expect(steps, closeTo(steps.roundToDouble(), 1e-6), reason: 'v=$v');
         expect(q, lessThanOrEqualTo(v + 1e-9), reason: 'v=$v');
       }
-      expect(fireflyQuantize(0.09), 0.08); // 峰值 0.09 落回 0.08 档。
+      expect(fireflyQuantize(0.09), 0.08); // 量化行为本身：0.09 落回 0.08 档。
+    });
+  });
+
+  group('显性化语义锁（第 68 轮）', () {
+    test('① 平稳态峰值 alpha ≥ 0.45（点状目标要更亮，目标 0.50）', () {
+      final peak = fireflyVisual(0.5, 1.0);
+      expect(peak, greaterThanOrEqualTo(0.45));
+      expect(peak, closeTo(0.50, 1e-9)); // 恰落 0.02 网格的目标档。
+    });
+
+    test('② 紊乱态 ≥ 0.6×平稳态（峰值相位对齐比较；逐相位平稳不更暗）', () {
+      // 明灭包络谷底本就趋 0（呼吸式明灭是演出本体，与紊乱无关），
+      // 锁在可比相位上：峰值相位 0.5 是趋同不动点，紊乱峰值 0.30 =
+      // 0.6×平稳 0.50——只略暗不消失。
+      final steady = fireflyVisual(0.5, 1.0);
+      final rough = fireflyVisual(0.5, 0.0);
+      expect(rough, closeTo(0.30, 1e-9));
+      expect(rough, greaterThanOrEqualTo(steady * 0.6 - 1e-9));
+      // 逐相位：紊乱恒不比平稳更亮（相位趋同与幅度系数同向）。
+      for (double p = -0.5; p < 1.5; p += 0.017) {
+        expect(fireflyVisual(p, 0.0),
+            lessThanOrEqualTo(fireflyVisual(p, 1.0) + 1e-9),
+            reason: 'p=$p');
+      }
+    });
+
+    test('③ 全输入域落 0.02 量化网格', () {
+      for (final s in [0.0, 0.3, 0.7, 1.0]) {
+        for (double p = -0.5; p < 1.5; p += 0.011) {
+          final a = fireflyVisual(p, s);
+          final q = a / kFireflyAlphaStep;
+          expect(q, closeTo(q.roundToDouble(), 1e-6),
+              reason: 'p=$p s=$s a=$a');
+        }
+      }
     });
   });
 }

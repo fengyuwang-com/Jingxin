@@ -4,16 +4,21 @@ import 'dart:math' as math;
 ///
 /// 六区域中疲惫荒原至今只有旷野与兽的注视；风痕是荒原专属的环境层：
 /// 极长的水平缓行弧线贴着旷野走（荒原的风贴地走，不下雨不卷沙），
-/// 随呼吸般的 9~14s 周期明灭。呼吸平稳时风更轻柔绵长，紊乱时风自己
-/// 收短变淡——**荒原不催你，风自己慢下来**。
+/// 随呼吸般的 9~14s 周期明灭。呼吸平稳时风更轻柔绵长更亮，紊乱时风
+/// 自己收短、只略暗到 2/3（0.24，依然一眼可见）——**荒原不催你，风
+/// 自己慢下来**。第 68 轮显性化（用户反馈"要显性出现，不是一关关解
+/// 锁"）：从 0.06 的隐形彩蛋调到肉眼明显档，进原即刻可见，不做解锁
+/// 式隐藏。
 ///
 /// 语义写死：风痕无声音、无碎片、无文案、不参与任何经济/进度系统——
 /// 它纯粹是荒原在呼吸（防后续轮误加经济/收集系统）。
 ///
 /// 全部函数为纯函数、无类型依赖（不 import 游戏类型），便于测试。
 
-/// 风痕亮度的硬封顶（克制原则，六环境层中最淡）。
-const double kWindTracePeakAlpha = 0.06;
+/// 风痕亮度的硬封顶（第 68 轮显性化：0.06→0.36，仍是四环境层中最
+/// 淡——线状大目标不需要点状光斑那么亮；恰为 0.02 量化步长的 18 倍。
+/// 紊乱时 0.24，≥0.6×平稳，仍一眼可见）。
+const double kWindTracePeakAlpha = 0.36;
 
 /// 风痕亮度的量化步长。
 const double kWindTraceAlphaStep = 0.02;
@@ -127,13 +132,14 @@ double windTraceField(double x, double phaseMs) {
 /// 风痕视觉映射：呼吸平稳度 breathSteadiness（0..1，低通后的连续值）
 /// → (alpha, lengthScale)。
 ///
-/// 呼吸平稳（→1）时风更轻柔绵长：alpha 峰值升至封顶
-/// [kWindTracePeakAlpha]（0.02 量化）、长度系数 1.0；紊乱（→0）时
-/// 风自己收短变淡（alpha 0.04、长度系数 0.6）——荒原不催你。alpha
-/// 恒 ≤ 封顶，封顶不随平稳度变化；两端 0.04/0.06 均恰在量化网格上。
+/// 呼吸平稳（→1）时风更轻柔绵长：alpha 升至封顶 [kWindTracePeakAlpha]
+/// （0.02 量化）、长度系数 1.0；紊乱（→0）时风自己收短变淡（alpha
+/// 0.24、长度系数 0.6）——荒原不催你。alpha 恒 ≤ 封顶，封顶不随平稳
+/// 度变化；两端 0.24/0.36 均恰在量化网格上（紊乱 = 平稳的 2/3：
+/// **只略暗不消失**，显性可见是底线）。
 ({double alpha, double lengthScale}) windTraceVisual(double breathSteadiness) {
   final s = breathSteadiness.clamp(0.0, 1.0);
-  var a = 0.04 + 0.02 * s;
+  var a = 0.24 + 0.12 * s;
   if (a > kWindTracePeakAlpha) a = kWindTracePeakAlpha;
   return (
     alpha: windTraceQuantize(a),
@@ -152,8 +158,8 @@ double windTraceSway(double field) {
       kWindTraceSwayStep;
 }
 
-/// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，峰值 0.06 恰
-/// 是量化步长的整数倍，封顶即有效上限）。
+/// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，峰值 0.36 恰
+/// 是量化步长的整数倍（18 档），封顶即有效上限）。
 double windTraceQuantize(double v) {
   if (v <= 0) return 0;
   return ((v + 1e-9) / kWindTraceAlphaStep).floorToDouble() *
