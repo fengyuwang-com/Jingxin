@@ -113,12 +113,12 @@ void main() {
       }
     });
 
-    test('visual 端点：平稳 → 峰值 0.06、长度 1.0；紊乱 → 0.03、0.6', () {
+    test('visual 端点：平稳 → 封顶 0.36、长度 1.0；紊乱 → 0.24、0.6', () {
       final steady = windTraceVisual(1.0);
-      expect(steady.alpha, closeTo(0.06, 1e-9));
+      expect(steady.alpha, closeTo(0.36, 1e-9));
       expect(steady.lengthScale, closeTo(1.0, 1e-9));
       final chaotic = windTraceVisual(0.0);
-      expect(chaotic.alpha, closeTo(0.04, 1e-9));
+      expect(chaotic.alpha, closeTo(0.24, 1e-9));
       expect(chaotic.lengthScale, closeTo(0.6, 1e-9));
     });
 
@@ -170,6 +170,38 @@ void main() {
       for (double v = 0; v < 0.2; v += 0.001) {
         final q = windTraceQuantize(v);
         expect(q, lessThanOrEqualTo(v + 1e-9), reason: 'v=$v');
+      }
+    });
+  });
+
+  group('显性化语义锁（第 68 轮）', () {
+    test('① 平稳态 alpha ≥ 0.35（肉眼明显档，目标 0.36）', () {
+      final peak = windTraceVisual(1.0).alpha;
+      expect(peak, greaterThanOrEqualTo(0.35));
+      expect(peak, closeTo(0.36, 1e-9)); // 恰落 0.02 网格的目标档。
+    });
+
+    test('② 紊乱态 ≥ 0.6×平稳态（全平稳度扫描，只略暗不消失）', () {
+      final steady = windTraceVisual(1.0).alpha;
+      // 紊乱端点 0.24 = 平稳 0.36 的 2/3 ≥ 0.6。
+      final rough = windTraceVisual(0.0).alpha;
+      expect(rough, closeTo(0.24, 1e-9));
+      expect(rough, greaterThanOrEqualTo(steady * 0.6 - 1e-9));
+      // 全扫描：alpha 恒 ≥ 紊乱档 0.24 ≥ 0.6×平稳（单调不回跌）。
+      for (double s = 0; s <= 1.0; s += 0.01) {
+        expect(windTraceVisual(s).alpha,
+            greaterThanOrEqualTo(steady * 0.6 - 1e-9), reason: 's=$s');
+      }
+    });
+
+    test('③ 全输入域落 0.02 量化网格（floor 取整不放大原值）', () {
+      for (double s = 0; s <= 1.0; s += 0.013) {
+        final a = windTraceVisual(s).alpha;
+        final q = a / kWindTraceAlphaStep;
+        expect(q, closeTo(q.roundToDouble(), 1e-6), reason: 's=$s');
+        final raw = 0.24 + 0.12 * s.clamp(0.0, 1.0);
+        expect(a, lessThanOrEqualTo(raw + 1e-9),
+            reason: 's=$s 量化放大了原值');
       }
     });
   });

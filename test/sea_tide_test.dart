@@ -76,11 +76,11 @@ void main() {
       expect(seaTideVisual(0, 1), 0);
     });
 
-    test('seaTideVisual 封顶：不超 0.07，且全部 0.02 量化', () {
+    test('seaTideVisual 封顶：不超 0.40，且全部 0.02 量化', () {
       for (double f = -1; f <= 1.001; f += 0.031) {
         for (double s = 0; s <= 1.001; s += 0.1) {
           final a = seaTideVisual(f, s);
-          expect(a, lessThanOrEqualTo(0.07 + eps));
+          expect(a, lessThanOrEqualTo(kSeaTidePeakAlpha + eps));
           expect(a / 0.02 % 1, closeTo(0, 1e-6), reason: 'f=$f s=$s a=$a');
         }
       }
@@ -93,15 +93,15 @@ void main() {
       // 中等场强处：量化后至少不更暗。
       expect(seaTideVisual(0.5, 1.0),
           greaterThanOrEqualTo(seaTideVisual(0.5, 0.0)));
-      // 满场强时两者都触顶（0.06 量化上限 ≤ 0.07 封顶）。
+      // 满场强时：平稳触封顶 0.40，紊乱 0.8 倍幅度恰落 0.32 档。
       final peakS = seaTideVisual(1.0, 1.0);
       final peakU = seaTideVisual(-1.0, 0.0);
-      expect(peakS, lessThanOrEqualTo(0.07));
-      expect(peakU, lessThanOrEqualTo(0.07));
-      // 平稳端点：1×1.0×0.07 → 量化到 0.06。
-      expect(peakS, closeTo(0.06, 1e-9));
-      // 紊乱端点：0.8 幅度 → 0.056 → 量化 0.04。
-      expect(peakU, closeTo(0.04, 1e-9));
+      expect(peakS, lessThanOrEqualTo(kSeaTidePeakAlpha + eps));
+      expect(peakU, lessThanOrEqualTo(kSeaTidePeakAlpha + eps));
+      // 平稳端点：1×1.0×0.40 → 量化后恰 0.40（封顶即有效上限）。
+      expect(peakS, closeTo(0.40, 1e-9));
+      // 紊乱端点：0.8 幅度 → 0.32，仍远在肉眼可见档（≥0.6×平稳）。
+      expect(peakU, closeTo(0.32, 1e-9));
       // 紊乱收窄是下限：任意场强下紊乱 alpha ≤ 平稳 alpha。
       for (double f = 0; f <= 1.001; f += 0.017) {
         expect(seaTideVisual(f, 0.0),
@@ -148,6 +148,53 @@ void main() {
     test('世界周期副本与游戏常量对齐（2400x1800）', () {
       expect(kSeaTideWorldW, 2400);
       expect(kSeaTideWorldH, 1800);
+    });
+  });
+
+  group('显性化语义锁（第 68 轮）', () {
+    const eps = 1e-9;
+
+    test('① 平稳态峰值 alpha ≥ 0.35（肉眼明显档，目标 0.40）', () {
+      final peak = seaTideVisual(1.0, 1.0);
+      expect(peak, greaterThanOrEqualTo(0.35));
+      expect(peak, closeTo(0.40, eps)); // 恰落 0.02 网格的目标档。
+    });
+
+    test('② 紊乱态 ≥ 0.6×平稳态（只略暗不消失；可见档内逐点成立）', () {
+      // 满场强端点：0.32 ≥ 0.6×0.40。
+      expect(seaTideVisual(1.0, 0.0),
+          greaterThanOrEqualTo(0.6 * seaTideVisual(1.0, 1.0) - eps));
+      // 全扫描：平稳可见档（≥0.10）内逐点 ≥0.6×（floor 量化不破坏，
+      // 设计比 0.8）；近零档本就趋近不可见，允许一个步进松量。
+      for (double f = 0; f <= 1.001; f += 0.013) {
+        final steady = seaTideVisual(f, 1.0);
+        final rough = seaTideVisual(f, 0.0);
+        if (steady >= 0.10) {
+          expect(rough, greaterThanOrEqualTo(steady * 0.6 - eps),
+              reason: 'f=$f steady=$steady rough=$rough');
+        } else {
+          expect(
+            rough,
+            greaterThanOrEqualTo(steady * 0.6 - kSeaTideAlphaStep + eps),
+            reason: 'f=$f steady=$steady rough=$rough',
+          );
+        }
+      }
+    });
+
+    test('③ 全输入域落 0.02 量化网格（floor 取整不放大原值）', () {
+      for (double f = -1; f <= 1.001; f += 0.023) {
+        for (double s = 0; s <= 1.001; s += 0.07) {
+          final a = seaTideVisual(f, s);
+          final q = a / kSeaTideAlphaStep;
+          expect(q, closeTo(q.roundToDouble(), 1e-6),
+              reason: 'f=$f s=$s a=$a');
+          final raw =
+              f.abs() * (0.8 + 0.2 * s.clamp(0.0, 1.0)) * kSeaTidePeakAlpha;
+          expect(a, lessThanOrEqualTo(raw + eps),
+              reason: 'f=$f s=$s 量化放大了原值');
+        }
+      }
     });
   });
 }

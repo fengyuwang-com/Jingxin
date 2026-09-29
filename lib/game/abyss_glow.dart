@@ -5,17 +5,22 @@ import 'dart:math' as math;
 /// 六区域中焦虑之渊一直只有乱星与渊底心跳辉光；渊光是渊专属的环境层
 /// （收官）：几簇微光自渊底极缓上浮（3~6px/s，比萤火快一线、比风痕慢
 /// 许多——渊里的光只是不想沉太久），亮度随呼吸般的 8~12s 周期明灭，
-/// 每簇相位错开。呼吸越平稳，光点排布越舒展（半径微增）；紊乱时收拢
-/// ——**渊不吓你，只是有几缕光愿意先亮一点**。
+/// 每簇相位错开。呼吸越平稳，光点排布越舒展（半径微增）、越亮（平稳
+/// 态 0.46）；紊乱时收拢、只略暗到 0.28（≥0.6×平稳，依然一眼可见）
+/// ——**渊不吓你，只是有几缕光愿意先亮一点**。第 68 轮显性化（用户
+/// 反馈"要显性出现，不是一关关解锁"）：从 0.08 的隐形彩蛋调到肉眼
+/// 明显档，进渊即刻可见，不做解锁式隐藏；同化抬升/渊息脉动等动态量
+/// 随基亮等比放大，相对戏剧比例不变。
 ///
 /// 语义写死：渊光无声音、无碎片、无文案、不参与任何经济/进度系统——
 /// 它纯粹是渊在呼吸（防后续轮误加经济/收集系统）。
 ///
 /// 全部函数为纯函数、无类型依赖（不 import 游戏类型），便于测试。
 
-/// 渊光亮度的硬封顶（第 64 轮随同化抬升上调一档：0.08→0.10，仍落在
-/// 0.02 量化网格上——克制原则不变，只是渊底心跳多允许一线呼应）。
-const double kAbyssGlowPeakAlpha = 0.10;
+/// 渊光亮度的硬封顶（第 68 轮显性化：0.10→0.54 = 平稳态 0.46 + 同化
+/// 抬升最多 0.08，全部恰落 0.02 量化网格——显性可见是底线，动态呼应
+/// 的相对戏剧比例随基亮等比保留）。
+const double kAbyssGlowPeakAlpha = 0.54;
 
 /// 渊光亮度的量化步长。
 const double kAbyssGlowAlphaStep = 0.02;
@@ -133,13 +138,14 @@ AbyssGlowState abyssGlowAt(
 /// 渊光视觉映射：呼吸平稳度 breathSteadiness（0..1，低通后的连续值）
 /// → (alpha, radiusScale)。
 ///
-/// 呼吸平稳（→1）时簇内光点排布更舒展（半径系数升至 1.0）、亮度峰值
-/// 升至封顶 [kAbyssGlowPeakAlpha]；紊乱（→0）时光点自己收拢（0.85）、
-/// 变淡（0.04）——渊不催你。alpha 恒 ≤ 封顶，封顶不随平稳度变化；
-/// 两端 0.04/0.08 均恰在 0.02 量化网格上。
+/// 呼吸平稳（→1）时簇内光点排布更舒展（半径系数升至 1.0）、亮度升至
+/// 平稳态档 0.46（第 68 轮显性化目标）；紊乱（→0）时光点自己收拢
+/// （0.85）、只略暗到 0.28（≥0.6×平稳——**只略暗不消失**）——渊不
+/// 催你。alpha 恒 ≤ 总封顶 [kAbyssGlowPeakAlpha]（含同化抬升），封顶
+/// 不随平稳度变化；两端 0.28/0.46 均恰在 0.02 量化网格上。
 ({double alpha, double radiusScale}) abyssGlowVisual(double breathSteadiness) {
   final s = breathSteadiness.clamp(0.0, 1.0);
-  var a = 0.04 + 0.04 * s;
+  var a = 0.28 + 0.18 * s;
   if (a > kAbyssGlowPeakAlpha) a = kAbyssGlowPeakAlpha;
   return (
     alpha: abyssGlowQuantize(a),
@@ -147,9 +153,11 @@ AbyssGlowState abyssGlowAt(
   );
 }
 
-/// 同化抬升的最大档（第 64 轮）：渊区乱星被完全同化时，渊光在原有
-/// alpha 基础上最多加亮一档（0.02）——极小的呼应，不是新进度条。
-const double kAbyssGlowAssimLiftMax = 0.02;
+/// 同化抬升的最大档（第 64 轮引入、第 68 轮随基亮等比放大 0.02→0.08，
+/// 恰为四档量化步进——保持"完全同化多亮一线"的相对戏剧比例）：渊区
+/// 乱星被完全同化时，渊光在原有 alpha 基础上最多加亮 0.08——是呼应，
+/// 不是新进度条。
+const double kAbyssGlowAssimLiftMax = 0.08;
 
 /// 判定"渊区被完全同化"、可重置长叹息闸门的同化度阈值。
 const double kAbyssGlowFullAssimilation = 0.95;
@@ -157,11 +165,12 @@ const double kAbyssGlowFullAssimilation = 0.95;
 /// 渊底心跳与缓升光的呼应（第 64 轮）：渊区乱星被同化的程度
 /// assimilation（0..1，即 AnxietyAbyss.calm）→ 额外亮度抬升。
 ///
-/// 0→0、1→[kAbyssGlowAssimLiftMax]（恰为一档量化步进），smoothstep
-/// 单调过渡；渲染层把 lift 叠进簇亮度后再走 [abyssGlowQuantize]——
-/// 只在原有 alpha 基础上加档，紊乱收拢语义不变，总封顶相应提到 0.10
-/// （仍落在 0.02 网格上）。语义写死：这不是新进度条、不加任何数字/
-/// UI 提示、不参与经济系统——念头归于一致时，渊底的微光愿意多亮一线。
+/// 0→0、1→[kAbyssGlowAssimLiftMax]（第 68 轮起恰为四档量化步进
+/// 0.08），smoothstep 单调过渡；渲染层把 lift 叠进簇亮度后再走
+/// [abyssGlowQuantize]——只在原有 alpha 基础上加亮，紊乱收拢语义
+/// 不变，常态总封顶 0.54（仍落在 0.02 网格上）。语义写死：这不是新
+/// 进度条、不加任何数字/UI 提示、不参与经济系统——念头归于一致时，
+/// 渊底的微光愿意多亮一线。
 double abyssGlowAssimilationLift(double assimilation) {
   return kAbyssGlowAssimLiftMax * _smooth(assimilation.clamp(0.0, 1.0));
 }
@@ -245,11 +254,12 @@ double abyssGlowSighOffsetPx(double progress) {
 /// 一次渊息的时长（毫秒，约 2.5s——一口气的量级）。
 const double kAbyssPulseDurationMs = 2500.0;
 
-/// 渊息峰值亮度抬升（alpha 档，0.03——加在原有亮度上的一小口气，
-/// 渲染层叠加后仍走 [abyssGlowQuantize] 统一量化）。量化到 0.02 网格
-/// 后有效形态为"轻抬一档（0.02）再落回"；峰值窗口内总 alpha 临时可
-/// 到 0.12（常态封顶 0.10 不变，脉动约 2.5s 结束后自然回落）。
-const double kAbyssPulsePeakAlpha = 0.03;
+/// 渊息峰值亮度抬升（第 65 轮引入 0.03、第 68 轮随基亮等比放大
+/// 0.03→0.10，恰为五档量化步进——加在原有亮度上的一口气，渲染层叠加
+/// 后仍走 [abyssGlowQuantize] 统一量化）。量化到 0.02 网格后的有效
+/// 形态为"抬升数档（最多 0.10）再落回"；峰值窗口内总 alpha 临时可到
+/// 0.64（常态封顶 0.54，脉动约 2.5s 结束后自然回落）。
+const double kAbyssPulsePeakAlpha = 0.10;
 
 /// 渊息期间明灭相位向共同相位靠拢的最大趋同系数（与呼吸平稳度里
 /// 的"趋同"同一手法：只是更同步地一起呼出这口气，不是新特效开关）。
@@ -264,8 +274,8 @@ const double kAbyssPulseRearmCalm = 0.90;
 /// 渊息包络（纯函数）：tMs ∈ [0, kAbyssPulseDurationMs] 上的 sin 半波
 /// ——两端恰落 0、峰值 [kAbyssPulsePeakAlpha]（0→升→回落，一口气的形）。
 /// 界外（tMs ≤ 0 或 ≥ 时长）返回 0。结果量化到 0.02 网格（floor）：
-/// 峰值段（envelope ≥ 2/3）落在 0.02 档，其余段为 0——**脉动的可见
-/// 形态是"轻抬一档再落回"**，克制、无声、无奖；量化不放大原值。
+/// 峰值段落在 0.08~0.10 档、中段 0.02~0.06 渐变——**脉动的可见形态
+/// 是"抬升数档再落回"**，无声、无奖；量化不放大原值。
 double abyssPulseEnvelope(double tMs) {
   if (tMs <= 0 || tMs >= kAbyssPulseDurationMs) return 0;
   final raw =
@@ -333,8 +343,8 @@ double abyssAfterglowPeriodPull(double envelope) {
   return (kAbyssAfterglowPeriodPullMax * e).clamp(0.0, kAbyssAfterglowPeriodPullMax);
 }
 
-/// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，峰值 0.08 恰
-/// 是量化步长的整数倍，封顶即有效上限）。
+/// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，visual 平稳峰
+/// 值 0.46 恰是量化步长的整数倍（23 档），封顶即有效上限）。
 double abyssGlowQuantize(double v) {
   if (v <= 0) return 0;
   return ((v + 1e-9) / kAbyssGlowAlphaStep).floorToDouble() *

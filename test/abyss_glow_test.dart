@@ -98,15 +98,15 @@ void main() {
       }
     });
 
-    test('visual 端点：平稳 0.08/1.0、紊乱 0.04/0.85，两端恰在量化网格上', () {
+    test('visual 端点：平稳 0.46/1.0、紊乱 0.28/0.85，两端恰在量化网格上', () {
       final calm = abyssGlowVisual(1.0);
-      // visual 自身峰值仍 0.08（第 63 轮语义不变）；总封顶 0.10 是叠加
-      // 同化抬升（最多一档 0.02）后的硬上限。
-      expect(calm.alpha, 0.08);
-      expect(kAbyssGlowPeakAlpha, 0.10);
+      // visual 自身平稳档 0.46（第 68 轮显性化目标）；总封顶 0.54 是
+      // 叠加同化抬升（最多 0.08）后的硬上限。
+      expect(calm.alpha, closeTo(0.46, 1e-9));
+      expect(kAbyssGlowPeakAlpha, closeTo(0.54, 1e-9));
       expect(calm.radiusScale, 1.0);
       final rough = abyssGlowVisual(0.0);
-      expect(rough.alpha, 0.04); // 0.04 恰在 0.02 网格。
+      expect(rough.alpha, closeTo(0.28, 1e-9)); // ≥0.6×平稳，恰在 0.02 网格。
       expect(rough.radiusScale, 0.85);
     });
 
@@ -260,10 +260,10 @@ void main() {
   });
 
   group('渊底心跳——同化度抬升（第 64 轮）', () {
-    test('lift 端点：0→0、1→0.02（恰一档量化步进），越界夹住', () {
+    test('lift 端点：0→0、1→0.08（第 68 轮随基亮等比放大，恰四档步进），越界夹住', () {
       expect(abyssGlowAssimilationLift(0.0), 0.0);
       expect(abyssGlowAssimilationLift(1.0), kAbyssGlowAssimLiftMax);
-      expect(kAbyssGlowAssimLiftMax, 0.02);
+      expect(kAbyssGlowAssimLiftMax, closeTo(0.08, 1e-9));
       expect(abyssGlowAssimilationLift(-0.5), 0.0);
       expect(abyssGlowAssimilationLift(3.0), kAbyssGlowAssimLiftMax);
     });
@@ -279,7 +279,7 @@ void main() {
     });
 
     test('lift smoothstep：中点取半峰值附近、两端导数趋 0（对称缓入缓出）', () {
-      expect(abyssGlowAssimilationLift(0.5), closeTo(0.01, 1e-12));
+      expect(abyssGlowAssimilationLift(0.5), closeTo(0.04, 1e-12));
       // smoothstep 对称：v(a)+v(1-a)=v(1)
       for (double a = 0; a <= 1.0; a += 0.07) {
         expect(
@@ -289,8 +289,8 @@ void main() {
       }
     });
 
-    test('叠进 visual 后总 alpha 封顶 0.10、全程落 0.02 量化网格', () {
-      expect(kAbyssGlowPeakAlpha, 0.10);
+    test('叠进 visual 后总 alpha 封顶 0.54、全程落 0.02 量化网格', () {
+      expect(kAbyssGlowPeakAlpha, closeTo(0.54, 1e-9));
       for (double s = 0; s <= 1.0001; s += 0.05) {
         final vis = abyssGlowVisual(s);
         for (double a = 0; a <= 1.0001; a += 0.05) {
@@ -379,8 +379,10 @@ void main() {
       expect(abyssPulseEnvelope(kAbyssPulseDurationMs), 0.0);
       expect(abyssPulseEnvelope(-1), 0.0);
       expect(abyssPulseEnvelope(99999), 0.0);
-      // 中点原始 sin 包络 = 峰值 0.03，量化后恰一档 0.02
-      expect(abyssPulseEnvelope(kAbyssPulseDurationMs / 2), kAbyssGlowAlphaStep);
+      // 中点原始 sin 包络 = 峰值 0.10，量化后恰落 0.10 档（第 68 轮起
+      // 为五档步进）。
+      expect(abyssPulseEnvelope(kAbyssPulseDurationMs / 2),
+          closeTo(kAbyssPulsePeakAlpha, 1e-9));
     });
 
     test('envelope 全程落在 0.02 量化网格上、恒 ≤ 峰值档、不放大原值', () {
@@ -494,19 +496,19 @@ void main() {
       expect(kAbyssPulseTriggerCalm, kAbyssGlowFullAssimilation);
       expect(kAbyssPulseRearmCalm, lessThan(kAbyssPulseTriggerCalm));
       expect(kAbyssPulseDurationMs, 2500.0);
-      expect(kAbyssPulsePeakAlpha, 0.03);
+      expect(kAbyssPulsePeakAlpha, closeTo(0.10, 1e-9)); // 第 68 轮等比放大。
     });
 
-    test('叠进 visual+lift+脉动后总 alpha 封顶 0.12、落 0.02 网格（脉动只加档）', () {
+    test('叠进 visual+lift+脉动后总 alpha 封顶 0.64、落 0.02 网格（脉动只加亮）', () {
       for (double s = 0; s <= 1.0001; s += 0.1) {
         final vis = abyssGlowVisual(s);
         for (double a = 0; a <= 1.0001; a += 0.1) {
           for (double t = 0; t <= kAbyssPulseDurationMs; t += 100) {
             final total = abyssGlowQuantize(
                 vis.alpha + abyssGlowAssimilationLift(a) + abyssPulseEnvelope(t));
-            // 常态封顶仍是第 64 轮的 0.10；只有渊息进行中的极短窗口
-            // （量化包络 0.02 档）允许临时到 0.12，结束后自然回落。
-            expect(total, lessThanOrEqualTo(kAbyssGlowPeakAlpha + kAbyssGlowAlphaStep + 1e-12));
+            // 常态总封顶是第 68 轮的 0.54；渊息进行中的短窗口（量化包
+            // 络最多 0.10）允许临时到 0.64，结束后自然回落。
+            expect(total, lessThanOrEqualTo(kAbyssGlowPeakAlpha + kAbyssPulsePeakAlpha + 1e-12));
             if (abyssPulseEnvelope(t) <= 0) {
               expect(total, lessThanOrEqualTo(kAbyssGlowPeakAlpha + 1e-12));
             }
@@ -644,6 +646,40 @@ void main() {
       expect(kAbyssAfterglowDurationMs, lessThan(kAbyssPulseDurationMs)); // 比一口气短
       expect(kAbyssAfterglowPeriodPullMax, lessThan(kAbyssPulsePhasePullMax)); // 余韵更克制
       expect(kAbyssAfterglowStart, lessThan(1.0)); // 不从 1 开始
+    });
+  });
+
+  group('显性化语义锁（第 68 轮）', () {
+    test('① 平稳态 alpha ≥ 0.35（肉眼明显档，目标 0.46）', () {
+      final peak = abyssGlowVisual(1.0).alpha;
+      expect(peak, greaterThanOrEqualTo(0.35));
+      expect(peak, closeTo(0.46, 1e-9)); // 恰落 0.02 网格的目标档。
+    });
+
+    test('② 紊乱态 ≥ 0.6×平稳态（全平稳度扫描，只略暗不消失）', () {
+      final steady = abyssGlowVisual(1.0).alpha;
+      // 紊乱端点 0.28 ≥ 0.6×0.46 = 0.276；全扫描 alpha 单调不回跌，
+      // 最低即 0.28，恒在界内。
+      expect(abyssGlowVisual(0.0).alpha, closeTo(0.28, 1e-9));
+      for (double s = 0; s <= 1.0001; s += 0.01) {
+        expect(abyssGlowVisual(s).alpha,
+            greaterThanOrEqualTo(steady * 0.6 - 1e-9), reason: 's=$s');
+      }
+    });
+
+    test('③ 全输入域落 0.02 量化网格（含叠满同化抬升+渊息脉动）', () {
+      for (double s = 0; s <= 1.0001; s += 0.07) {
+        for (double a = 0; a <= 1.0001; a += 0.11) {
+          for (double t = 0; t <= kAbyssPulseDurationMs; t += 173.0) {
+            final total = abyssGlowQuantize(abyssGlowVisual(s).alpha +
+                abyssGlowAssimilationLift(a) +
+                abyssPulseEnvelope(t));
+            final q = total / kAbyssGlowAlphaStep;
+            expect(q, closeTo(q.roundToDouble(), 1e-6),
+                reason: 's=$s a=$a t=$t');
+          }
+        }
+      }
     });
   });
 }

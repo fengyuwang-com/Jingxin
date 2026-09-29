@@ -1836,9 +1836,11 @@ class LandmarkLayer extends Component with HasGameReference<JingjingGame> {
 /// 星潮（第 60 轮）：失眠之海的呼吸涟漪——海专属的环境层。
 ///
 /// 六区域中失眠之海至今只有静态星图；星潮让海有了自己的呼吸：
-/// 缓行的涟漪相位场（[seaTideWave]，纯函数）铺在海面上，波峰极淡地
-/// 亮起（峰值 alpha 0.07 封顶、0.02 量化，[seaTideVisual]）。呼吸平稳
-/// 时波纹更舒展、紊乱时收窄——**海不惩罚你，只是陪你安静**。
+/// 缓行的涟漪相位场（[seaTideWave]，纯函数）铺在海面上，波峰显性地
+/// 亮起（平稳态峰值 alpha 0.40、0.02 量化，[seaTideVisual]）。呼吸平稳
+/// 时波纹更舒展更亮、紊乱时只收窄到 0.8 倍（依然一眼可见）——**海不
+/// 惩罚你，只是陪你安静**。第 68 轮显性化：进海区即刻可见，不做解锁
+/// 式隐藏。
 ///
 /// 语义写死：星潮无声音、无碎片、无文案、不参与任何经济/进度系统——
 /// 它纯粹是海在呼吸（防后续轮误加经济系统）。
@@ -1846,9 +1848,10 @@ class LandmarkLayer extends Component with HasGameReference<JingjingGame> {
 /// 性能纪律：只在光灵处于海区时演算与绘制（regionAtPoint 判定，海区
 /// 外整层短路）；相位每秒节拍推进 + 帧内插值（节拍间用已过的毫秒数
 /// 连续外推，绝不跳相）；弧线用预生成的稀疏采样网格（条数/点数在
-/// 构造时读画质档，低档减半——本就最淡的层）；Path 复用 reset，屏外
-/// 剔除，3x3 环绕镜像沿用星岛约定；潮线之下不遮任何可交互实体
-/// （画在星花层之下、BlendMode.screen，alpha ≤ 0.06）。
+/// 构造时读画质档，低档减半）；Path 复用 reset，屏外剔除，3x3 环绕
+/// 镜像沿用星岛约定；潮线之下不遮任何可交互实体（画在星花层之下、
+/// BlendMode.screen，alpha ≤ 0.40——世界底色近黑（voidBlack~#101828），
+/// screen 在近黑底上等价加法发光、不发灰，比光斑内加白核更柔）。
 class SeaTideLayer extends Component with HasGameReference<JingjingGame> {
   SeaTideLayer() {
     // 画质档在构造时读一次（低档采样点减半），运行期不再分支。
@@ -1947,10 +1950,12 @@ class SeaTideLayer extends Component with HasGameReference<JingjingGame> {
 /// 萤迹（第 61 轮）：纷心雾林的呼吸萤火——雾林专属的环境层。
 ///
 /// 极少数萤火在林间近乎凝滞地缓游（漂移 0.8~2.4px/s + ≤2px 正弦
-/// 摆动），随呼吸般的 6~9s 周期明灭（[fireflyVisual]，峰值 alpha
-/// 0.09 封顶、0.02 量化）。呼吸平稳时明灭更同步、紊乱时各自散乱
-/// ——**森林陪你整理呼吸，但不催促**。玩家近旁且呼吸平稳时，最近的
-/// 一只缓向光灵漂近一点（[fireflyApproach]，每秒 2~3px 上限、距离
+/// 摆动），随呼吸般的 6~9s 周期明灭（[fireflyVisual]，平稳态峰值
+/// alpha 0.50 封顶、0.02 量化）。呼吸平稳时明灭更同步、整体更亮，
+/// 紊乱时散乱且只收暗到 0.6 倍（依然一眼可见）——**森林陪你整理呼
+/// 吸，但不催促**。第 68 轮显性化：进林即刻可见，不做解锁式隐藏。
+/// 玩家近旁且呼吸平稳时，最近的一只缓向光灵漂近一点
+/// （[fireflyApproach]，每秒 2~3px 上限、距离
 /// <60px 即停），玩家离开后偏移缓释漂回原轨迹——若即若离，不跟随。
 ///
 /// 语义写死：萤迹无声音、无碎片、无文案、不参与任何经济/进度系统
@@ -2110,8 +2115,9 @@ class FireflyLayer extends Component with HasGameReference<JingjingGame> {
 ///
 /// 极长的水平缓行弧线贴着旷野走（[windTraceLine]，12~20px/s 贴地
 /// 缓行 + 确定性 y 摆动），随呼吸般的 9~14s 周期明灭。呼吸平稳时风
-/// 更轻柔绵长（alpha 封顶 0.06、线更长），紊乱时风自己收短变淡
-/// （[windTraceVisual]）——**荒原不催你，风自己慢下来**。
+/// 更轻柔绵长更亮（alpha 封顶 0.36、线更长），紊乱时风自己收短、只
+/// 略暗到 2/3（[windTraceVisual]）——**荒原不催你，风自己慢下来**。
+/// 第 68 轮显性化：进原即刻可见，不做解锁式隐藏。
 ///
 /// 语义写死：风痕无声音、无碎片、无文案、不参与任何经济/进度系统
 /// ——风不是收集物、不做引导（防后续轮误加经济/收集系统）。
@@ -2122,7 +2128,7 @@ class FireflyLayer extends Component with HasGameReference<JingjingGame> {
 /// 档 3 道，quality.dart windTraceCount，构造时读一次）；Paint/Path
 /// 构造期预生成复用、每帧零分配；屏外剔除 + oy 3x3 环绕镜像（水平
 /// 风痕横贯世界，基准点 x 自身 wrap）；长夜随 nightAmount 让位；
-/// introEase 短路。画在星花层之下，alpha ≤ 0.06 不遮任何可交互实体。
+/// introEase 短路。画在星花层之下，alpha ≤ 0.36 不遮任何可交互实体。
 class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
   WindTraceLayer() {
     // 画质档在构造时读一次（低档 3 道），运行期不再分支。
@@ -2252,13 +2258,15 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
 ///
 /// 几簇微光自渊底极缓上浮（[abyssGlowAt]，3~6px/s + 极轻横向摆），亮度
 /// 随呼吸般的 8~12s 周期明灭、每簇 Knuth 散列错相。呼吸越平稳，簇内光点
-/// 排布越舒展（[abyssGlowVisual] 半径微增）、越亮（alpha 峰值 0.08 封顶、
-/// 0.02 量化）；紊乱时收拢变淡——**渊不吓你，只是有几缕光愿意先亮一点**。
-/// 玩家在渊区停留且平稳约 30s（[abyssGlowDwellNext]）时，最近一簇整体
+/// 排布越舒展（[abyssGlowVisual] 半径微增）、越亮（平稳态 alpha 0.46、
+/// 总封顶 0.54、0.02 量化）；紊乱时收拢、只略暗到 0.28（依然一眼可见）
+/// ——**渊不吓你，只是有几缕光愿意先亮一点**。第 68 轮显性化：进渊
+/// 即刻可见，不做解锁式隐藏。玩家在渊区停留且平稳约 30s
+/// （[abyssGlowDwellNext]）时，最近一簇整体
 /// 上浮 12px、60s 缓成后停住（[abyssGlowSighNext] 长叹息），每簇至多
 /// 一次直到长夜重置——内存态，不持久化。第 64 轮起渊底心跳与缓升光呼
 /// 应：每秒节拍读乱星同化度（AnxietyAbyss.calm），[abyssGlowAssimilationLift]
-/// 把最多一档（0.02）亮度抬升叠进簇 alpha（总封顶 0.10、仍 0.02 量化，
+/// 把最多 0.08 的亮度抬升叠进簇 alpha（常态总封顶 0.54、仍 0.02 量化，
 /// 不加数字/UI、不参与经济）；完全同化（≥0.95）时所有簇的叹息闸门重置
 /// 一次（[abyssGlowSighResetGate]，内存态，让老玩家回渊还能再看一次松气）。
 ///
@@ -2272,7 +2280,7 @@ class WindTraceLayer extends Component with HasGameReference<JingjingGame> {
 /// 构造时读一次）；Paint 构造期预生成、簇内点排布构造期预算，每帧零
 /// 分配；屏外剔除 ±40px + 3x3 环绕镜像（簇心 y 自身 wrap，浮出顶端
 /// 回到渊底）；长夜随 nightAmount 让位；introEase 短路。画在星花层
-/// 之下，alpha ≤ 0.08 不遮任何可交互实体。
+/// 之下，alpha ≤ 0.46 不遮任何可交互实体。
 class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
   AbyssGlowLayer() {
     // 画质档在构造时读一次（低档 3 簇 × 2 点），运行期不再分支。
@@ -2547,8 +2555,8 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
     final abyssDy = nightSettleAbyssDyPx(game.nightAmount);
     final vis = abyssGlowVisual(_steady);
     final tint = const Color(kAbyssGlowTintValue);
-    // 渊息（第 65 轮）：进行中的集体脉动——包络（量化后 0/0.02 两档）与
-    // 相位趋同系数每帧只算一次，所有簇共用；共同相位取当前时刻全体簇
+    // 渊息（第 65 轮）：进行中的集体脉动——包络（量化后 0~0.10 数档）
+    // 与相位趋同系数每帧只算一次，所有簇共用；共同相位取当前时刻全体簇
     // 明灭相位的平均（圆均值），2.5s 后自然结束。
     var pulseEnv = 0.0;
     var pulsePull = 0.0;
@@ -2608,9 +2616,9 @@ class AbyssGlowLayer extends Component with HasGameReference<JingjingGame> {
           : ownPhase;
       final glow = 0.5 - 0.5 * math.cos(2 * math.pi * effPhase);
       final alpha = abyssGlowQuantize(
-        // 同化抬升叠进簇亮度：只在原有 alpha 基础上加档（封顶 0.10，
-        // quantize 后仍落 0.02 网格），紊乱收拢语义不变；渊息包络再叠
-        // 一档轻抬（量化后仍落网格，结束后自然回落）。
+        // 同化抬升叠进簇亮度：只在原有 alpha 基础上加亮（常态总封顶
+        // 0.54，quantize 后仍落 0.02 网格），紊乱收拢语义不变；渊息
+        // 包络再叠最多 0.10（脉动窗口临时到 0.64，结束后自然回落）。
         (vis.alpha + _assimLift + pulseEnv) * (0.35 + 0.65 * glow) *
             intro *
             nightYield,

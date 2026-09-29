@@ -4,8 +4,11 @@ import 'dart:math' as math;
 ///
 /// 六区域中雾林有自己的雾与守林者，但夜里没有一盏"活着的光"。萤迹
 /// 是雾林专属的环境层：极少数萤火在林间近乎凝滞地缓游，随呼吸般
-/// 6~9s 的周期明灭。呼吸平稳时它们明灭更同步，紊乱时各自散乱——
-/// **森林陪你整理呼吸，但不催促**。
+/// 6~9s 的周期明灭（平稳态峰值 alpha 0.50——点状小目标要更亮才显
+/// 性）。呼吸平稳时它们明灭更同步、整体更亮，紊乱时散乱且只收暗到
+/// 0.6 倍（0.30，依然一眼可见）——**森林陪你整理呼吸，但不催促**。
+/// 第 68 轮显性化（用户反馈"要显性出现，不是一关关解锁"）：从 0.09
+/// 的隐形彩蛋调到肉眼明显档，进林即刻可见，不做解锁式隐藏。
 ///
 /// 语义写死：萤迹无声音、无碎片、无文案、不参与任何经济/进度系统——
 /// 它们不是收集物、不做引导、不给任何奖励，纯粹是林间的微光（防
@@ -18,8 +21,10 @@ import 'dart:math' as math;
 ///
 /// 全部函数为纯函数、无类型依赖（不 import 游戏类型），便于测试。
 
-/// 萤火亮度的硬封顶（克制原则，与星潮同量级略高半档）。
-const double kFireflyPeakAlpha = 0.09;
+/// 萤火亮度的硬封顶（第 68 轮显性化：0.09→0.50——点状小目标比面状
+/// 波纹需要更高亮度才显性；恰为 0.02 量化步长的 25 倍。紊乱时幅度
+/// ×0.6 = 0.30，仍一眼可见）。
+const double kFireflyPeakAlpha = 0.50;
 
 /// 萤火亮度的量化步长。
 const double kFireflyAlphaStep = 0.02;
@@ -101,12 +106,16 @@ FireflyState fireflyGleamAt(
 }
 
 /// 萤火视觉映射：亮度相位 phase（0..1）与呼吸平稳度 breathSteadiness
-/// （0..1，低通后的连续值）→ 亮度 alpha（0..0.09 封顶，0.02 量化）。
+/// （0..1，低通后的连续值）→ 亮度 alpha（0..0.50 封顶，0.02 量化）。
 ///
 /// 相位趋同系数 k = 0.12 + 0.18×平稳度：呼吸平稳（→1）时每只萤火的
 /// 相位被轻拉向共同的峰值相位 0.5，明灭更同步；紊乱（→0）时各自
-/// 散乱（k 回落到 0.12 的本底）。封顶 [kFireflyPeakAlpha] 恒不变：
-/// 森林陪你整理呼吸，但不催促。
+/// 散乱（k 回落到 0.12 的本底）。
+///
+/// 整体幅度系数 amp = 0.6 + 0.4×平稳度（第 68 轮显性化新增）：平稳
+/// （→1）时峰值恰触封顶 0.50；紊乱（→0）时只收暗到 0.6 倍（峰值
+/// 0.30）——**只略暗不消失**，显性可见是底线：森林陪你整理呼吸，
+/// 但不催促。封顶 [kFireflyPeakAlpha] 恒不变。
 ///
 /// [glowFloor]（第 66 轮·长夜沉底，默认 0 = 旧行为）：明灭包络的下限。
 /// 渲染层传入 [nightSettleFireflyGlowFloor]（0.35→0.10），入夜后半段
@@ -124,7 +133,8 @@ double fireflyVisual(
   final e0 = 0.5 - 0.5 * math.cos(2 * math.pi * pulled);
   final f = glowFloor.clamp(0.0, 1.0);
   final e = f + (1.0 - f) * e0;
-  var a = e * kFireflyPeakAlpha;
+  final amp = 0.6 + 0.4 * breathSteadiness.clamp(0.0, 1.0);
+  var a = e * amp * kFireflyPeakAlpha;
   if (a > kFireflyPeakAlpha) a = kFireflyPeakAlpha;
   return fireflyQuantize(a);
 }
@@ -153,8 +163,8 @@ double fireflyVisual(
   return (x: cur.x + dx * t, y: cur.y + dy * t);
 }
 
-/// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，
-/// 峰值 0.09 经量化后有效上限为 0.08——恰在封顶之内）。
+/// 0.02 步进量化（向下取整；1e-9 容差防浮点误差掉步，峰值 0.50 恰是
+/// 量化步长的整数倍（25 档），封顶即有效上限）。
 double fireflyQuantize(double v) {
   if (v <= 0) return 0;
   return ((v + 1e-9) / kFireflyAlphaStep).floorToDouble() *
